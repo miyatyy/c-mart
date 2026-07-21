@@ -44,7 +44,9 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
   `;
 
   useEffect(() => {
-    fetch('http://192.168.18.18:3000/api/products')
+    const backendUrl = `http://${window.location.hostname}:3000/api/products`;
+
+    fetch(backendUrl)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.products) {
@@ -55,7 +57,7 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
             price: p.harga,
             stock: p.stok,
             category: p.kategori,
-            campus: p.kampus || campus,
+            campus: (p.kampus || 'semua').toLowerCase().trim(),
             sellerId: p.sellerId || 'seller_1',
             sellerName: p.sellerName || 'Penjual Antasari',
             image: p.foto || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format',
@@ -74,7 +76,10 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
   }, [campus])
 
   const products = productsList.filter(p => {
-    const matchCampus = p.campus === campus || p.campus === 'semua' || p.campus === 'all'
+    const productCampus = (p.campus || 'semua').toLowerCase().trim();
+    const activeCampus = (campus || 'banjarmasin').toLowerCase().trim();
+
+    const matchCampus = productCampus === 'semua' || productCampus === 'all' || productCampus === activeCampus;
     if (!matchCampus) return false
 
     if (category !== 'all') {
@@ -102,44 +107,36 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
     setQty(1)
   }
 
-  // 👉 FUNGSI REAL-TIME: Kirim Pesan & Notifikasi Web ke Penjual
-  function handleRealtimeChat(product: Product) {
-    const initialMessage = `Halo Kak ${product.sellerName}, saya ingin bertanya mengenai produk "${product.name}" (${formatRupiah(product.price)}) apakah stoknya tersedia?`;
-    
-    // Simpan ke localStorage untuk interaksi chat real-time
-    const existingChats = JSON.parse(localStorage.getItem('am_chat_rooms') || '[]');
-    let room = existingChats.find((r: any) => r.participants.some((p: any) => p.id === product.sellerId));
-    
-    const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // 👉 Handle Chat (Shopee Style: 1 Penjual 1 Room Utama ke Database)
+  async function handleShopeeStyleChat(product: Product) {
+    const currentUser = JSON.parse(localStorage.getItem('am_current_user') || '{"email": "miyya@gmail.com", "nama": "Miyatul"}');
+    const sellerId = product.sellerId || 'seller_1';
+    const sellerName = product.sellerName || 'Penjual Antasari';
+    const buyerEmail = currentUser.email || 'miyya@gmail.com';
+    const buyerName = currentUser.nama || currentUser.name || 'Miyatul';
 
-    if (!room) {
-      room = {
-        id: 'room_' + Date.now(),
-        participants: [
-          { id: product.sellerId, name: product.sellerName },
-          { id: 'current_buyer', name: 'Pembeli Aktif' }
-        ],
-        unread: 1, // Memicu badge notifikasi web merah
-        lastMessage: initialMessage,
-        messages: [
-          { senderId: 'current_buyer', text: initialMessage, time: timeNow }
-        ]
-      };
-      existingChats.push(room);
-    } else {
-      room.unread += 1; // Increment notifikasi web
-      room.lastMessage = initialMessage;
-      room.messages.push({
-        senderId: 'current_buyer',
-        text: initialMessage,
-        time: timeNow
+    const initialMessage = `Halo Kak ${sellerName}, saya ingin bertanya mengenai produk "${product.name}" (${formatRupiah(product.price)}) apakah stoknya tersedia?`;
+
+    try {
+      // Kirim pesan otomatis ke backend PostgreSQL
+      await fetch(`http://${window.location.hostname}:3000/api/chats`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: `room_${sellerId}_${buyerEmail}`,
+          sellerId,
+          sellerName,
+          buyerEmail,
+          buyerName,
+          senderId: buyerEmail,
+          text: initialMessage
+        })
       });
+    } catch (error) {
+      console.error("Gagal mengirim pesan awal chat:", error);
     }
 
-    localStorage.setItem('am_chat_rooms', JSON.stringify(existingChats));
-    
-    // Panggil fungsi pembuka chat utama
-    onChat(product.sellerId, product.sellerName, product.name);
+    onChat(sellerId, sellerName, product.name);
   }
 
   return (
@@ -227,7 +224,7 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
       </div>
 
       {!loading && (
-        <div style={{ padding: '0 16px' }} className={isAesthetic ? 'masonry-grid' : 'card-grid'}>
+        <div style={{ padding: '0 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
           {products.map(product => (
             <ProductCard
               key={product.id}
@@ -301,7 +298,6 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
 
               {selectedProduct.stock > 0 && (
                 <>
-                  {/* Qty selector */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                     <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--am-text)' }}>Jumlah:</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1.5px solid var(--am-border)', borderRadius: 8, overflow: 'hidden' }}>
@@ -320,12 +316,10 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
                     </span>
                   </div>
 
-                  {/* Tombol Aksi Lengkap */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    
                     <button
                       onClick={() => {
-                        handleRealtimeChat(selectedProduct);
+                        handleShopeeStyleChat(selectedProduct);
                         setSelectedProduct(null);
                       }}
                       style={{
@@ -371,7 +365,6 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
                         ⚡ Beli Sekarang
                       </button>
                     </div>
-
                   </div>
                 </>
               )}
@@ -380,7 +373,7 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
                 <button
                   className="am-btn-outline"
                   style={{ width: '100%', padding: '12px 0', fontSize: 14 }}
-                  onClick={() => { handleRealtimeChat(selectedProduct); setSelectedProduct(null) }}
+                  onClick={() => { handleShopeeStyleChat(selectedProduct); setSelectedProduct(null) }}
                 >
                   💬 Tanya Kapan Restock ke {selectedProduct.sellerName}
                 </button>

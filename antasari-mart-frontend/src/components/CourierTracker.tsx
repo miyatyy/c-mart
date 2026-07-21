@@ -48,7 +48,7 @@ export default function CourierTracker({
 
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [sellerRating, setSellerRating] = useState(5)
-  const [driverRating, setDriverRating] = useState(5)
+  const [_driverRating, setDriverRating] = useState(5)
   const [reviewText, setReviewText] = useState('')
   const [isRated, setIsRated] = useState(false)
 
@@ -112,7 +112,6 @@ export default function CourierTracker({
 
   function handleClosePointNotification() {
     setShowPointNotification(false)
-    // 👉 Bersihkan status pesanan aktif & metode pengiriman
     localStorage.removeItem('am_active_order')
     localStorage.removeItem('am_delivery_method')
     
@@ -150,7 +149,7 @@ export default function CourierTracker({
     }
   `;
 
-  // ==================== TAMPILAN KHUSUS AMBIL SENDIRI (STRUK & NOMOR ANTRIAN AESTHETIC) ====================
+  // ==================== TAMPILAN KHUSUS AMBIL SENDIRI (TANPA KURIR TRACKER) ====================
   if (isPickup) {
     return (
       <div style={{ padding: '20px 16px 80px', maxWidth: 540, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>

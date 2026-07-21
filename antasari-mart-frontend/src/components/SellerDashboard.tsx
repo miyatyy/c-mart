@@ -9,7 +9,7 @@ interface SellerDashboardProps {
   sellerName: string
 }
 
-type SellerTab = 'products' | 'orders' | 'analytics'
+type SellerTab = 'products' | 'orders' | 'analytics' | 'promotions'
 type ProductTab = 'active' | 'empty'
 
 interface NewProduct {
@@ -26,10 +26,26 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
   const [productTab, setProductTab] = useState<ProductTab>('active')
   const [showAddModal, setShowAddModal] = useState(false)
   
-  // 👉 State untuk Modal Edit Produk
+  // State untuk Modal Edit Produk
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState<any>(null)
   
+  // 🌟 State untuk Custom Alert Popup Beranimasi
+  const [alertPopup, setAlertPopup] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  
+  // State untuk Modal "Atur Pengiriman" (Ala Shopee)
+  const [showShippingModal, setShowShippingModal] = useState(false)
+  const [selectedOrder, setSelectedOrder] = useState<any>(null)
+  const [selectedCourier, setSelectedCourier] = useState('JNE Regular')
+
+  // State untuk Buat Voucher Promo & Status Aktif/Nonaktif
+  const [voucherCode, setVoucherCode] = useState('')
+  const [discountPercent, setDiscountPercent] = useState('10')
+  const [vouchers, setVouchers] = useState([
+    { code: 'HEMAT10', discount: '10%', active: true },
+    { code: 'ANTASARIKECE', discount: '20%', active: true }
+  ])
+
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -45,8 +61,30 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
 
   const isAesthetic = theme === 'aesthetic'
 
+  // Styles CSS untuk Animasi Pop-up Kustom
+  const successModalStyles = `
+    @keyframes bounceIn {
+      0% { opacity: 0; transform: scale(0.8) translateY(20px); }
+      70% { transform: scale(1.05) translateY(-5px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    @keyframes checkAnim {
+      0% { transform: scale(0); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+    .success-modal-appear {
+      animation: bounceIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+    .check-icon-anim {
+      animation: checkAnim 0.4s ease-in-out 0.1s both;
+    }
+  `;
+
   useEffect(() => {
-    fetch('http://192.168.18.18:3000/api/products')
+    const backendUrl = `http://${window.location.hostname}:3000/api/products`;
+
+    fetch(backendUrl)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.products) {
@@ -83,8 +121,12 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
   const activeProducts = products.filter(p => p.stock > 0)
   const emptyProducts = products.filter(p => p.stock === 0)
 
+  // 1. Tambah Produk dengan Popup Animasi
   async function handleAddProduct() {
-    if (!newProd.name || !newProd.price || !newProd.stock) return
+    if (!newProd.name || !newProd.price || !newProd.stock) {
+      setAlertPopup({ message: "Mohon isi nama, harga, dan stok produk!", type: 'error' });
+      return;
+    }
 
     const productPayload = {
       nama_produk: newProd.name,
@@ -99,7 +141,9 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     }
 
     try {
-      const response = await fetch('http://192.168.18.18:3000/api/products', {
+      const backendUrl = `http://${window.location.hostname}:3000/api/products`;
+      
+      const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productPayload)
@@ -123,13 +167,13 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
           sold: 0,
         }
         setProducts(prev => [...prev, p])
-        alert("Produk berhasil ditambahkan!");
+        setAlertPopup({ message: "Produk berhasil ditambahkan! 🎉", type: 'success' });
       } else {
-        alert("Gagal menyimpan produk.");
+        setAlertPopup({ message: "Gagal menyimpan produk.", type: 'error' });
       }
     } catch (err) {
       console.error("Gagal simpan ke backend:", err);
-      alert("Terjadi kesalahan jaringan.");
+      setAlertPopup({ message: "Terjadi kesalahan jaringan.", type: 'error' });
     }
 
     setNewProd({ name: '', description: '', price: '', stock: '', category: 'makanan', targetCampus: 'semua' })
@@ -137,12 +181,13 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     setShowAddModal(false)
   }
 
-  // 👉 Fungsi Simpan Perubahan Edit Produk
+  // 2. Update Produk dengan Popup Animasi
   async function handleUpdateProduct() {
     if (!editingProduct) return
 
     try {
-      const response = await fetch(`http://192.168.18.18:3000/api/products/${editingProduct.id}`, {
+      const backendUrl = `http://${window.location.hostname}:3000/api/products/${editingProduct.id}`;
+      const response = await fetch(backendUrl, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -159,15 +204,15 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
       
       if (data.success) {
         setProducts(prev => prev.map(p => p.id === editingProduct.id ? editingProduct : p))
-        alert("Produk berhasil diperbarui!");
+        setAlertPopup({ message: "Produk berhasil diperbarui! ✨", type: 'success' });
         setShowEditModal(false);
         setEditingProduct(null);
       } else {
-        alert("Gagal mengupdate produk di database.");
+        setAlertPopup({ message: "Gagal mengupdate produk di database.", type: 'error' });
       }
     } catch (err) {
       console.error("Gagal update produk:", err);
-      alert("Terjadi kesalahan jaringan.");
+      setAlertPopup({ message: "Terjadi kesalahan jaringan.", type: 'error' });
     }
   }
 
@@ -175,30 +220,84 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     setProducts(prev => prev.map(p => p.id === id ? { ...p, stock: Math.max(0, p.stock + delta) } : p))
   }
 
+  // 3. Hapus Produk dengan Popup Animasi
   async function handleDeleteProduct(id: string) {
     if (!window.confirm("Yakin ingin menghapus produk ini dari lapak dan beranda?")) return
 
     try {
-      const response = await fetch(`http://192.168.18.18:3000/api/products/${id}`, {
+      const backendUrl = `http://${window.location.hostname}:3000/api/products/${id}`;
+      const response = await fetch(backendUrl, {
         method: 'DELETE',
       })
       const data = await response.json()
 
       if (data.success) {
         setProducts(prev => prev.filter(p => p.id !== id))
+        setAlertPopup({ message: "Produk berhasil dihapus.", type: 'success' });
       } else {
-        alert("Gagal menghapus produk dari database.")
+        setAlertPopup({ message: "Gagal menghapus produk dari database.", type: 'error' });
       }
     } catch (err) {
       console.error("Error menghapus produk:", err)
-      alert("Terjadi kesalahan jaringan.")
+      setAlertPopup({ message: "Terjadi kesalahan jaringan.", type: 'error' });
     }
   }
 
+  // 4. Buat Voucher dengan Popup Animasi Dinamis
+  async function handleCreateVoucher(e: React.FormEvent) {
+    e.preventDefault();
+    if (!voucherCode) {
+      setAlertPopup({ message: 'Masukkan kode voucher terlebih dahulu!', type: 'error' });
+      return;
+    }
+
+    try {
+      const backendUrl = `http://${window.location.hostname}:3000/api/vouchers`;
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sellerId: sellerId || 'seller_1',
+          code: voucherCode,
+          discountPercent: discountPercent
+        })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setVouchers(prev => [...prev, { code: voucherCode, discount: `${discountPercent}%`, active: true }])
+        setAlertPopup({ message: "Voucher toko berhasil dibuat! 🎉", type: 'success' });
+        setVoucherCode('');
+      } else {
+        setAlertPopup({ message: data.message || "Gagal membuat voucher.", type: 'error' });
+      }
+    } catch (err) {
+      console.error("Gagal buat voucher:", err);
+      setAlertPopup({ message: "Terjadi kesalahan jaringan.", type: 'error' });
+    }
+  }
+
+  // 5. Fungsi untuk Aktifkan / Nonaktifkan Voucher secara Interaktif
+  function handleToggleVoucher(index: number) {
+    setVouchers(prev => prev.map((v, i) => {
+      if (i === index) {
+        const newActiveState = !v.active;
+        setAlertPopup({ 
+          message: `Voucher ${v.code} berhasil ${newActiveState ? 'diaktifkan' : 'dinonaktifkan'}! 🎟️`, 
+          type: 'success' 
+        });
+        return { ...v, active: newActiveState };
+      }
+      return v;
+    }));
+  }
+
   return (
-    <div style={{ padding: '16px 0 80px' }}>
+    <div style={{ padding: '16px 0 80px', position: 'relative' }}>
+      <style>{successModalStyles}</style>
+
       <div style={{ padding: '0 16px 16px' }}>
-        <h2 className="am-heading" style={{ margin: '0 0 4px', fontSize: 22, color: 'var(--am-text)' }}>🏪 Lapak Saya</h2>
+        <h2 className="am-heading" style={{ margin: '0 0 4px', fontSize: 22, color: 'var(--am-text)' }}>🏪 Seller Centre Antasari</h2>
         <div style={{ fontSize: 13, color: 'var(--am-text-muted)' }}>{sellerName} • Lokasi Aktif: <strong style={{ color: 'var(--am-primary)' }}>{campus.toUpperCase()}</strong></div>
       </div>
 
@@ -216,18 +315,20 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
         ))}
       </div>
 
-      <div style={{ display: 'flex', padding: '0 16px 16px', gap: 8 }}>
+      {/* Navigasi Tab Utama */}
+      <div style={{ display: 'flex', padding: '0 16px 16px', gap: 6, overflowX: 'auto' }}>
         {[
           { key: 'products', label: '📦 Produk' },
           { key: 'orders', label: '🧾 Pesanan' },
           { key: 'analytics', label: '📊 Analitik' },
+          { key: 'promotions', label: '🎟️ Promosi' },
         ].map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key as SellerTab)}
             style={{
-              flex: 1, padding: '8px 0', borderRadius: 8, cursor: 'pointer',
-              fontWeight: 600, fontSize: 12, fontFamily: 'var(--am-font-body)',
+              flex: 1, padding: '8px 4px', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap',
+              fontWeight: 600, fontSize: 11, fontFamily: 'var(--am-font-body)',
               background: tab === t.key ? 'var(--am-primary)' : 'var(--am-surface)',
               color: tab === t.key ? 'white' : 'var(--am-text-muted)',
               border: `1.5px solid ${tab === t.key ? 'var(--am-primary)' : 'var(--am-border)'}`,
@@ -239,6 +340,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
         ))}
       </div>
 
+      {/* TAB 1: PRODUK */}
       {tab === 'products' && (
         <div style={{ padding: '0 16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -288,11 +390,9 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
                       <button onClick={() => handleUpdateStock(p.id, 1)} style={{ width: 28, height: 28, border: 'none', background: 'var(--am-bg2)', cursor: 'pointer', fontSize: 14, color: 'var(--am-text)' }}>+</button>
                     </div>
                     {p.stock === 0 && <span style={{ fontSize: 10, fontWeight: 700, color: '#EF4444', background: 'rgba(239,68,68,0.1)', padding: '2px 8px', borderRadius: 999 }}>HABIS</span>}
-                    {p.stock > 0 && p.stock <= 5 && <span style={{ fontSize: 10, fontWeight: 700, color: '#D97706', background: 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: 999 }}>⚠️ Menipis</span>}
                   </div>
                 </div>
 
-                {/* 👉 Tombol Edit (Pensil) & Tombol Hapus (Tempat Sampah) */}
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button 
                     onClick={() => { setEditingProduct(p); setShowEditModal(true); }} 
@@ -312,6 +412,241 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {/* TAB 2: PESANAN MASUK */}
+      {tab === 'orders' && (
+        <div style={{ padding: '0 16px' }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: 'var(--am-text)' }}>📦 Daftar Pesanan Masuk</h3>
+          {sellerOrders.length === 0 ? (
+            <div className="am-card" style={{ textAlign: 'center', padding: 24, color: 'var(--am-text-muted)' }}>
+              Belum ada pesanan masuk untuk tokomu saat ini.
+            </div>
+          ) : (
+            sellerOrders.map(o => (
+              <div key={o.id} className="am-card" style={{ padding: 14, marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, borderBottom: '1px solid var(--am-border)', paddingBottom: 8, marginBottom: 8 }}>
+                  <span style={{ fontWeight: 600, color: 'var(--am-text)' }}>ID: #{o.id}</span>
+                  <span style={{ color: o.status === 'delivered' ? '#16A34A' : '#D97706', fontWeight: 700, textTransform: 'uppercase' }}>
+                    {o.status === 'delivered' ? 'Selesai' : 'Perlu Dikirim'}
+                  </span>
+                </div>
+                {o.items.map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: 10, fontSize: 13, marginBottom: 6 }}>
+                    <img src={item.product.image} alt="" style={{ width: 45, height: 45, objectFit: 'cover', borderRadius: 6 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--am-text)' }}>{item.product.name}</div>
+                      <div style={{ color: 'var(--am-text-muted)', fontSize: 11 }}>{item.quantity}x @ {formatRupiah(item.product.price)}</div>
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--am-border)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--am-text)' }}>Total: <strong style={{ color: 'var(--am-primary)' }}>{formatRupiah(o.total)}</strong></div>
+                  <button 
+                    className="am-btn-primary" 
+                    style={{ padding: '6px 12px', fontSize: 11 }}
+                    onClick={() => { setSelectedOrder(o); setShowShippingModal(true); }}
+                  >
+                    🚚 Atur Pengiriman
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: ANALITIK (Diagram Real-Time & Detail) */}
+      {tab === 'analytics' && (
+        <div style={{ padding: '0 16px' }}>
+          <div className="am-card" style={{ padding: 16, marginBottom: 12 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: 'var(--am-text)' }}>📈 Statistik Performa & Pendapatan Real-Time</h3>
+            <p style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 16 }}>Grafik interaktif performa penjualan toko berdasarkan transaksi aktif.</p>
+            
+            {/* Grafik Batang (Bar Chart) Real-Time Berdasarkan Pendapatan & Produk Terjual */}
+            <div style={{ marginBottom: 20, background: 'var(--am-bg2)', padding: 16, borderRadius: 12, border: '1px solid var(--am-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)' }}>Grafik Pendapatan 7 Hari Terakhir</span>
+                <span style={{ fontSize: 11, color: '#16A34A', fontWeight: 700, background: 'rgba(22,163,74,0.1)', padding: '2px 8px', borderRadius: 999 }}>● Live Real-Time</span>
+              </div>
+
+              {/* Simulasi Batang Grafik Dinamis */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: 140, paddingBottom: 8, borderBottom: '1px solid var(--am-border)', gap: 8 }}>
+                {[
+                  { day: 'Sen', val: totalRevenue * 0.1, label: 'Senin' },
+                  { day: 'Sel', val: totalRevenue * 0.15, label: 'Selasa' },
+                  { day: 'Rab', val: totalRevenue * 0.08, label: 'Rabu' },
+                  { day: 'Kam', val: totalRevenue * 0.2, label: 'Kamis' },
+                  { day: 'Jum', val: totalRevenue * 0.12, label: 'Jumat' },
+                  { day: 'Sab', val: totalRevenue * 0.25, label: 'Sabtu' },
+                  { day: 'Min', val: totalRevenue * 0.1, label: 'Minggu' },
+                ].map((bar, i) => {
+                  const maxHeight = Math.max(totalRevenue, 100000); // Skala maksimum bar
+                  const heightPercentage = Math.min(Math.max((bar.val / maxHeight) * 100, 12), 100);
+                  
+                  return (
+                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                      <div style={{ fontSize: 9, color: 'var(--am-text-muted)', marginBottom: 4, whiteSpace: 'nowrap' }}>
+                        {bar.val > 0 ? `${Math.round(bar.val / 1000)}k` : '0'}
+                      </div>
+                      <div 
+                        style={{ 
+                          width: '100%', maxWidth: 28, 
+                          height: `${heightPercentage}%`, 
+                          background: 'var(--am-primary)', 
+                          borderRadius: '6px 6px 0 0',
+                          transition: 'height 0.4s ease'
+                        }} 
+                        title={`${bar.label}: ${formatRupiah(bar.val)}`}
+                      />
+                      <span style={{ fontSize: 11, color: 'var(--am-text-muted)', marginTop: 6, fontWeight: 600 }}>{bar.day}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: 12, color: 'var(--am-text)' }}>
+                <span>Total Pendapatan Minggu Ini:</span>
+                <strong style={{ color: 'var(--am-primary)', fontSize: 14 }}>{formatRupiah(totalRevenue)}</strong>
+              </div>
+            </div>
+
+            {/* Metrik Performa Detail */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ background: 'var(--am-bg2)', padding: 12, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Tingkat Konversi Penjualan</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--am-primary)' }}>4.8% <span style={{ fontSize: 11, color: '#16A34A' }}>↑ Baik</span></div>
+                </div>
+                <span style={{ fontSize: 20 }}>📊</span>
+              </div>
+
+              <div style={{ background: 'var(--am-bg2)', padding: 12, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Kecepatan Balas Chat Pelanggan</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--am-text)' }}>{'< 15 Menit'}</div>
+                </div>
+                <span style={{ fontSize: 20 }}>💬</span>
+              </div>
+
+              <div style={{ background: 'var(--am-bg2)', padding: 12, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Persentase Pesanan Sukses Tuntas</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#16A34A' }}>99.2%</div>
+                </div>
+                <span style={{ fontSize: 20 }}>✨</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      
+      {/* TAB 4: PROMOSI */}
+      {tab === 'promotions' && (
+        <div style={{ padding: '0 16px' }}>
+          <div className="am-card" style={{ padding: 16, marginBottom: 16 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, color: 'var(--am-text)' }}>🎟️ Buat Voucher Diskon Toko</h3>
+            <p style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 12 }}>Tarik lebih banyak pembeli dengan memberikan voucher diskon khusus produk di tokomu.</p>
+            
+            <form onSubmit={handleCreateVoucher} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <input 
+                className="am-input" 
+                placeholder="Kode Voucher (Cth: HEMAT50)" 
+                value={voucherCode} 
+                onChange={e => setVoucherCode(e.target.value.toUpperCase())}
+                style={{ padding: '10px 12px', fontSize: 13 }}
+              />
+              <select 
+                className="am-input" 
+                value={discountPercent} 
+                onChange={e => setDiscountPercent(e.target.value)}
+                style={{ padding: '10px 12px', fontSize: 13 }}
+              >
+                <option value="10">Diskon 10%</option>
+                <option value="20">Diskon 20%</option>
+                <option value="50">Diskon 50% (Flash Sale)</option>
+              </select>
+              <button 
+                type="submit"
+                className="am-btn-primary" 
+                style={{ padding: '10px 0', fontSize: 13, cursor: 'pointer' }}
+              >
+                + Buat Voucher Sekarang
+              </button>
+            </form>
+          </div>
+
+          <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, color: 'var(--am-text)' }}>Daftar Voucher Aktif / Nonaktif</h4>
+          {vouchers.map((v, i) => (
+            <div key={i} className="am-card" style={{ padding: 12, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 700, color: 'var(--am-primary)' }}>{v.code}</div>
+                <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Diskon sebesar {v.discount} untuk semua produk</div>
+              </div>
+              
+              {/* Tombol Interaktif Toggle Status Voucher */}
+              <button
+                onClick={() => handleToggleVoucher(i)}
+                style={{
+                  fontSize: 10, fontWeight: 700, cursor: 'pointer', border: 'none',
+                  background: v.active ? '#16A34A' : '#EF4444', 
+                  color: 'white', padding: '6px 14px', borderRadius: 999,
+                  transition: 'background 0.2s'
+                }}
+              >
+                {v.active ? 'AKTIF' : 'NONAKTIF'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* MODAL ATUR PENGIRIMAN */}
+      {showShippingModal && selectedOrder && (
+        <div 
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowShippingModal(false) }}
+        >
+          <div className="am-card am-slide-up" style={{ width: '100%', maxWidth: 400, padding: 20 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: 'var(--am-text)' }}>🚚 Atur Pengiriman Pesanan</h3>
+            <p style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 12 }}>Pilih jasa kirim untuk pesanan <strong>#{selectedOrder.id}</strong>:</p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              {['JNE Regular', 'SiCepat Ekspres', 'GoSend Instant (Kurir Kampus)'].map(courier => (
+                <label key={courier} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--am-text)' }}>
+                  <input 
+                    type="radio" 
+                    name="courier" 
+                    checked={selectedCourier === courier} 
+                    onChange={() => setSelectedCourier(courier)} 
+                  />
+                  {courier}
+                </label>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button 
+                style={{ flex: 1, padding: '10px 0', background: 'var(--am-bg2)', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', color: 'var(--am-text)' }}
+                onClick={() => setShowShippingModal(false)}
+              >
+                Batal
+              </button>
+              <button 
+                className="am-btn-primary" 
+                style={{ flex: 1, padding: '10px 0', fontSize: 13 }}
+                onClick={() => {
+                  setAlertPopup({ message: `Resi otomatis berhasil dicetak! Kurir (${selectedCourier}) akan segera pickup paket. 📦`, type: 'success' });
+                  setShowShippingModal(false);
+                }}
+              >
+                Cetak Resi & Kirim
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -384,7 +719,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
         </div>
       )}
 
-      {/* 👉 MODAL EDIT PRODUK */}
+      {/* MODAL EDIT PRODUK */}
       {showEditModal && editingProduct && (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
@@ -428,6 +763,47 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
                 Simpan Perubahan
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 CUSTOM SUCCESS / ERROR POPUP BERANIMASI */}
+      {alertPopup && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div className="success-modal-appear am-card" style={{
+            width: '100%', maxWidth: 340, padding: 24, borderRadius: 20,
+            background: 'var(--am-surface)', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+          }}>
+            <div className="check-icon-anim" style={{
+              width: 56, height: 56, margin: '0 auto 12px', 
+              background: alertPopup.type === 'success' ? 'rgba(74, 197, 108, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+              borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 28, color: alertPopup.type === 'success' ? '#4AC56C' : '#EF4444', fontWeight: 'bold'
+            }}>
+              {alertPopup.type === 'success' ? '✨' : '⚠️'}
+            </div>
+
+            <h3 className="am-heading" style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 700, color: 'var(--am-text)' }}>
+              {alertPopup.type === 'success' ? 'Berhasil!' : 'Perhatian'}
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 20 }}>
+              {alertPopup.message}
+            </p>
+
+            <button
+              className="am-btn-primary"
+              onClick={() => setAlertPopup(null)}
+              style={{
+                width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
+                background: 'var(--am-primary)', color: 'white', fontWeight: 700, fontSize: 13, cursor: 'pointer'
+              }}
+            >
+              OK, Mengerti 👍
+            </button>
           </div>
         </div>
       )}

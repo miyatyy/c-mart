@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { AppTab, Campus, CartItem, DeliveryMethod, PaymentMethod, ThemeMode, UserRole } from './types'
 import type { Product } from './types'
-import { MOCK_CHAT_ROOMS } from './data'
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import ProductList from './components/ProductList'
@@ -10,12 +9,12 @@ import Checkout from './components/Checkout'
 import CourierTracker from './components/CourierTracker'
 import SellerDashboard from './components/SellerDashboard'
 import AdminPanel from './components/AdminPanel'
-import ChatView from './components/ChatView'
 import DriverDashboard from './components/DriverDashboard'
 import Login from './components/Login'
+import ChatPage from './components/ChatPage'
 
 export default function App() {
-  const [loggedIn, setLoggedIn] = useState(true)
+  const [_loggedIn, setLoggedIn] = useState(true)
   const [role, setRole] = useState<UserRole>('buyer')
   
   const [campus, setCampus] = useState<Campus>(() => {
@@ -25,8 +24,7 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeMode>('aesthetic')
   const [activeTab, setActiveTab] = useState<AppTab>('home')
   const [cart, setCart] = useState<CartItem[]>([])
-  const [chatRooms] = useState(MOCK_CHAT_ROOMS)
-  const [pendingChatRoom, setPendingChatRoom] = useState<string | undefined>(undefined)
+  const [chatUnread, setChatUnread] = useState(0) // 💡 State dinamis untuk menghitung jumlah pesan belum dibaca
   
   const [user, setUser] = useState<any>(null)
   const isGuest = !user
@@ -82,7 +80,32 @@ export default function App() {
     localStorage.setItem('am_user_campus', campus)
   }, [campus])
 
-  const chatUnread = chatRooms.reduce((s, r) => s + r.unread, 0)
+  // 💡 Efek untuk mengambil jumlah pesan unread secara real-time dari database PostgreSQL
+  useEffect(() => {
+    if (isGuest || !currentUser?.email) {
+      setChatUnread(0);
+      return;
+    }
+
+    const fetchUnreadChats = async () => {
+      try {
+        const identifier = currentUser.role === 'seller' ? (currentUser.id || currentUser.email) : currentUser.email;
+        const res = await fetch(`http://${window.location.hostname}:3000/api/chats/${identifier}`);
+        const data = await res.json();
+        if (data.success && data.chats) {
+          // Hitung pesan yang dikirim oleh pihak lain (misal pembeli bertanya ke penjual)
+          const unread = data.chats.filter((c: any) => c.senderId !== identifier).length;
+          setChatUnread(unread > 0 ? unread : 0);
+        }
+      } catch (err) {
+        console.error("Gagal mengambil status unread chat:", err);
+      }
+    };
+
+    fetchUnreadChats();
+    const interval = setInterval(fetchUnreadChats, 3000); // Polling setiap 3 detik
+    return () => clearInterval(interval);
+  }, [currentUser, isGuest]);
 
   function handleLogin(r: UserRole, _gender: 'male' | 'female', c: Campus, userData: any) {
     setRole(userData.role || r)
@@ -104,6 +127,7 @@ export default function App() {
     localStorage.removeItem('am_active_order')
     localStorage.removeItem('am_delivery_method')
     setHasActiveOrder(false)
+    setChatUnread(0)
     setActiveTab('home')
     setModalMessage({
       title: 'Berhasil Keluar! 👋',
@@ -141,14 +165,35 @@ export default function App() {
     setActiveTab('tracker')
   }
 
-  function handleOpenChat(sellerId: string, _sellerName: string, _productName: string) {
+  async function handleOpenChat(sellerId: string, sellerName: string, productName: string) {
     if (isGuest) {
       setShowLoginModal(true);
       return;
     }
-    const room = chatRooms.find(r => r.participants.some(p => p.id === sellerId))
-    if (room) setPendingChatRoom(room.id)
-    setActiveTab('chat')
+
+    const buyerEmail = currentUser.email || 'miyya@gmail.com';
+    const buyerName = currentUser.nama || currentUser.name || 'Miyatul';
+    const initialMessage = `Halo Kak ${sellerName}, saya ingin bertanya mengenai produk "${productName}" apakah stoknya tersedia?`;
+
+    try {
+      await fetch(`http://${window.location.hostname}:3000/api/chats`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: `room_${sellerId}_${buyerEmail}`,
+          sellerId,
+          sellerName,
+          buyerEmail,
+          buyerName,
+          senderId: buyerEmail,
+          text: initialMessage
+        })
+      });
+    } catch (error) {
+      console.error("Gagal membuat/mengirim chat room:", error);
+    }
+
+    setActiveTab('chat');
   }
 
   if (activeTab === ('login_page' as any)) {
@@ -220,7 +265,7 @@ export default function App() {
           userName={currentUser.nama || currentUser.name || 'Pengunjung'}
           userAvatar={userAvatar}
           cartItems={cart}
-          chatUnread={chatUnread}
+          chatUnread={chatUnread} // 💡 Terhubung langsung ke database unread
           onToggleTheme={() => setTheme(t => t === 'aesthetic' ? 'modern' : 'aesthetic')}
           onLogout={isGuest ? () => setShowLoginModal(true) : handleLogout}
           isGuest={isGuest}
@@ -300,19 +345,14 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              <ChatView
-                theme={theme}
-                currentUserId={currentUser.id || 'guest'}
-                currentUserName={currentUser.nama || currentUser.name || 'Tamu'}
-                initialRoom={pendingChatRoom}
-              />
+              <ChatPage theme={theme} campus={campus} />
             )
           )}
           {activeTab === 'seller' && (
             <SellerDashboard
               theme={theme}
               campus={campus}
-              sellerId={currentUser.id || 'seller_1'}
+              sellerId={currentUser.id || currentUser.email || 'seller_1'}
               sellerName={currentUser.nama || currentUser.name || 'Penjual Koperasi'}
             />
           )}

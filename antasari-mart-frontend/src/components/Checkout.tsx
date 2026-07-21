@@ -32,6 +32,41 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     ? 'Ambil Sendiri di Tenant Koperasi' 
     : (isCustomLocation ? customLocationText.trim() : selectedDropdownLocation);
 
+  // 👉 FUNGSI REDIRECT MIDTRANS (MENGATASI ERROR CSP INLINE SCRIPT DENGAN REDIRECT KE HALAMAN RESMI)
+  async function handleMidtransPayment() {
+    try {
+      const backendUrl = `http://${window.location.hostname}:3000/api/checkout`;
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: `ANTASARI-${Date.now()}`,
+          grossAmount: total,
+          customerDetails: {
+            name: "Mahasiswa UIN Antasari",
+            email: "mahasiswa@uin-antasari.ac.id"
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.redirect_url) {
+        // Simpan state pesanan aktif sebelum dialihkan ke Midtrans
+        localStorage.setItem('am_active_order', 'true');
+        localStorage.setItem('am_delivery_method', delivery);
+        
+        // 💡 Langsung arahkan halaman ke URL pembayaran Midtrans (Aman dari blokir CSP browser)
+        window.location.href = data.redirect_url;
+      } else {
+        alert("Gagal menginisialisasi pembayaran server Midtrans: " + (data.message || ''));
+      }
+    } catch (error) {
+      console.error("Error koneksi checkout:", error);
+      alert("Terjadi kesalahan jaringan saat menghubungi server pembayaran.");
+    }
+  }
+
   function handleStartProcess() {
     if (delivery === 'courier' && !finalLocation) {
       alert("Mohon pilih atau ketik lokasi pengantaran terlebih dahulu!");
@@ -39,13 +74,14 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     }
 
     if (payment === 'qris') {
-      setStep('scan_qris');
+      // Langsung panggil redirect Midtrans
+      handleMidtransPayment();
     } else if (delivery === 'courier') {
       triggerSearchDriver();
     } else {
       setStep('success');
       localStorage.setItem('am_active_order', 'true');
-      localStorage.setItem('am_delivery_method', delivery); // 👉 Menyimpan 'pickup' dengan benar
+      localStorage.setItem('am_delivery_method', 'pickup'); 
       onConfirmOrder(delivery, payment, finalLocation);
     }
   }
@@ -62,7 +98,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     } else {
       setStep('success');
       localStorage.setItem('am_active_order', 'true');
-      localStorage.setItem('am_delivery_method', 'pickup'); // 👉 Menyimpan 'pickup' dengan benar
+      localStorage.setItem('am_delivery_method', 'pickup'); 
       onConfirmOrder(delivery, payment, finalLocation);
     }
   }
@@ -85,45 +121,6 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
       animation: radarPulse 2s ease-in-out infinite;
     }
   `;
-
-  if (step === 'scan_qris') {
-    return (
-      <div className="am-slide-up" style={{ maxWidth: 420, margin: '40px auto', padding: 24, textAlign: 'center' }}>
-        <h2 className="am-heading" style={{ fontSize: 22, fontWeight: 700, color: 'var(--am-text)', marginBottom: 8 }}>
-          📱 Pembayaran QRIS
-        </h2>
-        <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 20 }}>
-          Scan kode QR di bawah ini menggunakan aplikasi m-Banking atau E-Wallet kamu.
-        </p>
-
-        <div className="am-card" style={{ padding: 24, background: 'var(--am-surface)', borderRadius: 20, marginBottom: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--am-text)', marginBottom: 12 }}>
-            Total Tagihan: <strong style={{ color: 'var(--am-primary)' }}>{formatRupiah(total)}</strong>
-          </div>
-          
-          <div style={{
-            width: 180, height: 180, margin: '0 auto 16px', background: 'white', borderRadius: 16,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px dashed var(--am-primary)',
-            boxShadow: '0 8px 20px rgba(0,0,0,0.06)'
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 56 }}>📷</div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#333', marginTop: 4 }}>ANTASARI_MART_QRIS</div>
-            </div>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--am-text-muted)' }}>Mendukung QRIS, GoPay, OVO, DANA, BCA, Mandiri, dll.</div>
-        </div>
-
-        <button
-          className="am-btn-primary"
-          onClick={triggerSearchDriver}
-          style={{ width: '100%', padding: '14px 0', fontSize: 15, fontWeight: 700, borderRadius: 12 }}
-        >
-          {delivery === 'courier' ? '✅ Selesai Scan & Bayar (Lanjut Cari Driver) 🚀' : '✅ Selesai Scan & Buat Pesanan Pick-Up 🎟️'}
-        </button>
-      </div>
-    );
-  }
 
   if (step === 'searching_driver') {
     return (
@@ -298,7 +295,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
         <h3 className="am-heading" style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--am-text)' }}>💳 Metode Pembayaran</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[
-            { key: 'qris', label: 'QRIS', icon: '📱' },
+            { key: 'qris', label: 'QRIS / Midtrans', icon: '📱' },
             { key: 'dana', label: 'DANA', icon: '💙' },
             { key: 'gopay', label: 'GoPay', icon: '💚' },
             { key: 'cod', label: 'Bayar Tunai (COD)', icon: '💵' },
@@ -346,7 +343,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
         disabled={delivery === 'courier' && !finalLocation}
         onClick={handleStartProcess}
       >
-        {payment === 'qris' ? '📱 Lanjut Bayar QRIS & Konfirmasi' : (delivery === 'courier' ? '🛵 Pesan & Cari Driver' : '✅ Konfirmasi Pesanan Ambil Sendiri')}
+        {payment === 'qris' ? '📱 Bayar dengan Midtrans (QRIS/VA) 🚀' : (delivery === 'courier' ? '🛵 Pesan & Cari Driver' : '✅ Konfirmasi Pesanan Ambil Sendiri')}
       </button>
     </div>
   )

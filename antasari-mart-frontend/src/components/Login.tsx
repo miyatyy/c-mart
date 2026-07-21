@@ -30,10 +30,12 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
       animation: pulseGlow 5s ease-in-out infinite;
     }
   `;
-
+// Menggunakan dynamic host atau sesuaikan dengan IP backend kamu yang aktif
+  const backendHost = 'http://localhost:3000'; // Ubah ke IP backend jika diakses via HP/perangkat lain (contoh: http://192.168.18.18:3000)
+  
   const url = isRegister 
-    ? 'http://192.168.18.18:3000/api/register' 
-    : 'http://192.168.18.18:3000/api/login';
+    ? `${backendHost}/api/register` 
+    : `${backendHost}/api/login`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
