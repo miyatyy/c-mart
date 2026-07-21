@@ -89,12 +89,12 @@ export default function App() {
 
     const fetchUnreadChats = async () => {
       try {
-        const identifier = currentUser.role === 'seller' ? (currentUser.id || currentUser.email) : currentUser.email;
+        const identifier = currentUser.email;
         const res = await fetch(`http://${window.location.hostname}:3000/api/chats/${identifier}`);
         const data = await res.json();
         if (data.success && data.chats) {
-          // Hitung pesan yang dikirim oleh pihak lain (misal pembeli bertanya ke penjual)
-          const unread = data.chats.filter((c: any) => c.senderId !== identifier).length;
+          // Hitung pesan masuk (dikirim oleh lawan bicara, ditujukan ke akun ini)
+          const unread = data.chats.filter((c: any) => c.receiverId === identifier && c.senderId !== identifier).length;
           setChatUnread(unread > 0 ? unread : 0);
         }
       } catch (err) {
@@ -180,12 +180,12 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          roomId: `room_${sellerId}_${buyerEmail}`,
-          sellerId,
-          sellerName,
-          buyerEmail,
-          buyerName,
-          senderId: buyerEmail,
+          fromId: buyerEmail,
+          fromName: buyerName,
+          fromRole: currentUser.role || 'buyer',
+          toId: sellerId,
+          toName: sellerName,
+          toRole: 'seller',
           text: initialMessage
         })
       });
@@ -352,7 +352,7 @@ export default function App() {
             <SellerDashboard
               theme={theme}
               campus={campus}
-              sellerId={currentUser.id || currentUser.email || 'seller_1'}
+              sellerId={currentUser.email || 'seller_1'}
               sellerName={currentUser.nama || currentUser.name || 'Penjual Koperasi'}
             />
           )}

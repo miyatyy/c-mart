@@ -81,17 +81,27 @@ const Voucher = sequelize.define('Voucher', {
   isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
 });
 
-// 💡 Model Chat Database Permanen (Terhubung ke Akun Seller & Buyer Asli)
+// 💡 Model Chat Database Permanen (Generik: bisa dipakai oleh SEMUA pasangan role
+// -> buyer<->seller, buyer<->driver, buyer<->admin, seller<->driver, seller<->admin,
+//    driver<->admin, dst. Identitas akun dipakai adalah EMAIL, karena unik di semua role.)
 const Chat = sequelize.define('Chat', {
-  roomId: { type: DataTypes.STRING, allowNull: false },
-  sellerId: { type: DataTypes.STRING, allowNull: false },
-  sellerName: { type: DataTypes.STRING, allowNull: false },
-  buyerEmail: { type: DataTypes.STRING, allowNull: false },
-  buyerName: { type: DataTypes.STRING, allowNull: false },
-  senderId: { type: DataTypes.STRING, allowNull: false }, // Menyimpan tipe pengirim ('buyer' atau 'seller')
+  roomId: { type: DataTypes.STRING, allowNull: false }, // deterministik: [emailA, emailB] diurutkan lalu digabung
+  senderId: { type: DataTypes.STRING, allowNull: false }, // email pengirim (identitas asli, bukan label role)
+  senderName: { type: DataTypes.STRING, allowNull: false },
+  senderRole: { type: DataTypes.STRING, allowNull: false }, // buyer | seller | driver | admin
+  receiverId: { type: DataTypes.STRING, allowNull: false }, // email penerima
+  receiverName: { type: DataTypes.STRING, allowNull: false },
+  receiverRole: { type: DataTypes.STRING, allowNull: false },
   text: { type: DataTypes.TEXT, allowNull: false },
   time: { type: DataTypes.STRING, allowNull: false }
+}, {
+  indexes: [{ fields: ['roomId'] }, { fields: ['senderId'] }, { fields: ['receiverId'] }]
 });
+
+// Bikin roomId yang konsisten untuk sepasang akun, siapa pun yang mengirim duluan
+function buildRoomId(emailA, emailB) {
+  return [String(emailA).toLowerCase(), String(emailB).toLowerCase()].sort().join('__');
+}
 
 // --- 4. INISIALISASI DATABASE & DATA AWAL ---
 async function initDB() {
@@ -336,19 +346,34 @@ app.post('/api/vouchers', async (req, res) => {
   }
 });
 
-// --- ENDPOINT CHAT REAL-TIME DATABASE (DIPERLUAS UNTUK PENJUAL) ---
+// --- ENDPOINT PESAN / CHAT REAL-TIME (SEMUA ROLE: buyer, seller, driver, admin) ---
 
-// Ambil riwayat chat berdasarkan identifier (buyerEmail atau sellerId)
+// 📇 Daftar kontak yang bisa diajak chat (semua akun lain, lintas role).
+// Dipakai frontend untuk tombol "Mulai obrolan baru".
+app.get('/api/users/contacts/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const users = await User.findAll({
+      where: { email: { [Sequelize.Op.ne]: email } },
+      attributes: ['id', 'nama', 'email', 'role'],
+      order: [['role', 'ASC'], ['nama', 'ASC']]
+    });
+    res.json({ success: true, contacts: users });
+  } catch (error) {
+    console.error("Gagal mengambil daftar kontak:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Ambil semua riwayat chat milik satu akun (identifier = email), lintas semua lawan bicara & role.
 app.get('/api/chats/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params;
     const chats = await Chat.findAll({
       where: {
         [Sequelize.Op.or]: [
-          { sellerId: identifier },
-          { buyerEmail: identifier },
           { senderId: identifier },
-          { sellerId: 'seller_1' } // Fallback universal toko
+          { receiverId: identifier }
         ]
       },
       order: [['createdAt', 'ASC']]
@@ -360,24 +385,26 @@ app.get('/api/chats/:identifier', async (req, res) => {
   }
 });
 
-// Kirim pesan chat baru dengan penanda 'buyer' atau 'seller' secara pasti
+// Kirim pesan baru dari akun manapun (buyer/seller/driver/admin) ke akun manapun.
 app.post('/api/chats', async (req, res) => {
   try {
-    const { roomId, sellerId, sellerName, buyerEmail, buyerName, senderId, text } = req.body;
+    const { fromId, fromName, fromRole, toId, toName, toRole, text } = req.body;
+
+    if (!fromId || !toId || !text || !text.trim()) {
+      return res.status(400).json({ success: false, message: "Data pesan tidak lengkap." });
+    }
+
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // 💡 PENANDA MUTLAK: Jika pengirim adalah penjual/admin, set senderId menjadi 'seller'. Jika pembeli, set menjadi 'buyer'.
-    const isSeller = senderId?.includes('seller') || senderId?.includes('admin') || senderId === 'SELLER';
-    const finalSenderType = isSeller ? 'seller' : 'buyer';
-
     const newChat = await Chat.create({
-      roomId: roomId || `room_${sellerId}_${buyerEmail}`,
-      sellerId: sellerId || 'seller_1',
-      sellerName: sellerName || 'Koperasi UIN Antasari',
-      buyerEmail,
-      buyerName,
-      senderId: finalSenderType, // Menyimpan nilai 'buyer' atau 'seller' secara konsisten
-      text,
+      roomId: buildRoomId(fromId, toId),
+      senderId: fromId,
+      senderName: fromName || fromId,
+      senderRole: fromRole || 'buyer',
+      receiverId: toId,
+      receiverName: toName || toId,
+      receiverRole: toRole || 'buyer',
+      text: text.trim(),
       time: timeNow
     });
 

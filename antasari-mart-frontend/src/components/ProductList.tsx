@@ -107,9 +107,9 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
     setQty(1)
   }
 
-  // 👉 Handle Chat (Shopee Style: 1 Penjual 1 Room Utama ke Database)
+  // 👉 Handle Chat (WhatsApp Style: 1 lawan bicara = 1 room, room dibuat otomatis)
   async function handleShopeeStyleChat(product: Product) {
-    const currentUser = JSON.parse(localStorage.getItem('am_current_user') || '{"email": "miyya@gmail.com", "nama": "Miyatul"}');
+    const currentUser = JSON.parse(localStorage.getItem('am_current_user') || '{"email": "miyya@gmail.com", "nama": "Miyatul", "role": "buyer"}');
     const sellerId = product.sellerId || 'seller_1';
     const sellerName = product.sellerName || 'Penjual Antasari';
     const buyerEmail = currentUser.email || 'miyya@gmail.com';
@@ -123,12 +123,12 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          roomId: `room_${sellerId}_${buyerEmail}`,
-          sellerId,
-          sellerName,
-          buyerEmail,
-          buyerName,
-          senderId: buyerEmail,
+          fromId: buyerEmail,
+          fromName: buyerName,
+          fromRole: currentUser.role || 'buyer',
+          toId: sellerId,
+          toName: sellerName,
+          toRole: 'seller',
           text: initialMessage
         })
       });
