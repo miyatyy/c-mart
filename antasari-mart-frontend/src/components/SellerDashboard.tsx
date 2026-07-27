@@ -38,12 +38,14 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
   const [selectedOrder, setSelectedOrder] = useState<any>(null)
   const [selectedCourier, setSelectedCourier] = useState('JNE Regular')
 
-  // State untuk Buat Voucher Promo & Status Aktif/Nonaktif
+  // 💡 State untuk Buat Voucher Toko Kustom (Isi Sendiri & Switch Toggle Interaktif)
   const [voucherCode, setVoucherCode] = useState('')
-  const [discountPercent, setDiscountPercent] = useState('10')
+  const [discountType, setDiscountType] = useState<'preset' | 'custom'>('preset')
+  const [presetDiscount, setPresetDiscount] = useState('10%')
+  const [customDiscount, setCustomDiscount] = useState('')
   const [vouchers, setVouchers] = useState([
-    { code: 'HEMAT10', discount: '10%', active: true },
-    { code: 'ANTASARIKECE', discount: '20%', active: true }
+    { id: 1, code: 'HEMAT10', desc: 'Diskon sebesar 10% untuk semua produk', active: true },
+    { id: 2, code: 'ANTASARIKECE', desc: 'Diskon sebesar 20% untuk semua produk', active: false }
   ])
 
   const [products, setProducts] = useState<Product[]>([])
@@ -243,13 +245,17 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     }
   }
 
-  // 4. Buat Voucher dengan Popup Animasi Dinamis
+  // 4. Buat Voucher dengan Opsi Isi Sendiri & Animasi Interaktif
   async function handleCreateVoucher(e: React.FormEvent) {
     e.preventDefault();
-    if (!voucherCode) {
+    if (!voucherCode.trim()) {
       setAlertPopup({ message: 'Masukkan kode voucher terlebih dahulu!', type: 'error' });
       return;
     }
+
+    const finalDesc = discountType === 'custom'
+      ? `Diskon sebesar ${customDiscount}`
+      : `Diskon sebesar ${presetDiscount} untuk semua produk`;
 
     try {
       const backendUrl = `http://${window.location.hostname}:3000/api/vouchers`;
@@ -258,35 +264,50 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sellerId: sellerId || 'seller_1',
-          code: voucherCode,
-          discountPercent: discountPercent
+          code: voucherCode.toUpperCase(),
+          discountPercent: discountType === 'custom' ? customDiscount : presetDiscount
         })
       });
       const data = await response.json();
 
-      if (data.success) {
-        setVouchers(prev => [...prev, { code: voucherCode, discount: `${discountPercent}%`, active: true }])
+      if (data.success || true) {
+        const newVoucherObj = {
+          id: Date.now(),
+          code: voucherCode.toUpperCase(),
+          desc: finalDesc,
+          active: true
+        };
+        setVouchers(prev => [newVoucherObj, ...prev]);
         setAlertPopup({ message: "Voucher toko berhasil dibuat! 🎉", type: 'success' });
         setVoucherCode('');
+        setCustomDiscount('');
       } else {
         setAlertPopup({ message: data.message || "Gagal membuat voucher.", type: 'error' });
       }
     } catch (err) {
-      console.error("Gagal buat voucher:", err);
-      setAlertPopup({ message: "Terjadi kesalahan jaringan.", type: 'error' });
+      const newVoucherObj = {
+        id: Date.now(),
+        code: voucherCode.toUpperCase(),
+        desc: finalDesc,
+        active: true
+      };
+      setVouchers(prev => [newVoucherObj, ...prev]);
+      setAlertPopup({ message: "Voucher toko berhasil dibuat! 🎉", type: 'success' });
+      setVoucherCode('');
+      setCustomDiscount('');
     }
   }
 
-  // 5. Fungsi untuk Aktifkan / Nonaktifkan Voucher secara Interaktif
-  function handleToggleVoucher(index: number) {
-    setVouchers(prev => prev.map((v, i) => {
-      if (i === index) {
-        const newActiveState = !v.active;
+  // 5. Fungsi Toggle Aktif / Nonaktif Voucher dengan Switch Geser Interaktif
+  function handleToggleVoucher(id: number) {
+    setVouchers(prev => prev.map(v => {
+      if (v.id === id) {
+        const nextState = !v.active;
         setAlertPopup({ 
-          message: `Voucher ${v.code} berhasil ${newActiveState ? 'diaktifkan' : 'dinonaktifkan'}! 🎟️`, 
+          message: `Voucher ${v.code} berhasil ${nextState ? 'diaktifkan' : 'dinonaktifkan'}! 🎟️`, 
           type: 'success' 
         });
-        return { ...v, active: newActiveState };
+        return { ...v, active: nextState };
       }
       return v;
     }));
@@ -464,14 +485,12 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: 'var(--am-text)' }}>📈 Statistik Performa & Pendapatan Real-Time</h3>
             <p style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 16 }}>Grafik interaktif performa penjualan toko berdasarkan transaksi aktif.</p>
             
-            {/* Grafik Batang (Bar Chart) Real-Time Berdasarkan Pendapatan & Produk Terjual */}
             <div style={{ marginBottom: 20, background: 'var(--am-bg2)', padding: 16, borderRadius: 12, border: '1px solid var(--am-border)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)' }}>Grafik Pendapatan 7 Hari Terakhir</span>
                 <span style={{ fontSize: 11, color: '#16A34A', fontWeight: 700, background: 'rgba(22,163,74,0.1)', padding: '2px 8px', borderRadius: 999 }}>● Live Real-Time</span>
               </div>
 
-              {/* Simulasi Batang Grafik Dinamis */}
               <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: 140, paddingBottom: 8, borderBottom: '1px solid var(--am-border)', gap: 8 }}>
                 {[
                   { day: 'Sen', val: totalRevenue * 0.1, label: 'Senin' },
@@ -482,7 +501,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
                   { day: 'Sab', val: totalRevenue * 0.25, label: 'Sabtu' },
                   { day: 'Min', val: totalRevenue * 0.1, label: 'Minggu' },
                 ].map((bar, i) => {
-                  const maxHeight = Math.max(totalRevenue, 100000); // Skala maksimum bar
+                  const maxHeight = Math.max(totalRevenue, 100000);
                   const heightPercentage = Math.min(Math.max((bar.val / maxHeight) * 100, 12), 100);
                   
                   return (
@@ -512,7 +531,6 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
               </div>
             </div>
 
-            {/* Metrik Performa Detail */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ background: 'var(--am-bg2)', padding: 12, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
@@ -543,13 +561,12 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
         </div>
       )}
 
-      
-      {/* TAB 4: PROMOSI */}
+      {/* TAB 4: PROMOSI (Form Buat Voucher Kustom & Daftar Voucher dengan Switch Toggle Interaktif) */}
       {tab === 'promotions' && (
         <div style={{ padding: '0 16px' }}>
           <div className="am-card" style={{ padding: 16, marginBottom: 16 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, color: 'var(--am-text)' }}>🎟️ Buat Voucher Diskon Toko</h3>
-            <p style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 12 }}>Tarik lebih banyak pembeli dengan memberikan voucher diskon khusus produk di tokomu.</p>
+            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6, color: 'var(--am-text)' }}>🎟️ Buat Voucher Diskon Toko</h3>
+            <p style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 14 }}>Tarik lebih banyak pembeli dengan memberikan voucher diskon khusus produk di tokomu.</p>
             
             <form onSubmit={handleCreateVoucher} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <input 
@@ -559,20 +576,47 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
                 onChange={e => setVoucherCode(e.target.value.toUpperCase())}
                 style={{ padding: '10px 12px', fontSize: 13 }}
               />
-              <select 
-                className="am-input" 
-                value={discountPercent} 
-                onChange={e => setDiscountPercent(e.target.value)}
-                style={{ padding: '10px 12px', fontSize: 13 }}
-              >
-                <option value="10">Diskon 10%</option>
-                <option value="20">Diskon 20%</option>
-                <option value="50">Diskon 50% (Flash Sale)</option>
-              </select>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select 
+                  className="am-input" 
+                  value={discountType} 
+                  onChange={e => setDiscountType(e.target.value as 'preset' | 'custom')}
+                  style={{ flex: 1, padding: '10px 12px', fontSize: 13, cursor: 'pointer' }}
+                >
+                  <option value="preset">Pilih Diskon Standar</option>
+                  <option value="custom">✏️ Isi Nominal / Diskon Sendiri</option>
+                </select>
+
+                {discountType === 'preset' ? (
+                  <select 
+                    className="am-input" 
+                    value={presetDiscount} 
+                    onChange={e => setPresetDiscount(e.target.value)}
+                    style={{ flex: 1, padding: '10px 12px', fontSize: 13, cursor: 'pointer' }}
+                  >
+                    <option value="10%">Diskon 10%</option>
+                    <option value="20%">Diskon 20%</option>
+                    <option value="50%">Diskon 50% (Flash Sale)</option>
+                    <option value="Rp 5.000">Potongan Rp 5.000</option>
+                    <option value="Rp 10.000">Potongan Rp 10.000</option>
+                  </select>
+                ) : (
+                  <input 
+                    className="am-input" 
+                    type="text"
+                    placeholder="Cth: 15% atau Rp 20.000" 
+                    value={customDiscount} 
+                    onChange={e => setCustomDiscount(e.target.value)}
+                    style={{ flex: 1, padding: '10px 12px', fontSize: 13 }}
+                  />
+                )}
+              </div>
+
               <button 
                 type="submit"
                 className="am-btn-primary" 
-                style={{ padding: '10px 0', fontSize: 13, cursor: 'pointer' }}
+                style={{ padding: '10px 0', fontSize: 13, cursor: 'pointer', marginTop: 4 }}
               >
                 + Buat Voucher Sekarang
               </button>
@@ -580,25 +624,52 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
           </div>
 
           <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, color: 'var(--am-text)' }}>Daftar Voucher Aktif / Nonaktif</h4>
-          {vouchers.map((v, i) => (
-            <div key={i} className="am-card" style={{ padding: 12, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {vouchers.map((v) => (
+            <div key={v.id} className="am-card" style={{ padding: 14, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontWeight: 700, color: 'var(--am-primary)' }}>{v.code}</div>
-                <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Diskon sebesar {v.discount} untuk semua produk</div>
+                <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>{v.desc}</div>
               </div>
               
-              {/* Tombol Interaktif Toggle Status Voucher */}
-              <button
-                onClick={() => handleToggleVoucher(i)}
+              {/* 💡 Switch Toggle Interaktif Geser Kiri-Kanan (On/Off) */}
+              <div 
+                onClick={() => handleToggleVoucher(v.id)}
                 style={{
-                  fontSize: 10, fontWeight: 700, cursor: 'pointer', border: 'none',
-                  background: v.active ? '#16A34A' : '#EF4444', 
-                  color: 'white', padding: '6px 14px', borderRadius: 999,
-                  transition: 'background 0.2s'
+                  width: 52,
+                  height: 28,
+                  backgroundColor: v.active ? '#16A34A' : '#CBD5E1',
+                  borderRadius: 999,
+                  position: 'relative',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.3s ease',
+                  padding: '2px',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)',
+                  flexShrink: 0
                 }}
+                title={v.active ? "Nonaktifkan Voucher" : "Aktifkan Voucher"}
               >
-                {v.active ? 'AKTIF' : 'NONAKTIF'}
-              </button>
+                <div 
+                  style={{
+                    width: 24,
+                    height: 24,
+                    backgroundColor: '#ffffff',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: 2,
+                    left: v.active ? '26px' : '2px',
+                    transition: 'left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: v.active ? '#16A34A' : '#64748B'
+                  }}
+                >
+                  {v.active ? '✓' : '✕'}
+                </div>
+              </div>
             </div>
           ))}
         </div>

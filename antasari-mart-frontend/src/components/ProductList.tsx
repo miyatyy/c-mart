@@ -90,8 +90,12 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
       }
     }
 
-    if (filter === 'koperasi' && !p.isKoperasi) return false
-    if (filter === 'mahasiswa' && p.isKoperasi) return false
+    // 💡 Deteksi produk koperasi berdasarkan flag boolean ATAU nama penjual yang mengandung kata koperasi/admin
+    const isProductKoperasi = p.isKoperasi || 
+      (p.sellerName && (p.sellerName.toLowerCase().includes('koperasi') || p.sellerName.toLowerCase().includes('admin')));
+
+    if (filter === 'koperasi' && !isProductKoperasi) return false
+    if (filter === 'mahasiswa' && isProductKoperasi) return false
     if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
 
     return true
@@ -107,7 +111,6 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
     setQty(1)
   }
 
-  // 👉 Handle Chat (WhatsApp Style: 1 lawan bicara = 1 room, room dibuat otomatis)
   async function handleShopeeStyleChat(product: Product) {
     const currentUser = JSON.parse(localStorage.getItem('am_current_user') || '{"email": "miyya@gmail.com", "nama": "Miyatul", "role": "buyer"}');
     const sellerId = product.sellerId || 'seller_1';
@@ -118,7 +121,6 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
     const initialMessage = `Halo Kak ${sellerName}, saya ingin bertanya mengenai produk "${product.name}" (${formatRupiah(product.price)}) apakah stoknya tersedia?`;
 
     try {
-      // Kirim pesan otomatis ke backend PostgreSQL
       await fetch(`http://${window.location.hostname}:3000/api/chats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

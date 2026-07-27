@@ -1,7 +1,7 @@
 export type Campus = 'banjarmasin' | 'banjarbaru'
-export type UserRole = 'buyer' | 'seller' | 'driver' | 'admin'
+export type UserRole = 'buyer' | 'seller' | 'driver' | 'admin' | 'admin_reguler' | 'admin_pro' | 'super_admin'
 export type ThemeMode = 'aesthetic' | 'modern'
-export type AppTab = 'home' | 'cart' | 'checkout' | 'tracker' | 'seller' | 'admin' | 'chat' | 'driver'
+export type AppTab = 'home' | 'cart' | 'checkout' | 'tracker' | 'seller' | 'admin' | 'chat' | 'driver' | 'super_admin'
 export type PaymentMethod = 'qris' | 'dana' | 'gopay' | 'cod'
 export type DeliveryMethod = 'courier' | 'pickup'
 export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'searching_driver' | 'driver_found' | 'picked_up' | 'on_the_way' | 'delivered' | 'cancelled'
@@ -17,6 +17,8 @@ export interface User {
   campus: Campus
   avatar: string
   theme: ThemeMode
+  isPro?: boolean
+  proExpireDate?: string
 }
 
 export interface Product {

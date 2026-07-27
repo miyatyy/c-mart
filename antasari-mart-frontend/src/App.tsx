@@ -12,6 +12,8 @@ import AdminPanel from './components/AdminPanel'
 import DriverDashboard from './components/DriverDashboard'
 import Login from './components/Login'
 import ChatPage from './components/ChatPage'
+import ProModal from './components/ProModal'
+import SuperAdminPanel from './components/SuperAdminPanel' // 👑 Impor Panel Super Admin
 
 export default function App() {
   const [_loggedIn, setLoggedIn] = useState(true)
@@ -24,12 +26,11 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeMode>('aesthetic')
   const [activeTab, setActiveTab] = useState<AppTab>('home')
   const [cart, setCart] = useState<CartItem[]>([])
-  const [chatUnread, setChatUnread] = useState(0) // 💡 State dinamis untuk menghitung jumlah pesan belum dibaca
+  const [chatUnread, setChatUnread] = useState(0)
   
   const [user, setUser] = useState<any>(null)
   const isGuest = !user
 
-  // 👉 Status pesanan aktif default FALSE, hanya true jika akun melakukan checkout nyata
   const [hasActiveOrder, setHasActiveOrder] = useState(() => {
     return !isGuest && localStorage.getItem('am_active_order') === 'true'
   })
@@ -39,11 +40,12 @@ export default function App() {
     nama: 'Pengunjung Tamu',
     email: 'tamu@antasari.mart',
     role: 'buyer',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&auto=format'
+    avatar: ''
   }
 
   const [modalMessage, setModalMessage] = useState<{ title: string; desc: string; icon: string } | null>(null)
   const [showLoginModal, setShowLoginModal] = useState(false)
+  const [showProModal, setShowProModal] = useState(false)
 
   const [userAvatar, setUserAvatar] = useState(() => {
     return localStorage.getItem('am_user_avatar') || currentUser.avatar
@@ -80,7 +82,6 @@ export default function App() {
     localStorage.setItem('am_user_campus', campus)
   }, [campus])
 
-  // 💡 Efek untuk mengambil jumlah pesan unread secara real-time dari database PostgreSQL
   useEffect(() => {
     if (isGuest || !currentUser?.email) {
       setChatUnread(0);
@@ -93,7 +94,6 @@ export default function App() {
         const res = await fetch(`http://${window.location.hostname}:3000/api/chats/${identifier}`);
         const data = await res.json();
         if (data.success && data.chats) {
-          // Hitung pesan masuk (dikirim oleh lawan bicara, ditujukan ke akun ini)
           const unread = data.chats.filter((c: any) => c.receiverId === identifier && c.senderId !== identifier).length;
           setChatUnread(unread > 0 ? unread : 0);
         }
@@ -103,7 +103,7 @@ export default function App() {
     };
 
     fetchUnreadChats();
-    const interval = setInterval(fetchUnreadChats, 3000); // Polling setiap 3 detik
+    const interval = setInterval(fetchUnreadChats, 3000);
     return () => clearInterval(interval);
   }, [currentUser, isGuest]);
 
@@ -227,7 +227,7 @@ export default function App() {
         }}
         userName={currentUser.nama || currentUser.name || 'Pengunjung Tamu'}
         userEmail={currentUser.email}
-        userAvatar={userAvatar}
+        userAvatar={isGuest ? '' : userAvatar}
         setUserAvatar={setUserAvatar}
         campus={campus}
         setCampus={setCampus}
@@ -235,6 +235,13 @@ export default function App() {
         isGuest={isGuest}
         onRequireLogin={() => setShowLoginModal(true)}
         hasActiveOrder={hasActiveOrder}
+        onOpenProModal={() => {
+          if (isGuest) {
+            setShowLoginModal(true);
+          } else {
+            setShowProModal(true);
+          }
+        }}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -263,9 +270,10 @@ export default function App() {
           role={role}
           setRole={handleRoleChange}
           userName={currentUser.nama || currentUser.name || 'Pengunjung'}
-          userAvatar={userAvatar}
+          userEmail={currentUser.email}
+          userAvatar={isGuest ? '' : userAvatar}
           cartItems={cart}
-          chatUnread={chatUnread} // 💡 Terhubung langsung ke database unread
+          chatUnread={chatUnread}
           onToggleTheme={() => setTheme(t => t === 'aesthetic' ? 'modern' : 'aesthetic')}
           onLogout={isGuest ? () => setShowLoginModal(true) : handleLogout}
           isGuest={isGuest}
@@ -366,8 +374,19 @@ export default function App() {
           {activeTab === 'admin' && (
             <AdminPanel theme={theme} />
           )}
+          {/* 👑 Render Tampilan Panel Super Admin */}
+          {activeTab === ('super_admin' as any) && (
+            <SuperAdminPanel theme={theme} />
+          )}
         </main>
       </div>
+
+      {showProModal && (
+        <ProModal 
+          user={currentUser} 
+          onClose={() => setShowProModal(false)} 
+        />
+      )}
 
       {modalMessage && (
         <div style={{

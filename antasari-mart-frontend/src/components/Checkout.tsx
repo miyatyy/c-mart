@@ -32,7 +32,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     ? 'Ambil Sendiri di Tenant Koperasi' 
     : (isCustomLocation ? customLocationText.trim() : selectedDropdownLocation);
 
-  // 👉 FUNGSI REDIRECT MIDTRANS (MENGATASI ERROR CSP INLINE SCRIPT DENGAN REDIRECT KE HALAMAN RESMI)
+  // 👉 FUNGSI REDIRECT MIDTRANS & PENGURANGAN STOK OTOMATIS DI BACKEND
   async function handleMidtransPayment() {
     try {
       const backendUrl = `http://${window.location.hostname}:3000/api/checkout`;
@@ -45,7 +45,8 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
           customerDetails: {
             name: "Mahasiswa UIN Antasari",
             email: "mahasiswa@uin-antasari.ac.id"
-          }
+          },
+          items: items // 💡 Mengirim item keranjang agar backend otomatis memotong stok produk di database
         })
       });
 
@@ -56,7 +57,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
         localStorage.setItem('am_active_order', 'true');
         localStorage.setItem('am_delivery_method', delivery);
         
-        // 💡 Langsung arahkan halaman ke URL pembayaran Midtrans (Aman dari blokir CSP browser)
+        // Langsung arahkan halaman ke URL pembayaran Midtrans
         window.location.href = data.redirect_url;
       } else {
         alert("Gagal menginisialisasi pembayaran server Midtrans: " + (data.message || ''));
@@ -67,27 +68,24 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     }
   }
 
-  function handleStartProcess() {
-    if (delivery === 'courier' && !finalLocation) {
-      alert("Mohon pilih atau ketik lokasi pengantaran terlebih dahulu!");
-      return;
+  // 💡 Fungsi untuk memproses pesanan non-Midtrans (COD / Ambil Sendiri) serta memotong stok produk
+  async function processOrderWithoutMidtrans(deliveryMethod: DeliveryMethod) {
+    try {
+      const backendUrl = `http://${window.location.hostname}:3000/api/checkout`;
+      await fetch(backendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: `ANTASARI-${Date.now()}`,
+          grossAmount: total,
+          items: items // 💡 Memotong stok otomatis untuk metode selain Midtrans
+        })
+      });
+    } catch (error) {
+      console.error("Gagal mengurangi stok produk:", error);
     }
 
-    if (payment === 'qris') {
-      // Langsung panggil redirect Midtrans
-      handleMidtransPayment();
-    } else if (delivery === 'courier') {
-      triggerSearchDriver();
-    } else {
-      setStep('success');
-      localStorage.setItem('am_active_order', 'true');
-      localStorage.setItem('am_delivery_method', 'pickup'); 
-      onConfirmOrder(delivery, payment, finalLocation);
-    }
-  }
-
-  function triggerSearchDriver() {
-    if (delivery === 'courier') {
+    if (deliveryMethod === 'courier') {
       setStep('searching_driver');
       setTimeout(() => {
         setStep('success');
@@ -100,6 +98,21 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
       localStorage.setItem('am_active_order', 'true');
       localStorage.setItem('am_delivery_method', 'pickup'); 
       onConfirmOrder(delivery, payment, finalLocation);
+    }
+  }
+
+  function handleStartProcess() {
+    if (delivery === 'courier' && !finalLocation) {
+      alert("Mohon pilih atau ketik lokasi pengantaran terlebih dahulu!");
+      return;
+    }
+
+    if (payment === 'qris') {
+      handleMidtransPayment();
+    } else if (delivery === 'courier') {
+      processOrderWithoutMidtrans('courier');
+    } else {
+      processOrderWithoutMidtrans('pickup');
     }
   }
 

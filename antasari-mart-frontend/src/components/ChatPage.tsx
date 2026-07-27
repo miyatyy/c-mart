@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import Swal from 'sweetalert2'
 import type { ThemeMode, Campus } from '../types'
 
 interface ChatPageProps {
@@ -58,7 +59,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
   const [chats, setChats] = useState<ChatMessage[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null)
-  const [pendingContact, setPendingContact] = useState<Contact | null>(null) // room belum punya pesan
+  const [pendingContact, setPendingContact] = useState<Contact | null>(null)
   const [messageInput, setMessageInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [showContactPicker, setShowContactPicker] = useState(false)
@@ -66,6 +67,9 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
 
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const apiBase = `http://${window.location.hostname}:3000`
+  
+  // 💡 Menyimpan jumlah pesan terakhir untuk memicu notifikasi browser saat ada pesan baru
+  const prevChatsLengthRef = useRef<number>(0)
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('am_current_user') || '{"email": "miyya@gmail.com", "nama": "Miyatul", "role": "buyer"}')
@@ -74,6 +78,11 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     const identifier = user.email
     fetchChats(identifier)
     fetchContacts(identifier)
+
+    // 💡 Meminta izin notifikasi browser Chrome saat halaman chat dibuka
+    if ('Notification' in window && Notification.permission !== 'granted') {
+      Notification.requestPermission()
+    }
 
     const interval = setInterval(() => {
       fetchChats(identifier, true)
@@ -93,12 +102,30 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
       const res = await fetch(`${apiBase}/api/chats/${identifier}`)
       const data = await res.json()
       if (data.success && data.chats) {
+        // 💡 Cek apakah ada pesan masuk baru dari orang lain untuk memicu notifikasi Chrome
+        if (isBackground && data.chats.length > prevChatsLengthRef.current) {
+          const latestMsg = data.chats[data.chats.length - 1]
+          if (latestMsg.senderId !== identifier) {
+            triggerBrowserNotification(latestMsg.senderName, latestMsg.text)
+          }
+        }
+        prevChatsLengthRef.current = data.chats.length
         setChats(data.chats)
       }
       if (!isBackground) setLoading(false)
     } catch (err) {
       console.error('Gagal mengambil data chat:', err)
       if (!isBackground) setLoading(false)
+    }
+  }
+
+  // 💡 Fungsi memunculkan pop-up notifikasi di pojok kanan bawah Chrome
+  function triggerBrowserNotification(senderName: string, text: string) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(`💬 Pesan Baru dari ${senderName}`, {
+        body: text,
+        icon: 'https://api.dicebear.com/7.x/adventurer/svg?seed=AntasariMart&backgroundColor=00b4d8'
+      })
     }
   }
 
@@ -114,7 +141,6 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     }
   }
 
-  // Kelompokkan semua pesan (dari lintas role apa pun) berdasarkan roomId
   const chatRooms: RoomInfo[] = useMemo(() => {
     if (!currentUser) return []
     const me = currentUser.email
@@ -139,8 +165,6 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     })
   }, [chats, currentUser])
 
-  // Room yang sedang aktif: bisa berupa room lama (sudah ada pesan) ATAU room baru dari kontak
-  // yang baru saja dipilih tapi belum ada pesan sama sekali.
   const activeRoom: RoomInfo | null = useMemo(() => {
     if (pendingContact) {
       return {
@@ -160,7 +184,6 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
   }
 
   function openContact(contact: Contact) {
-    // Kalau sudah pernah ada percakapan, langsung buka room lama-nya
     const existing = chatRooms.find(r => r.otherId === contact.email)
     if (existing) {
       openRoom(existing)
@@ -196,6 +219,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
       if (data.success && data.chat) {
         setMessageInput('')
         setChats(prev => [...prev, data.chat])
+        prevChatsLengthRef.current = prevChatsLengthRef.current + 1
         setPendingContact(null)
         setActiveRoomId(data.chat.roomId)
       }
@@ -205,12 +229,37 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
   }
 
   async function handleDeleteMessage(chatId: number) {
-    if (!confirm('Hapus pesan ini?')) return
+    const result = await Swal.fire({
+      title: 'Hapus Pesan?',
+      text: "Pesan yang dihapus tidak dapat dikembalikan lagi.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#EF4444',
+      cancelButtonColor: '#64748B',
+      confirmButtonText: 'Ya, Hapus!',
+      cancelButtonText: 'Batal',
+      background: '#ffffff',
+      color: '#333333',
+    })
+
+    if (!result.isConfirmed) return
+
     try {
       const res = await fetch(`${apiBase}/api/chats/${chatId}`, { method: 'DELETE' })
       const data = await res.json()
       if (data.success) {
         setChats(prev => prev.filter(c => c.id !== chatId))
+        prevChatsLengthRef.current = Math.max(0, prevChatsLengthRef.current - 1)
+        
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: 'Pesan berhasil dihapus',
+          showConfirmButton: false,
+          timer: 1500,
+          timerProgressBar: true
+        })
       }
     } catch (err) {
       console.error('Gagal menghapus pesan:', err)
@@ -322,8 +371,6 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                   </div>
                 )}
                 {activeRoom.messages.map((msg: ChatMessage) => {
-                  // 💡 LOGIKA WHATSAPP: kalau pengirim pesan (email asli) == akun yang sedang login -> KANAN.
-                  // Berlaku sama untuk buyer, seller, driver, maupun admin.
                   const isMe = msg.senderId === currentUser?.email
 
                   return (
@@ -383,7 +430,6 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
 
       </div>
 
-      {/* Modal Pemilih Kontak: browse semua akun lintas role (penjual, pembeli, driver, admin) */}
       {showContactPicker && (
         <div
           onClick={() => setShowContactPicker(false)}

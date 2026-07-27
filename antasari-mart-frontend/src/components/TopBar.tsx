@@ -9,6 +9,7 @@ interface TopBarProps {
   role: UserRole
   setRole: (r: UserRole) => void
   userName: string
+  userEmail?: string // 💡 Ditambahkan untuk mendeteksi email super admin
   userAvatar: string
   cartItems: CartItem[]
   chatUnread: number
@@ -21,35 +22,37 @@ interface TopBarProps {
 
 export default function TopBar({
   theme, campus, setCampus, activeTab, setActiveTab,
-  role, userName, userAvatar, cartItems, chatUnread, onToggleTheme,
+  role, userName, userEmail, userAvatar, cartItems, chatUnread, onToggleTheme,
   onLogout, isGuest, onRequireLogin, hasActiveOrder = false
 }: TopBarProps) {
   const isAesthetic = theme === 'aesthetic'
   const cartCount = cartItems.reduce((acc, i) => acc + i.quantity, 0)
 
-  // Cek apakah metode pengiriman pickup atau kurir untuk mengubah label tab secara dinamis
   const deliveryMethod = typeof window !== 'undefined' ? localStorage.getItem('am_delivery_method') || 'delivery' : 'delivery'
   const isPickup = deliveryMethod === 'pickup' || deliveryMethod === 'ambil_sendiri'
   const trackerLabel = isPickup ? 'Pick-Up' : 'Lacak'
   const trackerIcon = isPickup ? '🎟️' : '📍'
 
-  // Menentukan tab navigasi berdasarkan role & status pesanan aktif (hasActiveOrder)
+  const storedAvatar = typeof window !== 'undefined' ? localStorage.getItem('am_user_avatar') : null;
+  const activeAvatar = storedAvatar || userAvatar || 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4';
+
+  const isSuperAdmin = userEmail === 'miyya@gmail.com' || role === 'super_admin';
+
   const navTabs: { key: AppTab; label: string; icon: string; roles: UserRole[] }[] = [
-    { key: 'home', label: 'Beranda', icon: '🏠', roles: ['buyer', 'seller', 'driver', 'admin', 'admin_reguler', 'admin_pro'] },
+    { key: 'home', label: 'Beranda', icon: '🏠', roles: ['buyer', 'seller', 'driver', 'admin', 'admin_reguler', 'admin_pro', 'super_admin'] },
     { key: 'cart', label: 'Keranjang', icon: '🛒', roles: ['buyer'] },
-    // 👉 Label & Ikon dinamis: Pick-Up jika ambil sendiri, Lacak jika kurir
     ...(hasActiveOrder ? [{ key: 'tracker' as AppTab, label: trackerLabel, icon: trackerIcon, roles: ['buyer'] }] : []),
-    { key: 'chat', label: 'Pesan', icon: '💬', roles: ['buyer', 'seller'] },
+    { key: 'chat', label: 'Pesan', icon: '💬', roles: ['buyer', 'seller', 'super_admin'] },
     { key: 'seller', label: 'Lapak', icon: '🏪', roles: ['seller'] },
     { key: 'driver', label: 'Tugas', icon: '🛵', roles: ['driver'] },
     { key: 'admin', label: 'Admin', icon: '⚙️', roles: ['admin', 'admin_reguler', 'admin_pro'] },
+    ...(isSuperAdmin ? [{ key: 'super_admin' as AppTab, label: 'Super Admin', icon: '👑', roles: ['super_admin'] }] : []),
   ]
 
-  const visibleTabs = navTabs.filter(t => t.roles.includes(role))
+  const visibleTabs = navTabs.filter(t => t.roles.includes(role) || (isSuperAdmin && t.key === 'super_admin'))
 
   return (
     <header style={{ background: 'var(--am-surface)', borderBottom: '1px solid var(--am-border)', position: 'sticky', top: 0, zIndex: 100 }}>
-      {/* Top row */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', gap: 8 }}>
         
         {/* Logo */}
@@ -106,17 +109,31 @@ export default function TopBar({
 
           <div style={{ 
             fontSize: 11, padding: '4px 8px', fontWeight: 700, 
-            background: 'var(--am-primary)', color: 'white', borderRadius: 6 
+            background: isSuperAdmin ? '#F59E0B' : 'var(--am-primary)', color: 'white', borderRadius: 6 
           }}>
-            {role === 'buyer' && (isGuest ? '👤 Pengunjung Tamu' : '🛍 Pembeli')}
-            {role === 'seller' && '🏪 Penjual'}
-            {role === 'driver' && '🛵 Driver'}
-            {role === 'admin' && '⚙️ Admin'}
-            {role === 'admin_reguler' && '⚙️ Admin Reguler'}
-            {role === 'admin_pro' && '💎 Admin Pro'}
+            {isSuperAdmin ? '👑 Super Admin' : (role === 'buyer' && (isGuest ? '👤 Pengunjung Tamu' : '🛍 Pembeli'))}
+            {!isSuperAdmin && role === 'seller' && '🏪 Penjual'}
+            {!isSuperAdmin && role === 'driver' && '🛵 Driver'}
+            {!isSuperAdmin && role === 'admin' && '⚙️ Admin'}
+            {!isSuperAdmin && role === 'admin_reguler' && '⚙️ Admin Reguler'}
+            {!isSuperAdmin && role === 'admin_pro' && '💎 Admin Pro'}
           </div>
 
-          <img src={userAvatar} alt={userName} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--am-primary)', flexShrink: 0 }} />
+          {isGuest ? (
+            <div style={{ 
+              width: 32, height: 32, borderRadius: '50%', background: 'var(--am-bg2)', 
+              border: '2px solid var(--am-border)', display: 'flex', alignItems: 'center', 
+              justifyContent: 'center', fontSize: 14, flexShrink: 0, color: 'var(--am-text-muted)' 
+            }}>
+              👤
+            </div>
+          ) : (
+            <img 
+              src={activeAvatar} 
+              alt={userName} 
+              style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', background: '#e2e8f0', border: '2px solid var(--am-primary)', flexShrink: 0 }} 
+            />
+          )}
           
           <button 
             onClick={onLogout}

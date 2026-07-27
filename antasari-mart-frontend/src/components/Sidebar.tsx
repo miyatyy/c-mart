@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { AppTab, UserRole, ThemeMode, Campus } from '../types'
 
 interface SidebarProps {
@@ -16,7 +16,21 @@ interface SidebarProps {
   isGuest?: boolean
   onRequireLogin?: () => void
   hasActiveOrder?: boolean
+  onOpenProModal?: () => void
 }
+
+const PRESET_AVATARS = [
+  { id: 1, name: 'Maya (Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4' },
+  { id: 2, name: 'Ahmad (Ramah)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=AhmadHappy&backgroundColor=c0aede' },
+  { id: 3, name: 'Siti (Manis Senyum)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=SitiJoy&backgroundColor=ffd5dc' },
+  { id: 4, name: 'Rizky (Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=RizkyFun&backgroundColor=d1d4f9' },
+  { id: 5, name: 'Dewi (Friendly)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=DewiBright&backgroundColor=ffdfbf' },
+  { id: 6, name: 'Fajar (Semangat)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=FajarSmile&backgroundColor=c1f4c5' },
+  { id: 7, name: 'Alya (Kreatif Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=AlyaCheer&backgroundColor=ffcdec' },
+  { id: 8, name: 'Zain (Pro Senyum)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=ZainPro&backgroundColor=00b4d8' },
+  { id: 9, name: 'Zara (Pro Elegan)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=ZaraPro&backgroundColor=7209b7' },
+  { id: 10, name: 'Ken (Pro Stylish)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585' },
+];
 
 export default function Sidebar({
   theme: _theme,
@@ -32,7 +46,8 @@ export default function Sidebar({
   onLogout,
   isGuest,
   onRequireLogin,
-  hasActiveOrder = false
+  hasActiveOrder = false,
+  onOpenProModal
 }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(true)
   const [showProfileModal, setShowProfileModal] = useState(false)
@@ -42,7 +57,6 @@ export default function Sidebar({
 
   const [successPopupMessage, setSuccessPopupMessage] = useState<string | null>(null)
 
-  // Cek apakah metode pengiriman pickup atau kurir untuk mengubah label menu secara dinamis
   const deliveryMethod = typeof window !== 'undefined' ? localStorage.getItem('am_delivery_method') || 'delivery' : 'delivery'
   const isPickup = deliveryMethod === 'pickup' || deliveryMethod === 'ambil_sendiri'
   const trackerLabel = isPickup ? 'Order Pick-Up' : 'Lacak Pengiriman'
@@ -54,7 +68,6 @@ export default function Sidebar({
         return [
           { key: 'home', label: 'Beranda Belanja', icon: '🏠' },
           { key: 'cart', label: 'Keranjang Saya', icon: '🛒' },
-          // 👉 Label dinamis: Order Pick-Up jika ambil sendiri, Lacak Pengiriman jika kurir
           ...(hasActiveOrder ? [{ key: 'tracker', label: trackerLabel, icon: trackerIcon }] : []),
           { key: 'chat', label: 'Pesan / Chat', icon: '💬' },
         ]
@@ -72,6 +85,7 @@ export default function Sidebar({
       case 'admin':
       case 'admin_reguler':
       case 'admin_pro':
+      case 'super_admin':
         return [
           { key: 'home', label: 'Beranda Utama', icon: '🏠' },
           { key: 'admin', label: 'Panel Kontrol Admin', icon: '⚙️' },
@@ -149,11 +163,21 @@ export default function Sidebar({
 
         {isOpen && (
           <div style={{ padding: '16px', borderBottom: '1px solid var(--am-border)', textAlign: 'center' }}>
-            <img 
-              src={userAvatar} 
-              alt={currentName} 
-              style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--am-primary)', marginBottom: 6 }} 
-            />
+            {isGuest ? (
+              <div style={{ 
+                width: 56, height: 56, borderRadius: '50%', background: 'var(--am-bg2)', 
+                border: '2px solid var(--am-border)', display: 'flex', alignItems: 'center', 
+                justifyContent: 'center', fontSize: 26, margin: '0 auto 6px', color: 'var(--am-text-muted)' 
+              }}>
+                👤
+              </div>
+            ) : (
+              <img 
+                src={userAvatar || 'https://api.dicebear.com/7.x/adventurer/svg?seed=Default&backgroundColor=b6e3f4'} 
+                alt={currentName} 
+                style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--am-primary)', marginBottom: 6 }} 
+              />
+            )}
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--am-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentName}</div>
             <div style={{ fontSize: 11, color: 'var(--am-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userEmail || 'antasarimart@uin-antasari.ac.id'}</div>
             
@@ -164,7 +188,7 @@ export default function Sidebar({
               {role === 'buyer' && (isGuest ? '👤 Pengunjung Tamu' : '🛍 Pembeli')}
               {role === 'seller' && '🏪 Penjual'}
               {role === 'driver' && '🛵 Driver'}
-              {role === 'admin' || role === 'admin_reguler' || role === 'admin_pro' ? '🏢 Admin Koperasi' : ''}
+              {role === 'super_admin' ? '👑 Super Admin' : (role.includes('admin') ? '🏢 Admin Koperasi' : '')}
             </div>
           </div>
         )}
@@ -205,6 +229,53 @@ export default function Sidebar({
               </button>
             )
           })}
+
+          {/* 👑 TOMBOL KHUSUS SUPER ADMIN CENTER */}
+          {(userEmail === 'miyya@gmail.com' || role === 'super_admin') && (
+            <button
+              onClick={() => setActiveTab('super_admin' as any)}
+              title={!isOpen ? "Super Admin Center" : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                padding: isOpen ? '10px 14px' : '10px 0', justifyContent: isOpen ? 'flex-start' : 'center',
+                borderRadius: 10, border: '1px dashed #F59E0B', cursor: 'pointer',
+                background: activeTab === ('super_admin' as any) ? '#F59E0B' : 'rgba(245, 158, 11, 0.1)', 
+                color: activeTab === ('super_admin' as any) ? 'white' : '#D97706', 
+                fontWeight: 700, fontSize: 13, marginTop: 6, transition: 'all 0.2s'
+              }}
+            >
+              <span style={{ fontSize: 18 }}>👑</span>
+              {isOpen && <span style={{ whiteSpace: 'nowrap' }}>Super Admin Center</span>}
+            </button>
+          )}
+
+          {/* 💎 TOMBOL MENU UPGRADE KE AKUN PRO */}
+          {!isGuest && (
+            <button
+              onClick={() => {
+                if (onOpenProModal) onOpenProModal();
+              }}
+              title={!isOpen ? "Antasari Mart PRO" : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                padding: isOpen ? '10px 14px' : '10px 0', 
+                justifyContent: isOpen ? 'flex-start' : 'center',
+                borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: 'linear-gradient(135deg, #00B4D8 0%, #03045E 100%)',
+                color: 'white', fontWeight: 700, fontSize: 13,
+                marginTop: 6, boxShadow: '0 4px 12px rgba(0, 180, 216, 0.25)',
+                transition: 'transform 0.2s'
+              }}
+            >
+              <span style={{ fontSize: 18 }}>💎</span>
+              {isOpen && (
+                <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
+                  <div style={{ whiteSpace: 'nowrap' }}>Antasari Mart PRO</div>
+                  <div style={{ fontSize: 9, opacity: 0.85, fontWeight: 400 }}>Mulai Rp 10rb/bln</div>
+                </div>
+              )}
+            </button>
+          )}
 
           {isOpen && !isGuest && (
             <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--am-text-muted)', paddingLeft: 8, marginTop: 16, marginBottom: 4, letterSpacing: 1 }}>
@@ -252,57 +323,83 @@ export default function Sidebar({
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
         }}>
-          <div className="am-card am-slide-up" style={{ width: '100%', maxWidth: 420, padding: 24, borderRadius: 16, background: 'var(--am-surface)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div className="am-card am-slide-up" style={{ width: '100%', maxWidth: 440, padding: 24, borderRadius: 20, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h3 className="am-heading" style={{ margin: 0, fontSize: 18, color: 'var(--am-text)' }}>⚙️ Pengaturan Profil</h3>
               <button onClick={() => setShowProfileModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--am-text-muted)' }}>×</button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              
-              <div style={{ textAlign: 'center', marginBottom: 6 }}>
-                <img 
-                  src={currentAvatar} 
-                  alt="Pratinjau Foto" 
-                  style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--am-primary)', marginBottom: 8 }} 
-                />
-                <div>
-                  <label style={{ display: 'inline-block', padding: '6px 12px', background: 'var(--am-bg2)', border: '1px solid var(--am-border)', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--am-text)' }}>
-                    📷 Pilih Foto Baru
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 14, border: '1px solid var(--am-border)', textAlign: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 'bold', color: '#334155' }}>Ganti Avatar Kartun / Foto:</span>
+                  <label style={{ fontSize: 10, color: '#0077B6', cursor: 'pointer', fontWeight: 700, background: '#E0F2FE', padding: '3px 8px', borderRadius: 6 }}>
+                    📁 Upload Galeri
                     <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
                   </label>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                  <img 
+                    src={currentAvatar} 
+                    alt="Pratinjau Foto" 
+                    style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', background: '#e2e8f0', border: '3px solid var(--am-primary)' }} 
+                  />
+                </div>
+
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', marginBottom: 6, textAlign: 'left' }}>Atau Pilih dari 10 Karakter Kartun Senyum Manis:</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, maxHeight: 100, overflowY: 'auto', padding: 2, background: '#ffffff', borderRadius: 10, border: '1px solid #CBD5E1' }}>
+                  {PRESET_AVATARS.map(avatar => (
+                    <div 
+                      key={avatar.id}
+                      onClick={() => setCurrentAvatar(avatar.url)}
+                      title={avatar.name}
+                      style={{
+                        position: 'relative', cursor: 'pointer', borderRadius: '50%', overflow: 'hidden',
+                        background: '#f8fafc', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        border: currentAvatar === avatar.url ? '3px solid #00B4D8' : '2px solid #CBD5E1',
+                        boxShadow: currentAvatar === avatar.url ? '0 0 8px rgba(0, 180, 216, 0.4)' : 'none',
+                        transition: 'all 0.2s', transform: currentAvatar === avatar.url ? 'scale(1.08)' : 'scale(1)'
+                      }}
+                    >
+                      <img src={avatar.url} alt={avatar.name} style={{ width: '85%', height: '85%', objectFit: 'contain' }} />
+                      {avatar.type === 'pro' && (
+                        <span style={{ position: 'absolute', bottom: 0, width: '100%', background: '#F59E0B', color: 'white', fontSize: 5, fontWeight: 800, textAlign: 'center' }}>PRO</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--am-text-muted)', display: 'block', marginBottom: 4 }}>Nama Lengkap</label>
+                <label style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--am-text-muted)', display: 'block', marginBottom: 4 }}>Nama Lengkap</label>
                 <input 
                   className="am-input" 
                   value={currentName} 
                   onChange={(e) => setCurrentName(e.target.value)} 
-                  style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', color: 'var(--am-text)' }} 
+                  style={{ width: '100%', padding: '10px 12px', fontSize: 13, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', color: 'var(--am-text)' }} 
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--am-text-muted)', display: 'block', marginBottom: 4 }}>Email Akun</label>
+                <label style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--am-text-muted)', display: 'block', marginBottom: 4 }}>Email Akun</label>
                 <input 
                   className="am-input" 
                   value={userEmail || 'miya@gmail.com'} 
                   disabled 
-                  style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', color: 'var(--am-text-muted)', cursor: 'not-allowed' }} 
+                  style={{ width: '100%', padding: '10px 12px', fontSize: 13, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', color: 'var(--am-text-muted)', cursor: 'not-allowed' }} 
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--am-text-muted)', display: 'block', marginBottom: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--am-text-muted)', display: 'block', marginBottom: 4 }}>
                   Kampus Aktif (Lokasi Belanja)
                 </label>
                 <select 
                   className="am-input"
                   value={selectedCampus}
                   onChange={(e) => setSelectedCampus(e.target.value as Campus)}
-                  style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', color: 'var(--am-text)', cursor: 'pointer' }}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: 13, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', color: 'var(--am-text)', cursor: 'pointer' }}
                 >
                   <option value="banjarmasin">📍 Banjarmasin (BJM)</option>
                   <option value="banjarbaru">📍 Banjarbaru (BJB)</option>
@@ -311,7 +408,7 @@ export default function Sidebar({
 
               <button 
                 className="am-btn-primary" 
-                style={{ width: '100%', padding: '12px 0', marginTop: 10, fontSize: 14, fontWeight: 'bold', borderRadius: 8 }}
+                style={{ width: '100%', padding: '12px 0', marginTop: 6, fontSize: 14, fontWeight: 'bold', borderRadius: 10 }}
                 onClick={() => {
                   setCampus(selectedCampus);
                   setUserAvatar(currentAvatar); 
@@ -321,7 +418,7 @@ export default function Sidebar({
                   localStorage.setItem('am_user_name', currentName);
 
                   setShowProfileModal(false);
-                  setSuccessPopupMessage("Profil, foto, dan lokasi kampus berhasil diperbarui secara permanen!");
+                  setSuccessPopupMessage("Profil, foto avatar, dan lokasi kampus berhasil diperbarui secara permanen!");
                 }}
               >
                 Simpan Perubahan
