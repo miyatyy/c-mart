@@ -66,7 +66,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
   const [contactSearch, setContactSearch] = useState('')
 
   const chatScrollRef = useRef<HTMLDivElement>(null)
-  const apiBase = `http://${window.location.hostname}:3000`
+  const apiBase = `http://${window.location.hostname}:5000`
   
   // 💡 Menyimpan jumlah pesan terakhir untuk memicu notifikasi browser saat ada pesan baru
   const prevChatsLengthRef = useRef<number>(0)

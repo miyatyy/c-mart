@@ -191,3 +191,18 @@ body {
   100% { transform: translate(0, 0); }
 }
 .courier-dot { animation: moveDot 4s ease-in-out infinite; }
+
+/* 💡 Menghilangkan menu sidebar/navigasi bawah yang ganda di HP tanpa menyentuh App.tsx */
+@media screen and (max-width: 768px) {
+  /* Menyembunyikan elemen sidebar yang mendouble menu di atas/bawah */
+  aside, 
+  .desktop-sidebar {
+    display: none !important;
+  }
+
+  /* Merapikan kontainer utama agar TopBar dan konten tampil bersih */
+  .am-root {
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+}

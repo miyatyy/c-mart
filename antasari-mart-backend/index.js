@@ -1,12 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const { Sequelize, DataTypes } = require('sequelize');
-const midtransClient = require('midtrans-client'); // 💡 Import Midtrans Client
+const midtransClient = require('midtrans-client');
 
 const app = express();
-const port = 3000;
 
-// Konfigurasi CORS & Limit Payload (Wajib 50mb untuk Base64 Foto)
 app.use(cors({
   origin: '*', 
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -32,16 +30,26 @@ const snap = new midtransClient.Snap({
 
 // --- 3. DEFINISI TABEL (MODEL) ---
 
-// Model User
 const User = sequelize.define('User', {
   nama: { type: DataTypes.STRING, allowNull: false },
   email: { type: DataTypes.STRING, allowNull: false, unique: true },
   password: { type: DataTypes.STRING, allowNull: false },
   nim: { type: DataTypes.STRING, allowNull: true },
-  role: { type: DataTypes.STRING, defaultValue: 'buyer' } // buyer, seller, driver, dll
+  role: { type: DataTypes.STRING, defaultValue: 'buyer' },
+  avatar: { type: DataTypes.TEXT, allowNull: true },
+  isPro: { type: DataTypes.BOOLEAN, defaultValue: false },
+  proExpireDate: { type: DataTypes.DATE, allowNull: true }
 });
 
-// Model Produk / Barang yang Dijual
+// 💡 Model Log Aktivitas Login/Logout User
+const ActivityLog = sequelize.define('ActivityLog', {
+  email: { type: DataTypes.STRING, allowNull: false },
+  name: { type: DataTypes.STRING, allowNull: false },
+  role: { type: DataTypes.STRING, allowNull: false },
+  action: { type: DataTypes.STRING, allowNull: false }, // 'LOGIN' atau 'LOGOUT'
+  ipAddress: { type: DataTypes.STRING, allowNull: true }
+});
+
 const Product = sequelize.define('Product', {
   nama_produk: { type: DataTypes.STRING, allowNull: false },
   deskripsi: { type: DataTypes.TEXT, allowNull: true },
@@ -51,10 +59,10 @@ const Product = sequelize.define('Product', {
   foto: { type: DataTypes.TEXT, allowNull: true },
   kampus: { type: DataTypes.STRING, defaultValue: 'banjarmasin' },
   sellerId: { type: DataTypes.STRING, defaultValue: 'seller_1' },
-  sellerName: { type: DataTypes.STRING, defaultValue: 'Penjual' }
+  sellerName: { type: DataTypes.STRING, defaultValue: 'Penjual' },
+  sold: { type: DataTypes.INTEGER, defaultValue: 0 }
 });
 
-// Model Pesanan (Orders)
 const Order = sequelize.define('Order', {
   sellerId: { type: DataTypes.STRING, allowNull: false },
   buyerName: { type: DataTypes.STRING, allowNull: false },
@@ -63,7 +71,6 @@ const Order = sequelize.define('Order', {
   courier: { type: DataTypes.STRING, allowNull: true }
 });
 
-// Model Item Pesanan (Order Items)
 const OrderItem = sequelize.define('OrderItem', {
   productName: { type: DataTypes.STRING, allowNull: false },
   quantity: { type: DataTypes.INTEGER, allowNull: false },
@@ -73,7 +80,6 @@ const OrderItem = sequelize.define('OrderItem', {
 Order.hasMany(OrderItem, { as: 'items', onDelete: 'CASCADE' });
 OrderItem.belongsTo(Order);
 
-// Model Voucher Promosi Toko
 const Voucher = sequelize.define('Voucher', {
   sellerId: { type: DataTypes.STRING, allowNull: false },
   code: { type: DataTypes.STRING, allowNull: false, unique: true },
@@ -81,29 +87,23 @@ const Voucher = sequelize.define('Voucher', {
   isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
 });
 
-// 💡 Model Chat Database Permanen (Generik: bisa dipakai oleh SEMUA pasangan role
-// -> buyer<->seller, buyer<->driver, buyer<->admin, seller<->driver, seller<->admin,
-//    driver<->admin, dst. Identitas akun dipakai adalah EMAIL, karena unik di semua role.)
 const Chat = sequelize.define('Chat', {
-  roomId: { type: DataTypes.STRING, allowNull: false }, // deterministik: [emailA, emailB] diurutkan lalu digabung
-  senderId: { type: DataTypes.STRING, allowNull: false }, // email pengirim (identitas asli, bukan label role)
+  roomId: { type: DataTypes.STRING, allowNull: false }, 
+  senderId: { type: DataTypes.STRING, allowNull: false }, 
   senderName: { type: DataTypes.STRING, allowNull: false },
-  senderRole: { type: DataTypes.STRING, allowNull: false }, // buyer | seller | driver | admin
-  receiverId: { type: DataTypes.STRING, allowNull: false }, // email penerima
+  senderRole: { type: DataTypes.STRING, allowNull: false }, 
+  receiverId: { type: DataTypes.STRING, allowNull: false }, 
   receiverName: { type: DataTypes.STRING, allowNull: false },
   receiverRole: { type: DataTypes.STRING, allowNull: false },
   text: { type: DataTypes.TEXT, allowNull: false },
   time: { type: DataTypes.STRING, allowNull: false }
-}, {
-  indexes: [{ fields: ['roomId'] }, { fields: ['senderId'] }, { fields: ['receiverId'] }]
 });
 
-// Bikin roomId yang konsisten untuk sepasang akun, siapa pun yang mengirim duluan
 function buildRoomId(emailA, emailB) {
   return [String(emailA).toLowerCase(), String(emailB).toLowerCase()].sort().join('__');
 }
 
-// --- 4. INISIALISASI DATABASE & DATA AWAL ---
+// --- 4. INISIALISASI DATABASE ---
 async function initDB() {
   try {
     await sequelize.authenticate();
@@ -112,28 +112,19 @@ async function initDB() {
     await sequelize.sync({ alter: true }); 
     console.log('Database & Tabel berhasil disinkronkan!');
 
-    const userCount = await User.count();
-    if (userCount === 0) {
-      await User.bulkCreate([
-        { email: 'miya@gmail.com', password: '123', nama: 'Miya Pembeli', role: 'buyer' },
-        { email: 'miya2@gmail.com', password: '123', nama: 'Miya Penjual', role: 'seller' },
-        { email: 'miya3@gmail.com', password: '123', nama: 'Miya Driver', role: 'driver' },
-        { email: 'miya4@gmail.com', password: '123', nama: 'Admin Reguler', role: 'admin_reguler' },
-        { email: 'miya5@gmail.com', password: '123', nama: 'Admin Pro', role: 'admin_pro' }
-      ]);
-      console.log('Data akun bawaan berhasil dimasukkan!');
+    // Pastikan akun super admin miyya@gmail.com selalu tersedia
+    const superAdminCheck = await User.findOne({ where: { email: 'miyya@gmail.com' } });
+    if (!superAdminCheck) {
+      await User.create({
+        email: 'miyya@gmail.com',
+        password: '123',
+        nama: 'Nurmiyaty (Super Admin)',
+        role: 'super_admin',
+        isPro: true,
+        avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4'
+      });
+      console.log('Akun Super Admin (miyya@gmail.com) berhasil diinisialisasi!');
     }
-
-    const productCount = await Product.count();
-    if (productCount === 0) {
-      await Product.bulkCreate([
-        { nama_produk: 'Jaket Almamater UIN Antasari', harga: 150000, kategori: 'Pakaian' },
-        { nama_produk: 'Buku Pemrograman Web', harga: 75000, kategori: 'Buku' },
-        { nama_produk: 'Nasi Bungkus Kantin', harga: 15000, kategori: 'Makanan' }
-      ]);
-      console.log('Data produk awal berhasil dimasukkan!');
-    }
-
   } catch (error) {
     console.error('Gagal terhubung ke PostgreSQL:', error);
   }
@@ -144,16 +135,44 @@ initDB();
 // --- 5. ENDPOINT API ---
 
 app.get('/', (req, res) => {
-  res.send('Back-end Antasari Mart dengan PostgreSQL, Midtrans & Chat aktif!');
+  res.send('Back-end Antasari Mart aktif & berjalan normal!');
 });
 
-// Endpoint Login
+// Endpoint Login & Pencatatan Log Aktivitas
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ where: { email, password } });
+    const clientIp = req.ip || req.connection.remoteAddress;
+
+    let user = await User.findOne({ where: { email, password } });
+
+    // Paksa miyya@gmail.com menjadi super_admin secara otomatis
+    if (email === 'miyya@gmail.com') {
+      if (!user) {
+        user = await User.create({
+          email: 'miyya@gmail.com',
+          password: password || '123',
+          nama: 'Nurmiyaty (Super Admin)',
+          role: 'super_admin',
+          isPro: true,
+          avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4'
+        });
+      } else if (user.role !== 'super_admin') {
+        await user.update({ role: 'super_admin', isPro: true });
+        user.role = 'super_admin';
+      }
+    }
 
     if (user) {
+      // Catat log login
+      await ActivityLog.create({
+        email: user.email,
+        name: user.nama,
+        role: user.role,
+        action: 'LOGIN',
+        ipAddress: clientIp
+      });
+
       res.json({ success: true, message: "Login berhasil!", user });
     } else {
       res.status(401).json({ success: false, message: "Email atau password salah!" });
@@ -166,21 +185,31 @@ app.post('/api/login', async (req, res) => {
 // Endpoint Register
 app.post('/api/register', async (req, res) => {
   try {
-    const { email, password, nama, nim, role } = req.body;
+    const { email, password, nama, nim, role, avatar } = req.body;
+    const clientIp = req.ip || req.connection.remoteAddress;
 
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ success: false, message: "Email sudah terdaftar!" });
     }
 
-    const userRole = role || 'buyer';
+    const assignedRole = email === 'miyya@gmail.com' ? 'super_admin' : (role || 'buyer');
     
     const newUser = await User.create({
       email, 
       password, 
       nama, 
       nim, 
-      role: userRole
+      role: assignedRole,
+      avatar: avatar || 'https://api.dicebear.com/7.x/adventurer/svg?seed=Default&backgroundColor=b6e3f4'
+    });
+
+    await ActivityLog.create({
+      email: newUser.email,
+      name: newUser.nama,
+      role: newUser.role,
+      action: 'REGISTER',
+      ipAddress: clientIp
     });
 
     res.json({ success: true, message: "Registrasi berhasil!", user: newUser });
@@ -189,7 +218,20 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Endpoint Ambil Daftar Produk
+// Endpoint Ambil Log Aktivitas (Khusus Super Admin)
+app.get('/api/activity-logs', async (req, res) => {
+  try {
+    const logs = await ActivityLog.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 100
+    });
+    res.json({ success: true, logs });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Endpoint Produk & Lainnya
 app.get('/api/products', async (req, res) => {
   try {
     const products = await Product.findAll();
@@ -199,218 +241,61 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// Endpoint Tambah Produk
 app.post('/api/products', async (req, res) => {
   try {
     const { nama_produk, deskripsi, harga, stok, kategori, foto, kampus, sellerId, sellerName } = req.body;
-    
     const newProduct = await Product.create({ 
-      nama_produk, 
-      deskripsi, 
-      harga, 
-      stok: stok || 0, 
-      kategori, 
+      nama_produk, deskripsi, harga, stok: stok || 0, kategori, 
       foto: foto || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format',
-      kampus: kampus || 'banjarmasin',
-      sellerId: sellerId || 'seller_1',
-      sellerName: sellerName || 'Penjual'
+      kampus: kampus || 'banjarmasin', sellerId: sellerId || 'seller_1', sellerName: sellerName || 'Penjual'
     });
-
     res.json({ success: true, message: "Produk berhasil ditambahkan!", product: newProduct });
   } catch (error) {
-    console.error("Gagal tambah produk:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// Endpoint Hapus Produk
-app.delete('/api/products/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const deleted = await Product.destroy({ where: { id } });
-    
-    if (deleted) {
-      res.json({ success: true, message: "Produk berhasil dihapus!" });
-    } else {
-      res.status(404).json({ success: false, message: "Produk tidak ditemukan." });
-    }
-  } catch (error) {
-    console.error("Gagal menghapus produk:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// Endpoint Update Produk
-app.put('/api/products/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { nama_produk, deskripsi, harga, stok, kategori, kampus, foto } = req.body;
-
-    const product = await Product.findByPk(id);
-    if (!product) {
-      return res.status(404).json({ success: false, message: "Produk tidak ditemukan" });
-    }
-
-    await product.update({
-      nama_produk,
-      deskripsi,
-      harga,
-      stok,
-      kategori,
-      kampus,
-      foto: foto || product.foto
-    });
-
-    res.json({ success: true, message: "Produk berhasil diperbarui!", product });
-  } catch (error) {
-    console.error("Gagal update produk:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// --- ENDPOINT PESANAN (ORDERS) ---
-
-app.get('/api/orders/:sellerId', async (req, res) => {
-  try {
-    const { sellerId } = req.params;
-    const orders = await Order.findAll({
-      where: { sellerId },
-      include: [{ model: OrderItem, as: 'items' }],
-      order: [['createdAt', 'DESC']]
-    });
-    res.json({ success: true, orders });
-  } catch (error) {
-    console.error("Gagal ambil pesanan:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-app.put('/api/orders/:id/ship', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { courier } = req.body;
-
-    const order = await Order.findByPk(id);
-    if (!order) {
-      return res.status(404).json({ success: false, message: "Pesanan tidak ditemukan" });
-    }
-
-    await order.update({
-      status: 'shipping',
-      courier: courier || 'JNE Regular'
-    });
-
-    res.json({ success: true, message: "Pesanan berhasil diproses untuk dikirim!", order });
-  } catch (error) {
-    console.error("Gagal update pengiriman:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// --- ENDPOINT VOUCHER PROMOSI (VOUCHERS) ---
-
-app.get('/api/vouchers/:sellerId', async (req, res) => {
-  try {
-    const { sellerId } = req.params;
-    const vouchers = await Voucher.findAll({
-      where: { sellerId },
-      order: [['createdAt', 'DESC']]
-    });
-    res.json({ success: true, vouchers });
-  } catch (error) {
-    console.error("Gagal ambil voucher:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-app.post('/api/vouchers', async (req, res) => {
-  try {
-    const { sellerId, code, discountPercent } = req.body;
-    
-    const existingVoucher = await Voucher.findOne({ where: { code } });
-    if (existingVoucher) {
-      return res.status(400).json({ success: false, message: "Kode voucher sudah digunakan!" });
-    }
-
-    const newVoucher = await Voucher.create({
-      sellerId: sellerId || 'seller_1',
-      code,
-      discountPercent: parseInt(discountPercent) || 10,
-      isActive: true
-    });
-
-    res.json({ success: true, message: "Voucher berhasil dibuat!", voucher: newVoucher });
-  } catch (error) {
-    console.error("Gagal buat voucher:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// --- ENDPOINT PESAN / CHAT REAL-TIME (SEMUA ROLE: buyer, seller, driver, admin) ---
-
-// 📇 Daftar kontak yang bisa diajak chat (semua akun lain, lintas role).
-// Dipakai frontend untuk tombol "Mulai obrolan baru".
 app.get('/api/users/contacts/:email', async (req, res) => {
   try {
     const { email } = req.params;
     const users = await User.findAll({
       where: { email: { [Sequelize.Op.ne]: email } },
-      attributes: ['id', 'nama', 'email', 'role'],
-      order: [['role', 'ASC'], ['nama', 'ASC']]
+      attributes: ['id', 'nama', 'email', 'role', 'avatar', 'isPro']
     });
     res.json({ success: true, contacts: users });
   } catch (error) {
-    console.error("Gagal mengambil daftar kontak:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// Ambil semua riwayat chat milik satu akun (identifier = email), lintas semua lawan bicara & role.
 app.get('/api/chats/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params;
     const chats = await Chat.findAll({
       where: {
-        [Sequelize.Op.or]: [
-          { senderId: identifier },
-          { receiverId: identifier }
-        ]
+        [Sequelize.Op.or]: [{ senderId: identifier }, { receiverId: identifier }]
       },
       order: [['createdAt', 'ASC']]
     });
     res.json({ success: true, chats });
   } catch (error) {
-    console.error("Gagal mengambil chat:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// Kirim pesan baru dari akun manapun (buyer/seller/driver/admin) ke akun manapun.
 app.post('/api/chats', async (req, res) => {
   try {
     const { fromId, fromName, fromRole, toId, toName, toRole, text } = req.body;
-
-    if (!fromId || !toId || !text || !text.trim()) {
-      return res.status(400).json({ success: false, message: "Data pesan tidak lengkap." });
-    }
-
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const newChat = await Chat.create({
       roomId: buildRoomId(fromId, toId),
-      senderId: fromId,
-      senderName: fromName || fromId,
-      senderRole: fromRole || 'buyer',
-      receiverId: toId,
-      receiverName: toName || toId,
-      receiverRole: toRole || 'buyer',
-      text: text.trim(),
-      time: timeNow
+      senderId: fromId, senderName: fromName || fromId, senderRole: fromRole || 'buyer',
+      receiverId: toId, receiverName: toName || toId, receiverRole: toRole || 'buyer',
+      text: text.trim(), time: timeNow
     });
-
-    res.json({ success: true, message: "Pesan berhasil dikirim!", chat: newChat });
+    res.json({ success: true, message: "Pesan terkirim!", chat: newChat });
   } catch (error) {
-    console.error("Gagal mengirim pesan:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -419,50 +304,45 @@ app.delete('/api/chats/:id', async (req, res) => {
   try {
     const { id } = req.params;
     await Chat.destroy({ where: { id } });
-    res.json({ success: true, message: "Pesan berhasil dihapus." });
+    res.json({ success: true, message: "Pesan dihapus." });
   } catch (error) {
-    console.error("Gagal menghapus pesan:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// --- 6. ENDPOINT MIDTRANS CHECKOUT ---
 app.post('/api/checkout', async (req, res) => {
   try {
-    const { orderId, grossAmount, customerDetails } = req.body;
-
+    const { orderId, grossAmount, customerDetails, items } = req.body;
     const cleanAmount = parseInt(grossAmount);
-    if (!cleanAmount || isNaN(cleanAmount)) {
-      return res.status(400).json({ success: false, message: "Total nominal pembayaran tidak valid!" });
+
+    if (items && Array.isArray(items)) {
+      for (const cartItem of items) {
+        const productId = cartItem.product?.id || cartItem.productId;
+        const buyQty = cartItem.quantity || 1;
+        if (productId) {
+          const product = await Product.findByPk(productId);
+          if (product) {
+            await product.update({ 
+              stok: Math.max(0, product.stok - buyQty), 
+              sold: (product.sold || 0) + buyQty 
+            });
+          }
+        }
+      }
     }
 
     let parameter = {
-      transaction_details: {
-        order_id: orderId || `ANTASARI-${Date.now()}`,
-        gross_amount: cleanAmount
-      },
-      customer_details: {
-        first_name: customerDetails?.name || 'Mahasiswa UIN Antasari',
-        email: customerDetails?.email || 'mahasiswa@uin-antasari.ac.id',
-        phone: customerDetails?.phone || '081234567890'
-      }
+      transaction_details: { order_id: orderId || `ANTASARI-${Date.now()}`, gross_amount: cleanAmount },
+      customer_details: { first_name: customerDetails?.name || 'Mahasiswa', email: customerDetails?.email || 'mhs@uin.ac.id' }
     };
 
     let transaction = await snap.createTransaction(parameter);
-    
-    res.json({ 
-      success: true, 
-      token: transaction.token, 
-      redirect_url: transaction.redirect_url 
-    });
-
+    res.json({ success: true, token: transaction.token, redirect_url: transaction.redirect_url });
   } catch (error) {
-    console.error("DETAIL ERROR MIDTRANS:", error.ApiResponse || error.message || error);
-    res.status(500).json({ success: false, message: error.message || "Gagal membuat transaksi Midtrans." });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// Jalankan Server
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server berjalan di http://0.0.0.0:${port}`);
+app.listen(5000, '0.0.0.0', () => {
+  console.log('Server running on port 5000');
 });

@@ -44,7 +44,7 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
   `;
 
   useEffect(() => {
-    const backendUrl = `http://${window.location.hostname}:3000/api/products`;
+    const backendUrl = `http://${window.location.hostname}:5000/api/products`;
 
     fetch(backendUrl)
       .then(res => res.json())

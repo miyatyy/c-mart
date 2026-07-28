@@ -62,34 +62,46 @@ export default function Sidebar({
   const trackerLabel = isPickup ? 'Order Pick-Up' : 'Lacak Pengiriman'
   const trackerIcon = isPickup ? '🎟️' : '📍'
 
+  const isSuperAdminUser = userEmail === 'miyya@gmail.com' || role === 'super_admin';
+
   const getMenuByRole = () => {
+    if (isSuperAdminUser) {
+      return [
+        { key: 'home', label: 'Beranda', icon: '🏠' },
+        { key: 'cart', label: 'Keranjang', icon: '🛒' },
+        { key: 'seller', label: 'Lapak', icon: '🏪' },
+        { key: 'driver', label: 'Kurir', icon: '🛵' },
+        { key: 'admin', label: 'Koperasi', icon: '⚙️' },
+        { key: 'chat', label: 'Pesan', icon: '💬' },
+      ];
+    }
+
     switch (role) {
       case 'buyer':
         return [
-          { key: 'home', label: 'Beranda Belanja', icon: '🏠' },
-          { key: 'cart', label: 'Keranjang Saya', icon: '🛒' },
+          { key: 'home', label: 'Beranda', icon: '🏠' },
+          { key: 'cart', label: 'Keranjang', icon: '🛒' },
           ...(hasActiveOrder ? [{ key: 'tracker', label: trackerLabel, icon: trackerIcon }] : []),
-          { key: 'chat', label: 'Pesan / Chat', icon: '💬' },
+          { key: 'chat', label: 'Pesan', icon: '💬' },
         ]
       case 'seller':
         return [
-          { key: 'home', label: 'Katalog Beranda', icon: '🏠' },
-          { key: 'seller', label: 'Dashboard Lapak', icon: '🏪' },
-          { key: 'chat', label: 'Chat Pembeli', icon: '💬' },
+          { key: 'home', label: 'Beranda', icon: '🏠' },
+          { key: 'seller', label: 'Lapak', icon: '🏪' },
+          { key: 'chat', label: 'Chat', icon: '💬' },
         ]
       case 'driver':
         return [
           { key: 'home', label: 'Beranda', icon: '🏠' },
-          { key: 'driver', label: 'Tugas Pengiriman', icon: '🛵' },
+          { key: 'driver', label: 'Tugas', icon: '🛵' },
         ]
       case 'admin':
       case 'admin_reguler':
       case 'admin_pro':
-      case 'super_admin':
         return [
-          { key: 'home', label: 'Beranda Utama', icon: '🏠' },
-          { key: 'admin', label: 'Panel Kontrol Admin', icon: '⚙️' },
-          { key: 'chat', label: 'Pesan Pembeli', icon: '💬' },
+          { key: 'home', label: 'Beranda', icon: '🏠' },
+          { key: 'admin', label: 'Panel', icon: '⚙️' },
+          { key: 'chat', label: 'Pesan', icon: '💬' },
         ]
       default:
         return [{ key: 'home', label: 'Beranda', icon: '🏠' }]
@@ -126,12 +138,49 @@ export default function Sidebar({
     .check-icon-anim {
       animation: checkAnim 0.4s ease-in-out 0.1s both;
     }
+
+    /* 📱 CSS Responsif: Sidebar otomatis menyesuaikan jadi menu bawah / drawer di HP */
+    @media screen and (max-width: 768px) {
+      .desktop-sidebar {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        height: 65px !important;
+        flex-direction: row !important;
+        border-right: none !important;
+        border-top: 1px solid var(--am-border) !important;
+        z-index: 9999 !important;
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.08) !important;
+        padding: 4px 8px !important;
+        background: var(--am-surface) !important;
+      }
+      .desktop-sidebar .hide-on-mobile {
+        display: none !important;
+      }
+      .desktop-sidebar .mobile-nav-container {
+        flex-direction: row !important;
+        width: 100% !important;
+        justify-content: space-around !important;
+        align-items: center !important;
+        padding: 0 !important;
+      }
+      .desktop-sidebar .mobile-nav-item {
+        flex-direction: column !important;
+        gap: 2px !important;
+        padding: 6px 4px !important;
+        font-size: 10px !important;
+        justify-content: center !important;
+        align-items: center !important;
+      }
+    }
   `;
 
   return (
     <>
       <style>{successModalStyles}</style>
-      <aside style={{
+      <aside className="desktop-sidebar" style={{
         width: isOpen ? 260 : 80,
         background: 'var(--am-surface)',
         borderRight: '1px solid var(--am-border)',
@@ -147,7 +196,7 @@ export default function Sidebar({
         overflowX: 'hidden'
       }}>
         
-        <div style={{ padding: '12px 16px', display: 'flex', justifyContent: isOpen ? 'flex-end' : 'center', borderBottom: '1px solid var(--am-border)' }}>
+        <div className="hide-on-mobile" style={{ padding: '12px 16px', display: 'flex', justifyContent: isOpen ? 'flex-end' : 'center', borderBottom: '1px solid var(--am-border)' }}>
           <button
             onClick={() => setIsOpen(!isOpen)}
             style={{
@@ -162,7 +211,7 @@ export default function Sidebar({
         </div>
 
         {isOpen && (
-          <div style={{ padding: '16px', borderBottom: '1px solid var(--am-border)', textAlign: 'center' }}>
+          <div className="hide-on-mobile" style={{ padding: '16px', borderBottom: '1px solid var(--am-border)', textAlign: 'center' }}>
             {isGuest ? (
               <div style={{ 
                 width: 56, height: 56, borderRadius: '50%', background: 'var(--am-bg2)', 
@@ -183,19 +232,19 @@ export default function Sidebar({
             
             <div style={{ 
               display: 'inline-block', marginTop: 6, padding: '2px 10px', borderRadius: 999, 
-              fontSize: 10, fontWeight: 700, background: 'var(--am-primary)', color: 'white' 
+              fontSize: 10, fontWeight: 700, background: isSuperAdminUser ? '#F59E0B' : 'var(--am-primary)', color: 'white' 
             }}>
-              {role === 'buyer' && (isGuest ? '👤 Pengunjung Tamu' : '🛍 Pembeli')}
-              {role === 'seller' && '🏪 Penjual'}
-              {role === 'driver' && '🛵 Driver'}
-              {role === 'super_admin' ? '👑 Super Admin' : (role.includes('admin') ? '🏢 Admin Koperasi' : '')}
+              {isSuperAdminUser ? '👑 Super Admin Utama' : (role === 'buyer' && (isGuest ? '👤 Pengunjung Tamu' : '🛍 Pembeli'))}
+              {!isSuperAdminUser && role === 'seller' && '🏪 Penjual'}
+              {!isSuperAdminUser && role === 'driver' && '🛵 Driver'}
+              {!isSuperAdminUser && role.includes('admin') && '🏢 Admin Koperasi'}
             </div>
           </div>
         )}
 
-        <div style={{ flex: 1, padding: '16px 10px', display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto' }}>
+        <div className="mobile-nav-container" style={{ flex: 1, padding: '16px 10px', display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto' }}>
           {isOpen && (
-            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--am-text-muted)', paddingLeft: 8, marginBottom: 4, letterSpacing: 1 }}>
+            <div className="hide-on-mobile" style={{ fontSize: 10, fontWeight: 800, color: 'var(--am-text-muted)', paddingLeft: 8, marginBottom: 4, letterSpacing: 1 }}>
               MENU UTAMA
             </div>
           )}
@@ -205,6 +254,7 @@ export default function Sidebar({
             return (
               <button
                 key={item.key}
+                className="mobile-nav-item"
                 onClick={() => {
                   if (isGuest && (item.key === 'cart' || item.key === 'chat' || item.key === 'tracker')) {
                     if (onRequireLogin) onRequireLogin();
@@ -231,14 +281,15 @@ export default function Sidebar({
           })}
 
           {/* 👑 TOMBOL KHUSUS SUPER ADMIN CENTER */}
-          {(userEmail === 'miyya@gmail.com' || role === 'super_admin') && (
+          {isSuperAdminUser && (
             <button
+              className="hide-on-mobile"
               onClick={() => setActiveTab('super_admin' as any)}
               title={!isOpen ? "Super Admin Center" : undefined}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, width: '100%',
                 padding: isOpen ? '10px 14px' : '10px 0', justifyContent: isOpen ? 'flex-start' : 'center',
-                borderRadius: 10, border: '1px dashed #F59E0B', cursor: 'pointer',
+                borderRadius: 10, border: '1.5px dashed #F59E0B', cursor: 'pointer',
                 background: activeTab === ('super_admin' as any) ? '#F59E0B' : 'rgba(245, 158, 11, 0.1)', 
                 color: activeTab === ('super_admin' as any) ? 'white' : '#D97706', 
                 fontWeight: 700, fontSize: 13, marginTop: 6, transition: 'all 0.2s'
@@ -252,6 +303,7 @@ export default function Sidebar({
           {/* 💎 TOMBOL MENU UPGRADE KE AKUN PRO */}
           {!isGuest && (
             <button
+              className="hide-on-mobile"
               onClick={() => {
                 if (onOpenProModal) onOpenProModal();
               }}
@@ -278,13 +330,14 @@ export default function Sidebar({
           )}
 
           {isOpen && !isGuest && (
-            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--am-text-muted)', paddingLeft: 8, marginTop: 16, marginBottom: 4, letterSpacing: 1 }}>
+            <div className="hide-on-mobile" style={{ fontSize: 10, fontWeight: 800, color: 'var(--am-text-muted)', paddingLeft: 8, marginTop: 16, marginBottom: 4, letterSpacing: 1 }}>
               PENGATURAN
             </div>
           )}
 
           {!isGuest && (
             <button
+              className="hide-on-mobile"
               onClick={() => setShowProfileModal(true)}
               title={!isOpen ? "Edit / Pengaturan Profil" : undefined}
               style={{
@@ -302,7 +355,7 @@ export default function Sidebar({
           )}
         </div>
 
-        <div style={{ padding: 12, borderTop: '1px solid var(--am-border)' }}>
+        <div className="hide-on-mobile" style={{ padding: 12, borderTop: '1px solid var(--am-border)' }}>
           <button
             onClick={onLogout}
             title={!isOpen ? "Keluar (Logout)" : undefined}

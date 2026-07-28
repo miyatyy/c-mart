@@ -21,7 +21,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   const [step, setStep] = useState<'form' | 'scan_qris' | 'searching_driver' | 'success'>('form')
 
   const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0)
-  const deliveryFee = delivery === 'courier' ? 3000 : 0
+  const deliveryFee = delivery === 'courier' ? 5000 : 0
   const total = subtotal + deliveryFee
 
   const LOCATIONS = campus === 'banjarmasin'
@@ -35,7 +35,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   // 👉 FUNGSI REDIRECT MIDTRANS & PENGURANGAN STOK OTOMATIS DI BACKEND
   async function handleMidtransPayment() {
     try {
-      const backendUrl = `http://${window.location.hostname}:3000/api/checkout`;
+      const backendUrl = `http://${window.location.hostname}:5000/api/checkout`;
       const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,7 +71,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   // 💡 Fungsi untuk memproses pesanan non-Midtrans (COD / Ambil Sendiri) serta memotong stok produk
   async function processOrderWithoutMidtrans(deliveryMethod: DeliveryMethod) {
     try {
-      const backendUrl = `http://${window.location.hostname}:3000/api/checkout`;
+      const backendUrl = `http://${window.location.hostname}:5000/api/checkout`;
       await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -246,7 +246,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
         <h3 className="am-heading" style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--am-text)' }}>📦 Metode Pengiriman</h3>
         <div style={{ display: 'flex', gap: 10 }}>
           {[
-            { key: 'courier', label: 'Antar Kurir Kampus', sub: `+${formatRupiah(3000)}`, icon: '🛵' },
+            { key: 'courier', label: 'Antar Kurir Kampus', sub: `+${formatRupiah(5000)}`, icon: '🛵' },
             { key: 'pickup', label: 'Ambil Sendiri', sub: 'Gratis', icon: '🚶' },
           ].map(d => (
             <button

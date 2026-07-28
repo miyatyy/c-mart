@@ -13,7 +13,7 @@ interface CartProps {
 export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, onContinueShopping }: CartProps) {
   const isAesthetic = theme === 'aesthetic'
   const subtotal = items.reduce((sum, i) => sum + i.product.price * i.quantity, 0)
-  const deliveryFee = 3000
+  const deliveryFee = 5000
   const total = subtotal + (items.length > 0 ? deliveryFee : 0)
 
   if (items.length === 0) {
