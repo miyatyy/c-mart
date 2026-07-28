@@ -207,7 +207,7 @@ export default function App() {
     }
 
     const buyerEmail = currentUser.email || 'miyya@gmail.com';
-    const buyerName = currentUser.nama || currentUser.name || 'Miyatul';
+    const buyerName = currentUser.nama || currentUser.name || 'Miyatyy';
     const initialMessage = `Halo Kak ${sellerName}, saya ingin bertanya mengenai produk "${productName}" apakah stoknya tersedia?`;
 
     try {
