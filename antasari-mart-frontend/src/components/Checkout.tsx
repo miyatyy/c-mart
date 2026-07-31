@@ -35,7 +35,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   // 👉 FUNGSI REDIRECT MIDTRANS & PENGURANGAN STOK OTOMATIS DI BACKEND
   async function handleMidtransPayment() {
     try {
-      const backendUrl = `http://${window.location.hostname}:5000/api/checkout`;
+      const backendUrl = `http://192.168.18.19:5000/api/checkout`;
       const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,7 +71,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   // 💡 Fungsi untuk memproses pesanan non-Midtrans (COD / Ambil Sendiri) serta memotong stok produk
   async function processOrderWithoutMidtrans(deliveryMethod: DeliveryMethod) {
     try {
-      const backendUrl = `http://${window.location.hostname}:5000/api/checkout`;
+      const backendUrl = `http://192.168.18.19:5000/api/checkout`;
       await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

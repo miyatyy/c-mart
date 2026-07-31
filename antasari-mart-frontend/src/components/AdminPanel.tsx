@@ -83,7 +83,7 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
 
     try {
       const adminUser = JSON.parse(localStorage.getItem('am_current_user') || `{"email": "${currentUserId}", "nama": "${currentUserName}"}`)
-      await fetch(`http://${window.location.hostname}:5000/api/chats`, {
+      await fetch(`http://192.168.18.19:5000/api/chats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

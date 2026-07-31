@@ -250,18 +250,20 @@ export default function Sidebar({
           )}
 
           {menuItems.map(item => {
-            const isActive = activeTab === item.key
-            return (
-              <button
-                key={item.key}
-                className="mobile-nav-item"
-                onClick={() => {
-                  if (isGuest && (item.key === 'cart' || item.key === 'chat' || item.key === 'tracker')) {
-                    if (onRequireLogin) onRequireLogin();
-                    return;
-                  }
-                  setActiveTab(item.key as AppTab);
-                }}
+  const isActive = activeTab === item.key
+  return (
+    <button
+      key={item.key}
+      className="mobile-nav-item"
+      // 💡 TAMBAHKAN ATRIBUT DI BAWAH INI:
+      data-view={item.key}
+      onClick={() => {
+        if (isGuest && (item.key === 'cart' || item.key === 'chat' || item.key === 'tracker')) {
+          if (onRequireLogin) onRequireLogin();
+          return;
+        }
+        setActiveTab(item.key as AppTab);
+      }}
                 title={!isOpen ? item.label : undefined}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12, width: '100%',

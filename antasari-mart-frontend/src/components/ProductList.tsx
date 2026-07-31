@@ -44,7 +44,7 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
   `;
 
   useEffect(() => {
-    const backendUrl = `http://${window.location.hostname}:5000/api/products`;
+    const backendUrl = `http://192.168.18.19:5000/api/products`;
 
     fetch(backendUrl)
       .then(res => res.json())
@@ -90,7 +90,6 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
       }
     }
 
-    // 💡 Deteksi produk koperasi berdasarkan flag boolean ATAU nama penjual yang mengandung kata koperasi/admin
     const isProductKoperasi = p.isKoperasi || 
       (p.sellerName && (p.sellerName.toLowerCase().includes('koperasi') || p.sellerName.toLowerCase().includes('admin')));
 
@@ -121,7 +120,7 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
     const initialMessage = `Halo Kak ${sellerName}, saya ingin bertanya mengenai produk "${product.name}" (${formatRupiah(product.price)}) apakah stoknya tersedia?`;
 
     try {
-      await fetch(`http://${window.location.hostname}:3000/api/chats`, {
+      await fetch(`http://192.168.18.19:5000/api/chats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -137,6 +136,12 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
     } catch (error) {
       console.error("Gagal mengirim pesan awal chat:", error);
     }
+
+    // Simpan target chat & arahkan langsung ke halaman pesan
+    localStorage.setItem('am_target_chat', JSON.stringify({
+      email: sellerId,
+      nama: sellerName
+    }));
 
     onChat(sellerId, sellerName, product.name);
   }

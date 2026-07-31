@@ -84,7 +84,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
   `;
 
   useEffect(() => {
-    const backendUrl = `http://${window.location.hostname}:5000/api/products`;
+    const backendUrl = `http://192.168.18.19:5000/api/products`;
 
     fetch(backendUrl)
       .then(res => res.json())
@@ -143,7 +143,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     }
 
     try {
-      const backendUrl = `http://${window.location.hostname}:5000/api/products`;
+      const backendUrl = `http://192.168.18.19:5000/api/products`;
       
       const response = await fetch(backendUrl, {
         method: 'POST',
@@ -188,7 +188,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     if (!editingProduct) return
 
     try {
-      const backendUrl = `http://${window.location.hostname}:5000/api/products/${editingProduct.id}`;
+      const backendUrl = `http://192.168.18.19:5000/api/products/${editingProduct.id}`;
       const response = await fetch(backendUrl, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -227,7 +227,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     if (!window.confirm("Yakin ingin menghapus produk ini dari lapak dan beranda?")) return
 
     try {
-      const backendUrl = `http://${window.location.hostname}:5000/api/products/${id}`;
+      const backendUrl = `http://192.168.18.19:5000/api/products/${id}`;
       const response = await fetch(backendUrl, {
         method: 'DELETE',
       })
@@ -258,7 +258,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
       : `Diskon sebesar ${presetDiscount} untuk semua produk`;
 
     try {
-      const backendUrl = `http://${window.location.hostname}:5000/api/vouchers`;
+      const backendUrl = `http://192.168.18.19:5000/api/vouchers`;
       const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

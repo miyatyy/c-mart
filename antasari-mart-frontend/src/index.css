@@ -192,7 +192,7 @@ body {
 }
 .courier-dot { animation: moveDot 4s ease-in-out infinite; }
 
-/* 💡 Menghilangkan menu sidebar/navigasi bawah yang ganda di HP tanpa menyentuh App.tsx */
+/* ── Penyesuaian Responsif Mobile untuk Chat & Layout ── */
 @media screen and (max-width: 768px) {
   /* Menyembunyikan elemen sidebar yang mendouble menu di atas/bawah */
   aside, 
@@ -204,5 +204,10 @@ body {
   .am-root {
     flex-direction: column !important;
     width: 100% !important;
+  }
+
+  /* Memperbaiki tata letak halaman Pesan/Chat agar tidak berdampingan kaku di HP */
+  .chat-container-responsive {
+    flex-direction: column !important;
   }
 }

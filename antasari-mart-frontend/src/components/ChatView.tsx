@@ -26,6 +26,58 @@ export default function ChatView({ theme, currentUserId, currentUserName, initia
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [activeRoom?.messages.length])
 
+  // 💡 Ganti blok useEffect penangkapan chat dengan kode yang lebih fleksibel ini:
+ useEffect(() => {
+    const savedTarget = localStorage.getItem('am_target_chat');
+    if (savedTarget) {
+      const sellerData = JSON.parse(savedTarget);
+      const targetName = (sellerData.nama || 'Penjual').trim();
+      const targetId = String(sellerData.email || sellerData.id || 'seller_1').trim();
+
+      // Cek apakah room dengan penjual ini sudah ada di daftar rooms
+      let targetRoom = rooms.find(room => 
+        room.id.toLowerCase() === targetId.toLowerCase() ||
+        room.participants.some(p => p.id.toLowerCase() === targetId.toLowerCase() || p.name.toLowerCase() === targetName.toLowerCase())
+      );
+
+      if (targetRoom) {
+        // Jika sudah ada, langsung set sebagai room aktif (buka chat pribadinya)
+        setActiveRoomId(targetRoom.id);
+      } else {
+        // Jika belum ada, buat room chat pribadi baru secara instan
+        const newRoomId = `room_${targetId}_${Date.now()}`;
+        const newChatRoom: ChatRoom = {
+          id: newRoomId,
+          participants: [
+            { id: currentUserId, name: currentUserName, avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&auto=format' },
+            { id: targetId, name: targetName, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&auto=format' }
+          ],
+          messages: [
+            {
+              id: `m_${Date.now()}`,
+              senderId: currentUserId,
+              senderName: currentUserName,
+              content: `Halo Kak ${targetName}, saya ingin bertanya mengenai produk ini, apakah stoknya tersedia?`,
+              timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+              status: 'sent'
+            }
+          ],
+          lastMessage: `Halo Kak ${targetName}, saya ingin bertanya mengenai produk ini, apakah stoknya tersedia?`,
+          lastTime: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+          unread: 0,
+          productName: sellerData.productName || 'Produk Pilihan'
+        };
+
+        setRooms(prev => [newChatRoom, ...prev]);
+        setActiveRoomId(newRoomId); // Langsung buka room chat pribadi ini!
+      }
+
+      // Hapus data target agar tidak terpanggil berulang
+      localStorage.removeItem('am_target_chat');
+    }
+  }, [rooms, currentUserId, currentUserName]);
+
+  
   function sendMessage() {
     if (!message.trim() || !activeRoomId) return
     const newMsg: ChatMessage = {
