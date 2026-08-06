@@ -117,18 +117,6 @@ export default function TopBar({
             {isAesthetic ? '🌸' : '⚡'}
           </button>
 
-          <div style={{ 
-            fontSize: 11, padding: '4px 8px', fontWeight: 700, 
-            background: isSuperAdmin ? '#F59E0B' : 'var(--am-primary)', color: 'white', borderRadius: 6 
-          }}>
-            {isSuperAdmin ? '👑 Super Admin' : (role === 'buyer' && (isGuest ? '👤 Pengunjung Tamu' : '🛍 Pembeli'))}
-            {!isSuperAdmin && role === 'seller' && '🏪 Penjual'}
-            {!isSuperAdmin && role === 'driver' && '🛵 Driver'}
-            {!isSuperAdmin && role === 'admin' && '⚙️ Admin'}
-            {!isSuperAdmin && role === 'admin_reguler' && '⚙️ Admin Reguler'}
-            {!isSuperAdmin && role === 'admin_pro' && '💎 Admin Pro'}
-          </div>
-
           {/* 💡 Foto Profil / Avatar yang bisa diklik untuk edit profil */}
           <div 
             onClick={handleProfileClick}

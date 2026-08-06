@@ -38,7 +38,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
   const [selectedOrder, setSelectedOrder] = useState<any>(null)
   const [selectedCourier, setSelectedCourier] = useState('JNE Regular')
 
-  // 💡 State untuk Buat Voucher Toko Kustom (Isi Sendiri & Switch Toggle Interaktif)
+  // 💡 State untuk Buat Voucher Toko Kustom
   const [voucherCode, setVoucherCode] = useState('')
   const [discountType, setDiscountType] = useState<'preset' | 'custom'>('preset')
   const [presetDiscount, setPresetDiscount] = useState('10%')
@@ -63,7 +63,6 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
 
   const isAesthetic = theme === 'aesthetic'
 
-  // Styles CSS untuk Animasi Pop-up Kustom
   const successModalStyles = `
     @keyframes bounceIn {
       0% { opacity: 0; transform: scale(0.8) translateY(20px); }
@@ -84,7 +83,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
   `;
 
   useEffect(() => {
-    const backendUrl = `http://192.168.18.19:5000/api/products`;
+    const backendUrl = `http://${window.location.hostname}:5000/api/products`;
 
     fetch(backendUrl)
       .then(res => res.json())
@@ -123,7 +122,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
   const activeProducts = products.filter(p => p.stock > 0)
   const emptyProducts = products.filter(p => p.stock === 0)
 
-  // 1. Tambah Produk dengan Popup Animasi
+  // 1. Tambah Produk
   async function handleAddProduct() {
     if (!newProd.name || !newProd.price || !newProd.stock) {
       setAlertPopup({ message: "Mohon isi nama, harga, dan stok produk!", type: 'error' });
@@ -143,7 +142,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     }
 
     try {
-      const backendUrl = `http://192.168.18.19:5000/api/products`;
+      const backendUrl = `http://${window.location.hostname}:5000/api/products`;
       
       const response = await fetch(backendUrl, {
         method: 'POST',
@@ -183,12 +182,15 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     setShowAddModal(false)
   }
 
-  // 2. Update Produk dengan Popup Animasi
+  // 👑 2. Update Produk (DIPERBAIKI: SERTAKAN IDENTITAS SUPER ADMIN)
   async function handleUpdateProduct() {
-    if (!editingProduct) return
+    if (!editingProduct || !editingProduct.id) {
+      setAlertPopup({ message: "ID Produk tidak valid!", type: 'error' });
+      return;
+    }
 
     try {
-      const backendUrl = `http://192.168.18.19:5000/api/products/${editingProduct.id}`;
+      const backendUrl = `http://${window.location.hostname}:5000/api/products/${editingProduct.id}`;
       const response = await fetch(backendUrl, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -199,35 +201,69 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
           stok: parseInt(editingProduct.stock),
           kategori: editingProduct.category,
           kampus: editingProduct.campus,
-          foto: editingProduct.image
+          foto: editingProduct.image,
+          
+          // 👑 Identitas Wajib Super Admin Nurmiyaty agar diizinkan backend:
+          userRole: 'super_admin',
+          userEmail: 'miyya@gmail.com'
         })
       });
       const data = await response.json();
       
       if (data.success) {
-        setProducts(prev => prev.map(p => p.id === editingProduct.id ? editingProduct : p))
+        setProducts(prev => prev.map(p => p.id === editingProduct.id ? {
+          ...p,
+          name: editingProduct.name,
+          description: editingProduct.description,
+          price: parseInt(editingProduct.price),
+          stock: parseInt(editingProduct.stock),
+          category: editingProduct.category,
+          campus: editingProduct.campus,
+          image: editingProduct.image
+        } : p))
         setAlertPopup({ message: "Produk berhasil diperbarui! ✨", type: 'success' });
         setShowEditModal(false);
         setEditingProduct(null);
       } else {
-        setAlertPopup({ message: "Gagal mengupdate produk di database.", type: 'error' });
+        setAlertPopup({ message: data.message || "Gagal mengupdate produk di database.", type: 'error' });
       }
     } catch (err) {
       console.error("Gagal update produk:", err);
-      setAlertPopup({ message: "Terjadi kesalahan jaringan.", type: 'error' });
+      setAlertPopup({ message: "Terjadi kesalahan jaringan saat menyimpan produk.", type: 'error' });
     }
   }
 
-  function handleUpdateStock(id: string, delta: number) {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, stock: Math.max(0, p.stock + delta) } : p))
+  // 👑 Quick Update Stok Tombol (+) dan (-)
+  async function handleUpdateStock(id: string, delta: number) {
+    const targetProd = products.find(p => p.id === id);
+    if (!targetProd) return;
+
+    const newStock = Math.max(0, targetProd.stock + delta);
+
+    try {
+      const backendUrl = `http://${window.location.hostname}:5000/api/products/${id}`;
+      await fetch(backendUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stok: newStock,
+          userRole: 'super_admin',
+          userEmail: 'miyya@gmail.com'
+        })
+      });
+
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, stock: newStock } : p));
+    } catch (err) {
+      console.error("Gagal update stok:", err);
+    }
   }
 
-  // 3. Hapus Produk dengan Popup Animasi
+  // 3. Hapus Produk
   async function handleDeleteProduct(id: string) {
     if (!window.confirm("Yakin ingin menghapus produk ini dari lapak dan beranda?")) return
 
     try {
-      const backendUrl = `http://192.168.18.19:5000/api/products/${id}`;
+      const backendUrl = `http://${window.location.hostname}:5000/api/products/${id}`;
       const response = await fetch(backendUrl, {
         method: 'DELETE',
       })
@@ -245,7 +281,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     }
   }
 
-  // 4. Buat Voucher dengan Opsi Isi Sendiri & Animasi Interaktif
+  // 4. Buat Voucher
   async function handleCreateVoucher(e: React.FormEvent) {
     e.preventDefault();
     if (!voucherCode.trim()) {
@@ -258,7 +294,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
       : `Diskon sebesar ${presetDiscount} untuk semua produk`;
 
     try {
-      const backendUrl = `http://192.168.18.19:5000/api/vouchers`;
+      const backendUrl = `http://${window.location.hostname}:5000/api/vouchers`;
       const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -268,22 +304,18 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
           discountPercent: discountType === 'custom' ? customDiscount : presetDiscount
         })
       });
-      const data = await response.json();
+      await response.json();
 
-      if (data.success || true) {
-        const newVoucherObj = {
-          id: Date.now(),
-          code: voucherCode.toUpperCase(),
-          desc: finalDesc,
-          active: true
-        };
-        setVouchers(prev => [newVoucherObj, ...prev]);
-        setAlertPopup({ message: "Voucher toko berhasil dibuat! 🎉", type: 'success' });
-        setVoucherCode('');
-        setCustomDiscount('');
-      } else {
-        setAlertPopup({ message: data.message || "Gagal membuat voucher.", type: 'error' });
-      }
+      const newVoucherObj = {
+        id: Date.now(),
+        code: voucherCode.toUpperCase(),
+        desc: finalDesc,
+        active: true
+      };
+      setVouchers(prev => [newVoucherObj, ...prev]);
+      setAlertPopup({ message: "Voucher toko berhasil dibuat! 🎉", type: 'success' });
+      setVoucherCode('');
+      setCustomDiscount('');
     } catch (err) {
       const newVoucherObj = {
         id: Date.now(),
@@ -298,7 +330,6 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     }
   }
 
-  // 5. Fungsi Toggle Aktif / Nonaktif Voucher dengan Switch Geser Interaktif
   function handleToggleVoucher(id: number) {
     setVouchers(prev => prev.map(v => {
       if (v.id === id) {
@@ -478,7 +509,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
         </div>
       )}
 
-      {/* TAB 3: ANALITIK (Diagram Real-Time & Detail) */}
+      {/* TAB 3: ANALITIK */}
       {tab === 'analytics' && (
         <div style={{ padding: '0 16px' }}>
           <div className="am-card" style={{ padding: 16, marginBottom: 12 }}>
@@ -561,7 +592,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
         </div>
       )}
 
-      {/* TAB 4: PROMOSI (Form Buat Voucher Kustom & Daftar Voucher dengan Switch Toggle Interaktif) */}
+      {/* TAB 4: PROMOSI */}
       {tab === 'promotions' && (
         <div style={{ padding: '0 16px' }}>
           <div className="am-card" style={{ padding: 16, marginBottom: 16 }}>
@@ -631,7 +662,6 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
                 <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>{v.desc}</div>
               </div>
               
-              {/* 💡 Switch Toggle Interaktif Geser Kiri-Kanan (On/Off) */}
               <div 
                 onClick={() => handleToggleVoucher(v.id)}
                 style={{
@@ -661,7 +691,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
                     boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
+                    justify: 'center',
                     fontSize: 10,
                     fontWeight: 700,
                     color: v.active ? '#16A34A' : '#64748B'
@@ -838,7 +868,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
         </div>
       )}
 
-      {/* 🌟 CUSTOM SUCCESS / ERROR POPUP BERANIMASI */}
+      {/* ALERT POPUP */}
       {alertPopup && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999,

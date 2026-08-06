@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import Swal from 'sweetalert2';
 import type { Campus, UserRole } from '../types';
 
-const API_URL = "http://192.168.18.19:5000/api";
+const API_URL = "http://192.168.18.11:5000/api";
 
 const PRESET_AVATARS = [
   { id: 1, name: 'Maya (Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4' },
@@ -82,7 +82,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
     }
   `;
 
-  const backendHost = 'http://192.168.18.19:5000';
+  const backendHost = 'http://192.168.18.11:5000';
   const url = isRegister ? `${backendHost}/api/register` : `${backendHost}/api/login`;
 
   const handleDeviceImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

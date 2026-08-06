@@ -41,12 +41,11 @@ const User = sequelize.define('User', {
   proExpireDate: { type: DataTypes.DATE, allowNull: true }
 });
 
-// 💡 Model Log Aktivitas Login/Logout User
 const ActivityLog = sequelize.define('ActivityLog', {
   email: { type: DataTypes.STRING, allowNull: false },
   name: { type: DataTypes.STRING, allowNull: false },
   role: { type: DataTypes.STRING, allowNull: false },
-  action: { type: DataTypes.STRING, allowNull: false }, // 'LOGIN' atau 'LOGOUT'
+  action: { type: DataTypes.STRING, allowNull: false },
   ipAddress: { type: DataTypes.STRING, allowNull: true }
 });
 
@@ -60,15 +59,20 @@ const Product = sequelize.define('Product', {
   kampus: { type: DataTypes.STRING, defaultValue: 'banjarmasin' },
   sellerId: { type: DataTypes.STRING, defaultValue: 'seller_1' },
   sellerName: { type: DataTypes.STRING, defaultValue: 'Penjual' },
-  sold: { type: DataTypes.INTEGER, defaultValue: 0 }
+  sold: { type: DataTypes.INTEGER, defaultValue: 0 },
+  slotNumber: { type: DataTypes.INTEGER, defaultValue: 1 }
 });
 
 const Order = sequelize.define('Order', {
+  orderId: { type: DataTypes.STRING, allowNull: false, unique: true },
   sellerId: { type: DataTypes.STRING, allowNull: false },
   buyerName: { type: DataTypes.STRING, allowNull: false },
+  buyerEmail: { type: DataTypes.STRING, allowNull: true },
   totalAmount: { type: DataTypes.INTEGER, allowNull: false },
   status: { type: DataTypes.STRING, defaultValue: 'pending' },
-  courier: { type: DataTypes.STRING, allowNull: true }
+  courier: { type: DataTypes.STRING, allowNull: true },
+  vendingToken: { type: DataTypes.STRING, allowNull: true, unique: true },
+  slotNumber: { type: DataTypes.INTEGER, defaultValue: 1 }
 });
 
 const OrderItem = sequelize.define('OrderItem', {
@@ -112,7 +116,6 @@ async function initDB() {
     await sequelize.sync({ alter: true }); 
     console.log('Database & Tabel berhasil disinkronkan!');
 
-    // Pastikan akun super admin miyya@gmail.com selalu tersedia
     const superAdminCheck = await User.findOne({ where: { email: 'miyya@gmail.com' } });
     if (!superAdminCheck) {
       await User.create({
@@ -138,7 +141,6 @@ app.get('/', (req, res) => {
   res.send('Back-end Antasari Mart aktif & berjalan normal!');
 });
 
-// Endpoint Login & Pencatatan Log Aktivitas
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -146,7 +148,6 @@ app.post('/api/login', async (req, res) => {
 
     let user = await User.findOne({ where: { email, password } });
 
-    // Paksa miyya@gmail.com menjadi super_admin secara otomatis
     if (email === 'miyya@gmail.com') {
       if (!user) {
         user = await User.create({
@@ -164,7 +165,12 @@ app.post('/api/login', async (req, res) => {
     }
 
     if (user) {
-      // Catat log login
+      res.cookie('am_session', user.email, {
+        maxAge: 365 * 24 * 60 * 60 * 1000,
+        httpOnly: false,
+        sameSite: 'lax'
+      });
+
       await ActivityLog.create({
         email: user.email,
         name: user.nama,
@@ -182,7 +188,6 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Endpoint Register
 app.post('/api/register', async (req, res) => {
   try {
     const { email, password, nama, nim, role, avatar } = req.body;
@@ -218,7 +223,6 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Endpoint Ambil Log Aktivitas (Khusus Super Admin)
 app.get('/api/activity-logs', async (req, res) => {
   try {
     const logs = await ActivityLog.findAll({
@@ -231,7 +235,6 @@ app.get('/api/activity-logs', async (req, res) => {
   }
 });
 
-// Endpoint Produk & Lainnya
 app.get('/api/products', async (req, res) => {
   try {
     const products = await Product.findAll();
@@ -243,11 +246,12 @@ app.get('/api/products', async (req, res) => {
 
 app.post('/api/products', async (req, res) => {
   try {
-    const { nama_produk, deskripsi, harga, stok, kategori, foto, kampus, sellerId, sellerName } = req.body;
+    const { nama_produk, deskripsi, harga, stok, kategori, foto, kampus, sellerId, sellerName, slotNumber } = req.body;
     const newProduct = await Product.create({ 
       nama_produk, deskripsi, harga, stok: stok || 0, kategori, 
       foto: foto || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format',
-      kampus: kampus || 'banjarmasin', sellerId: sellerId || 'seller_1', sellerName: sellerName || 'Penjual'
+      kampus: kampus || 'banjarmasin', sellerId: sellerId || 'seller_1', sellerName: sellerName || 'Penjual',
+      slotNumber: slotNumber || 1
     });
     res.json({ success: true, message: "Produk berhasil ditambahkan!", product: newProduct });
   } catch (error) {
@@ -310,18 +314,31 @@ app.delete('/api/chats/:id', async (req, res) => {
   }
 });
 
+// Endpoint Checkout + Pembuatan Token Vending Machine (DILIMIT KHUSUS GANCI MYAMMIY CRAFT / SELLER_1)
 app.post('/api/checkout', async (req, res) => {
   try {
-    const { orderId, grossAmount, customerDetails, items } = req.body;
+    const { orderId, grossAmount, customerDetails, items, deliveryMethod } = req.body;
     const cleanAmount = parseInt(grossAmount);
+    const generatedOrderId = orderId || `ANTASARI-${Date.now()}`;
+    const generatedVendingToken = `VEND-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    let targetSlotNumber = 1;
+    let isAllVendingEligible = true;
 
     if (items && Array.isArray(items)) {
       for (const cartItem of items) {
         const productId = cartItem.product?.id || cartItem.productId;
         const buyQty = cartItem.quantity || 1;
+
         if (productId) {
           const product = await Product.findByPk(productId);
           if (product) {
+            if (product.sellerId !== 'seller_1' && !product.nama_produk.toLowerCase().includes('ganci')) {
+              isAllVendingEligible = false;
+            }
+
+            targetSlotNumber = product.slotNumber || 1;
+
             await product.update({ 
               stok: Math.max(0, product.stok - buyQty), 
               sold: (product.sold || 0) + buyQty 
@@ -331,15 +348,142 @@ app.post('/api/checkout', async (req, res) => {
       }
     }
 
+    if (deliveryMethod === 'vending' && !isAllVendingEligible) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mohon maaf, Vending Machine saat ini hanya melayani pengambilan produk Ganci Myammiy Craft.'
+      });
+    }
+
+    await Order.create({
+      orderId: generatedOrderId,
+      sellerId: 'seller_1',
+      buyerName: customerDetails?.name || 'Mahasiswa UIN Antasari',
+      buyerEmail: customerDetails?.email || 'mhs@uin-antasari.ac.id',
+      totalAmount: cleanAmount,
+      status: 'pending',
+      vendingToken: generatedVendingToken,
+      slotNumber: targetSlotNumber
+    });
+
     let parameter = {
-      transaction_details: { order_id: orderId || `ANTASARI-${Date.now()}`, gross_amount: cleanAmount },
-      customer_details: { first_name: customerDetails?.name || 'Mahasiswa', email: customerDetails?.email || 'mhs@uin.ac.id' }
+      transaction_details: { order_id: generatedOrderId, gross_amount: cleanAmount },
+      customer_details: { first_name: customerDetails?.name || 'Mahasiswa', email: customerDetails?.email || 'mhs@uin-antasari.ac.id' }
     };
 
     let transaction = await snap.createTransaction(parameter);
-    res.json({ success: true, token: transaction.token, redirect_url: transaction.redirect_url });
+
+    res.json({ 
+      success: true, 
+      token: transaction.token, 
+      redirect_url: transaction.redirect_url,
+      vendingToken: generatedVendingToken,
+      slotNumber: targetSlotNumber
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 🤖 ENDPOINT KHUSUS VENDING MACHINE
+app.post('/api/vending/claim', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Token tidak ditemukan dalam request!' });
+    }
+
+    const order = await Order.findOne({ where: { vendingToken: token } });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Transaksi Vending tidak ditemukan!' });
+    }
+
+    if (order.status === 'claimed') {
+      return res.status(400).json({ success: false, message: 'Gagal! Barang dari transaksi ini sudah pernah diambil.' });
+    }
+
+    await order.update({ status: 'claimed' });
+
+    console.log(`[VENDING CLAIM] Barang untuk Order ${order.orderId} sedang dikeluarkan dari Slot: ${order.slotNumber}`);
+
+    res.json({
+      success: true,
+      message: 'QR Valid! Mengeluarkan barang dari Vending Machine.',
+      dispense: {
+        orderId: order.orderId,
+        slotNumber: order.slotNumber,
+        buyerName: order.buyerName
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 👑 Endpoint Edit / Update Stok Produk (KHUSUS SUPER ADMIN)
+app.put('/api/products/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      nama_produk, name, 
+      deskripsi, description, 
+      harga, price, 
+      stok, stock, 
+      kategori, category, 
+      foto, image, 
+      slotNumber, 
+      userRole, userEmail 
+    } = req.body;
+
+    // 🔒 Validasi Keamanan: Hanya Super Admin (Nurmiyaty / miyya@gmail.com) yang diizinkan mengedit
+    const isSuperAdmin = (userRole === 'super_admin') || (userEmail === 'miyya@gmail.com');
+    
+    if (!isSuperAdmin) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Akses ditolak! Hanya Super Admin (Nurmiyaty) yang diizinkan mengubah stok atau data produk.' 
+      });
+    }
+
+    const product = await Product.findByPk(id);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Produk tidak ditemukan di database!' });
+    }
+
+    // Normalisasi Nama Parameter agar tidak terjadi kesalahan pemetaan data
+    const finalNama = nama_produk || name || product.nama_produk;
+    const finalDeskripsi = deskripsi !== undefined ? deskripsi : (description !== undefined ? description : product.deskripsi);
+    const parsedHarga = harga !== undefined ? parseInt(harga) : (price !== undefined ? parseInt(price) : product.harga);
+    const parsedStok = stok !== undefined ? parseInt(stok) : (stock !== undefined ? parseInt(stock) : product.stok);
+    const finalKategori = kategori || category || product.kategori;
+    const finalFoto = foto || image || product.foto;
+    const parsedSlot = slotNumber !== undefined ? parseInt(slotNumber) : product.slotNumber;
+
+    // Update data produk di PostgreSQL
+    await product.update({
+      nama_produk: finalNama,
+      deskripsi: finalDeskripsi,
+      harga: isNaN(parsedHarga) ? product.harga : parsedHarga,
+      stok: isNaN(parsedStok) ? product.stok : parsedStok,
+      kategori: finalKategori,
+      foto: finalFoto,
+      slotNumber: isNaN(parsedSlot) ? product.slotNumber : parsedSlot
+    });
+
+    console.log(`[SUPER ADMIN] Stok produk ID ${id} (${product.nama_produk}) berhasil diperbarui menjadi: ${product.stok}`);
+
+    res.json({
+      success: true,
+      message: 'Berhasil! Data stok produk telah diperbarui oleh Super Admin.',
+      product
+    });
+
+  } catch (error) {
+    console.error('Error saat update produk di database:', error);
+    res.status(500).json({ success: false, message: 'Gagal mengupdate produk di database: ' + error.message });
   }
 });
 

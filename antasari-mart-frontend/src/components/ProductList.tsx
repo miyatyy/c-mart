@@ -44,7 +44,7 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
   `;
 
   useEffect(() => {
-    const backendUrl = `http://192.168.18.19:5000/api/products`;
+    const backendUrl = `http://192.168.18.11:5000/api/products`;
 
     fetch(backendUrl)
       .then(res => res.json())
@@ -120,7 +120,7 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
     const initialMessage = `Halo Kak ${sellerName}, saya ingin bertanya mengenai produk "${product.name}" (${formatRupiah(product.price)}) apakah stoknya tersedia?`;
 
     try {
-      await fetch(`http://192.168.18.19:5000/api/chats`, {
+      await fetch(`http://192.168.18.11:5000/api/chats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

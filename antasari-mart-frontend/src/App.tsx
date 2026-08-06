@@ -13,7 +13,7 @@ import DriverDashboard from './components/DriverDashboard'
 import Login from './components/Login'
 import ChatPage from './components/ChatPage'
 import ProModal from './components/ProModal'
-import SuperAdminPanel from './components/SuperAdminPanel' // 👑 Impor Panel Super Admin
+import SuperAdminPanel from './components/SuperAdminPanel'
 
 const PRESET_AVATARS = [
   { id: 1, name: 'Maya (Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4' },
@@ -31,6 +31,7 @@ const PRESET_AVATARS = [
 export default function App() {
   const [_loggedIn, setLoggedIn] = useState(true)
   const [role, setRole] = useState<UserRole>('buyer')
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   
   const [campus, setCampus] = useState<Campus>(() => {
     return (localStorage.getItem('am_user_campus') as Campus) || 'banjarmasin'
@@ -41,7 +42,19 @@ export default function App() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [chatUnread, setChatUnread] = useState(0)
   
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<any>(() => {
+    const savedUser = localStorage.getItem('am_user_session')
+    if (savedUser) {
+      try {
+        return JSON.parse(savedUser)
+      } catch (e) {
+        console.error("Gagal parse user session:", e)
+        return null
+      }
+    }
+    return null
+  })
+
   const isGuest = !user
 
   const [hasActiveOrder, setHasActiveOrder] = useState(() => {
@@ -60,7 +73,6 @@ export default function App() {
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [showProModal, setShowProModal] = useState(false)
 
-  // 💡 State untuk Modal Edit Profil & Pop-up Sukses
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [currentName, setCurrentName] = useState(currentUser.nama || currentUser.name || 'Pengunjung Tamu')
   const [selectedCampus, setSelectedCampus] = useState<Campus>(campus)
@@ -118,6 +130,12 @@ export default function App() {
   }, [campus])
 
   useEffect(() => {
+    if (user && user.role) {
+      setRole(user.role as UserRole)
+    }
+  }, [user])
+
+  useEffect(() => {
     if (isGuest || !currentUser?.email) {
       setChatUnread(0);
       return;
@@ -143,9 +161,12 @@ export default function App() {
   }, [currentUser, isGuest]);
 
   function handleLogin(r: UserRole, _gender: 'male' | 'female', c: Campus, userData: any) {
-    setRole(userData.role || r)
+    const activeRole = userData.role || r
+    setRole(activeRole)
     setUser(userData)
     setCampus(c)
+    
+    localStorage.setItem('am_user_session', JSON.stringify(userData))
     localStorage.setItem('am_user_campus', c)
     if (userData.avatar) {
       setUserAvatar(userData.avatar)
@@ -157,6 +178,7 @@ export default function App() {
   function handleLogout() {
     setUser(null)
     setRole('buyer')
+    localStorage.removeItem('am_user_session')
     localStorage.removeItem('am_user_avatar')
     localStorage.removeItem('am_user_name')
     localStorage.removeItem('am_active_order')
@@ -193,11 +215,12 @@ export default function App() {
     })
   }
 
+  // 💡 DIKOSONGKAN KERANJANG & KEMBALI MURNI KE BERANDA UTAMA (HOME)
   function handleCheckout(_method: DeliveryMethod, _payment: PaymentMethod, _location: string) {
-    setCart([])
+    setCart([]) // Dikosongkan bersih
     localStorage.setItem('am_active_order', 'true')
     setHasActiveOrder(true)
-    setActiveTab('tracker')
+    setActiveTab('home') // Langsung kembali ke Katalog Beranda
   }
 
   async function handleOpenChat(sellerId: string, sellerName: string, productName: string) {
@@ -250,8 +273,7 @@ export default function App() {
     <div className={`am-root theme-${theme}`} style={{ display: 'flex', minHeight: '100vh', background: 'var(--am-bg)', position: 'relative' }}>
       <style>{customModalStyles}</style>
       
-      {/* Sidebar khusus desktop */}
-      <div className="hidden md:block">
+      <div style={{ position: 'relative', zIndex: 99999 }}>
         <Sidebar
           theme={theme}
           role={role}
@@ -290,6 +312,8 @@ export default function App() {
               setShowProModal(true);
             }
           }}
+          isOpenExternal={isMobileSidebarOpen}
+          onCloseExternal={() => setIsMobileSidebarOpen(false)}
         />
       </div>
 
@@ -335,6 +359,7 @@ export default function App() {
           isGuest={isGuest}
           onRequireLogin={() => setShowLoginModal(true)}
           hasActiveOrder={hasActiveOrder}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
         />
 
         <main style={{ flex: 1, paddingBottom: 40 }}>
@@ -375,7 +400,7 @@ export default function App() {
               campus={campus}
               items={cart}
               onConfirmOrder={handleCheckout}
-              onBack={() => setActiveTab('cart')}
+              onBack={() => setActiveTab('home')} // 👈 Mengarahkan pembatalan ke Beranda Produk
             />
           )}
           {activeTab === 'tracker' && (
@@ -443,7 +468,6 @@ export default function App() {
         />
       )}
 
-      {/* 💡 Modal Pengaturan Profil yang dipicu saat Foto Profil di TopBar diklik */}
       {showProfileModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
@@ -544,7 +568,9 @@ export default function App() {
                   localStorage.setItem('am_user_name', currentName);
 
                   if (user) {
-                    setUser({ ...user, nama: currentName, avatar: currentAvatar });
+                    const updatedUser = { ...user, nama: currentName, avatar: currentAvatar };
+                    setUser(updatedUser);
+                    localStorage.setItem('am_user_session', JSON.stringify(updatedUser));
                   }
 
                   setShowProfileModal(false);
@@ -558,7 +584,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Pop-up Pesan Berhasil Disimpan */}
       {successPopupMessage && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 99999,

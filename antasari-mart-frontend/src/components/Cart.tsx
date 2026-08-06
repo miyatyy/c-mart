@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { CartItem, ThemeMode } from '../types'
 import { formatRupiah } from '../data'
 
@@ -12,9 +13,29 @@ interface CartProps {
 
 export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, onContinueShopping }: CartProps) {
   const isAesthetic = theme === 'aesthetic'
+  
+  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | 'vending'>(() => {
+    return (typeof window !== 'undefined' ? localStorage.getItem('am_delivery_method') : null) as any || 'delivery'
+  })
+
   const subtotal = items.reduce((sum, i) => sum + i.product.price * i.quantity, 0)
-  const deliveryFee = 5000
+  const deliveryFee = deliveryMethod === 'delivery' ? 5000 : 0
   const total = subtotal + (items.length > 0 ? deliveryFee : 0)
+
+  // 💡 Cek apakah ada produk yang tidak sesuai untuk Vending Machine (misal bukan ganci/snack kecil)
+  // Kita asumsikan produk yang valid untuk vending memiliki kategori/nama mengandung 'ganci', 'aksesoris', 'snack', 'kecil', 'keripik', dll.
+  const hasInvalidVendingItems = items.some(i => {
+    const name = i.product.name.toLowerCase()
+    const isSmallItem = name.includes('ganci') || name.includes('gantungan') || name.includes('snack') || name.includes('keripik') || name.includes('roti') || name.includes('aksesoris')
+    return deliveryMethod === 'vending' && !isSmallItem
+  })
+
+  const handleMethodChange = (method: 'delivery' | 'pickup' | 'vending') => {
+    setDeliveryMethod(method)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('am_delivery_method', method)
+    }
+  }
 
   if (items.length === 0) {
     return (
@@ -50,7 +71,6 @@ export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, 
         const isKoperasi = sellerItems[0].product.isKoperasi
         return (
           <div key={sellerKey} className="am-card" style={{ marginBottom: 16, overflow: 'hidden' }}>
-            {/* Seller header */}
             <div style={{
               padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8,
               borderBottom: '1px solid var(--am-border)',
@@ -61,7 +81,6 @@ export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, 
               {isKoperasi && <span className="am-tag-koperasi">KOPERASI</span>}
             </div>
 
-            {/* Items */}
             {sellerItems.map(item => (
               <div key={item.product.id} style={{
                 display: 'flex', gap: 12, padding: '14px 16px',
@@ -80,7 +99,6 @@ export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, 
                     {formatRupiah(item.product.price)}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    {/* Qty control */}
                     <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--am-border)', borderRadius: 8, overflow: 'hidden' }}>
                       <button
                         onClick={() => item.quantity === 1 ? onRemove(item.product.id) : onUpdateQty(item.product.id, item.quantity - 1)}
@@ -107,6 +125,75 @@ export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, 
         )
       })}
 
+      {/* PILIHAN METODE PENGIRIMAN / PENGAMBILAN */}
+      <div className="am-card" style={{ padding: 16, marginBottom: 16 }}>
+        <h3 className="am-heading" style={{ margin: '0 0 10px', fontSize: 15, color: 'var(--am-text)' }}>📦 Pilih Metode Pengambilan</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          
+          <div 
+            onClick={() => handleMethodChange('delivery')}
+            style={{
+              padding: '12px 14px', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              border: deliveryMethod === 'delivery' ? '2px solid var(--am-primary)' : '1.5px solid var(--am-border)',
+              background: deliveryMethod === 'delivery' ? 'rgba(0,180,216,0.06)' : 'var(--am-bg2)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 20 }}>🛵</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)' }}>Kurir Antar Kampus</div>
+                <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Diantar langsung ke lokasi / kelas kamu</div>
+              </div>
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-primary)' }}>{formatRupiah(5000)}</span>
+          </div>
+
+          <div 
+            onClick={() => handleMethodChange('pickup')}
+            style={{
+              padding: '12px 14px', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              border: deliveryMethod === 'pickup' ? '2px solid var(--am-primary)' : '1.5px solid var(--am-border)',
+              background: deliveryMethod === 'pickup' ? 'rgba(0,180,216,0.06)' : 'var(--am-bg2)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 20 }}>🏪</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)' }}>Ambil Sendiri (Pick-Up)</div>
+                <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Ambil langsung ke tenant / koperasi</div>
+              </div>
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#16A34A' }}>GRATIS</span>
+          </div>
+
+          <div 
+            onClick={() => handleMethodChange('vending')}
+            style={{
+              padding: '12px 14px', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              border: deliveryMethod === 'vending' ? '2px solid var(--am-primary)' : '1.5px solid var(--am-border)',
+              background: deliveryMethod === 'vending' ? 'rgba(0,180,216,0.06)' : 'var(--am-bg2)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 20 }}>🤖</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)' }}>Vending Machine (Khusus Ganci & Snack Kecil)</div>
+                <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Ambil mandiri pakai kode QR / Token di mesin DIY</div>
+              </div>
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#16A34A' }}>GRATIS</span>
+          </div>
+
+        </div>
+
+        {/* Peringatan jika memilih vending tapi ada barang besar */}
+        {hasInvalidVendingItems && (
+          <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 8, color: '#EF4444', fontSize: 11, fontWeight: 600, lineHeight: 1.4 }}>
+            ⚠️ Perhatian: Vending Machine DIY hanya khusus untuk produk berukuran kecil seperti <b>Gantungan Kunci (Ganci)</b> atau <b>Makanan Kecil/Snack</b>. Hapus produk lain dari keranjang atau pilih metode Kurir Antar.
+          </div>
+        )}
+      </div>
+
       {/* Summary */}
       <div className="am-card" style={{ padding: 16, marginBottom: 16 }}>
         <h3 className="am-heading" style={{ margin: '0 0 12px', fontSize: 16, color: 'var(--am-text)' }}>Ringkasan Belanja</h3>
@@ -116,8 +203,12 @@ export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, 
             <span>{formatRupiah(subtotal)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--am-text-muted)' }}>
-            <span>Ongkos kirim kurir kampus</span>
-            <span>{formatRupiah(deliveryFee)}</span>
+            <span>
+              {deliveryMethod === 'delivery' && 'Ongkos kirim kurir kampus'}
+              {deliveryMethod === 'pickup' && 'Biaya ambil sendiri'}
+              {deliveryMethod === 'vending' && 'Biaya layanan vending machine'}
+            </span>
+            <span>{deliveryFee === 0 ? 'GRATIS' : formatRupiah(deliveryFee)}</span>
           </div>
           <hr className="am-divider" style={{ margin: '4px 0' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: 'var(--am-text)' }}>
@@ -127,9 +218,20 @@ export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, 
         </div>
       </div>
 
-      {/* CTA */}
-      <button className="am-btn-primary" style={{ width: '100%', padding: '15px 0', fontSize: 16 }} onClick={onCheckout}>
-        Lanjut ke Checkout →
+      {/* CTA (Tombol Checkout dikunci jika ada item terlarang di Vending Machine) */}
+      <button 
+        className="am-btn-primary" 
+        style={{ 
+          width: '100%', padding: '15px 0', fontSize: 16, 
+          opacity: hasInvalidVendingItems ? 0.5 : 1, 
+          cursor: hasInvalidVendingItems ? 'not-allowed' : 'pointer' 
+        }} 
+        onClick={() => {
+          if (hasInvalidVendingItems) return
+          onCheckout()
+        }}
+      >
+        {hasInvalidVendingItems ? '⚠️ Periksa Kembali Jenis Produk Vending' : 'Lanjut ke Checkout →'}
       </button>
     </div>
   )

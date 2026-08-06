@@ -14,7 +14,7 @@ export default function ProSubscription({ user, onClose, onSuccessPro }: ProProp
     setLoading(true);
     try {
       // Hubungkan ke endpoint Midtrans untuk pembayaran Rp 10.000
-      const response = await fetch(`http://192.168.18.19:5000/api/checkout`, {
+      const response = await fetch(`http://192.168.18.11:5000/api/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

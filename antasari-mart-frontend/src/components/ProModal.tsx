@@ -62,7 +62,7 @@ export default function ProModal({ user, onClose }: ProModalProps) {
   const handleSubscribe = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://192.168.18.19:5000/api/checkout`, {
+      const response = await fetch(`http://192.168.18.11:5000/api/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

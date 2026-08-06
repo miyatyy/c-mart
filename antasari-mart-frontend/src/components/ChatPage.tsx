@@ -66,9 +66,8 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
   const [contactSearch, setContactSearch] = useState('')
 
   const chatScrollRef = useRef<HTMLDivElement>(null)
-  const apiBase = `http://192.168.18.19:5000`
+  const apiBase = `http://192.168.18.11:5000`
   
-  // 💡 Menyimpan jumlah pesan terakhir untuk memicu notifikasi browser saat ada pesan baru
   const prevChatsLengthRef = useRef<number>(0)
 
   useEffect(() => {
@@ -79,7 +78,6 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     fetchChats(identifier)
     fetchContacts(identifier)
 
-    // 💡 Meminta izin notifikasi browser Chrome saat halaman chat dibuka
     if ('Notification' in window && Notification.permission !== 'granted') {
       Notification.requestPermission()
     }
@@ -102,7 +100,6 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
       const res = await fetch(`${apiBase}/api/chats/${identifier}`)
       const data = await res.json()
       if (data.success && data.chats) {
-        // 💡 Cek apakah ada pesan masuk baru dari orang lain untuk memicu notifikasi Chrome
         if (isBackground && data.chats.length > prevChatsLengthRef.current) {
           const latestMsg = data.chats[data.chats.length - 1]
           if (latestMsg.senderId !== identifier) {
@@ -119,7 +116,6 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     }
   }
 
-  // 💡 Fungsi memunculkan pop-up notifikasi di pojok kanan bawah Chrome
   function triggerBrowserNotification(senderName: string, text: string) {
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(`💬 Pesan Baru dari ${senderName}`, {
@@ -277,32 +273,34 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     return <div style={{ padding: 40, textAlign: 'center', color: 'var(--am-text-muted)' }}>Memuat obrolan...</div>
   }
 
+  const isChatActive = activeRoom !== null
+
   return (
-    <div style={{ padding: '16px', maxWidth: 900, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
+    <div style={{ padding: '12px', maxWidth: 900, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--am-text)', margin: 0 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--am-text)', margin: 0 }}>
           💬 Ruang Obrolan
         </h2>
         <button
           onClick={() => setShowContactPicker(true)}
           className="am-btn-primary"
-          style={{ padding: '8px 16px', borderRadius: 999, fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer' }}
+          style={{ padding: '8px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}
         >
           + Obrolan Baru
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', background: 'var(--am-surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid var(--am-border)', minHeight: 500, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+      <div className="chat-container-grid" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', background: 'var(--am-surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid var(--am-border)', minHeight: 480, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
 
-        {/* Daftar Obrolan (Kiri) */}
-        <div style={{ borderRight: '1px solid var(--am-border)', background: 'var(--am-bg2)', overflowY: 'auto' }}>
+        {/* Daftar Obrolan (Kiri) - Disembunyikan di HP jika chat sedang aktif */}
+        <div className="chat-sidebar-pane" style={{ borderRight: '1px solid var(--am-border)', background: 'var(--am-bg2)', overflowY: 'auto' }}>
           <div style={{ padding: 14, fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)', borderBottom: '1px solid var(--am-border)' }}>
             DAFTAR OBROLAN ({chatRooms.length})
           </div>
           {chatRooms.length === 0 && !pendingContact && (
             <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--am-text-muted)', fontSize: 12 }}>
               <div style={{ fontSize: 32, marginBottom: 6 }}>📭</div>
-              Belum ada obrolan.<br />Tekan "+ Obrolan Baru" untuk mulai chat dengan penjual, pembeli, driver, atau admin.
+              Belum ada obrolan.<br />Tekan "+ Obrolan Baru" untuk mulai chat.
             </div>
           )}
           {chatRooms.map(room => {
@@ -345,28 +343,37 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           )}
         </div>
 
-        {/* Jendela Chat Aktif (Kanan) */}
-        <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--am-surface)' }}>
+        {/* Jendela Chat Aktif (Kanan) - Fullscreen di HP jika chat aktif */}
+        <div className="chat-main-pane" style={{ display: 'flex', flexDirection: 'column', background: 'var(--am-surface)' }}>
           {activeRoom ? (
             <>
-              <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--am-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--am-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--am-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                {/* Tombol Kembali khusus tampilan Mobile */}
+                <button
+                  className="chat-back-btn"
+                  onClick={() => { setActiveRoomId(null); setPendingContact(null); }}
+                  style={{ display: 'none', background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', padding: '0 8px 0 0', color: 'var(--am-text)' }}
+                  title="Kembali ke Daftar Obrolan"
+                >
+                  ←
+                </button>
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--am-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14 }}>
                   {ROLE_EMOJI[activeRoom.otherRole] || '👤'}
                 </div>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--am-text)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)' }}>
                     {activeRoom.otherName}
                   </div>
-                  <div style={{ fontSize: 11, color: '#16A34A' }}>
+                  <div style={{ fontSize: 10, color: '#16A34A' }}>
                     ● {ROLE_LABEL[activeRoom.otherRole] || activeRoom.otherRole} · Real-Time
                   </div>
                 </div>
               </div>
 
               {/* Area Bubble Pesan */}
-              <div ref={chatScrollRef} style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 380 }}>
+              <div ref={chatScrollRef} style={{ flex: 1, padding: 14, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 380 }}>
                 {activeRoom.messages.length === 0 && (
-                  <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--am-text-muted)', fontSize: 13 }}>
+                  <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--am-text-muted)', fontSize: 12 }}>
                     Belum ada pesan. Kirim pesan pertama ke {activeRoom.otherName} 👋
                   </div>
                 )}
@@ -402,7 +409,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
               </div>
 
               {/* Form Kirim Pesan */}
-              <form onSubmit={handleSendMessage} style={{ padding: '12px 16px', borderTop: '1px solid var(--am-border)', display: 'flex', gap: 8 }}>
+              <form onSubmit={handleSendMessage} style={{ padding: '10px 14px', borderTop: '1px solid var(--am-border)', display: 'flex', gap: 8 }}>
                 <input
                   type="text"
                   className="am-input"
@@ -414,21 +421,39 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                 <button
                   type="submit"
                   className="am-btn-primary"
-                  style={{ padding: '10px 20px', borderRadius: 999, fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer' }}
+                  style={{ padding: '10px 18px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}
                 >
                   Kirim 🚀
                 </button>
               </form>
             </>
           ) : (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--am-text-muted)', gap: 10 }}>
-              <div style={{ fontSize: 40 }}>💬</div>
-              <div>Pilih obrolan di sebelah kiri, atau mulai obrolan baru.</div>
+            <div className="chat-empty-pane" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--am-text-muted)', gap: 8, padding: 20, textAlign: 'center' }}>
+              <div style={{ fontSize: 36 }}>💬</div>
+              <div style={{ fontSize: 13 }}>Pilih obrolan di sebelah kiri, atau mulai obrolan baru.</div>
             </div>
           )}
         </div>
 
       </div>
+
+      {/* CSS Responsif Mobile */}
+      <style>{`
+        @media (max-width: 768px) {
+          .chat-container-grid {
+            grid-template-columns: 1fr !important;
+            min-height: calc(100vh - 160px) !important;
+          }
+          ${isChatActive ? `
+            .chat-sidebar-pane { display: none !important; }
+            .chat-main-pane { display: flex !important; flex: 1 !important; }
+            .chat-back-btn { display: inline-flex !important; }
+          ` : `
+            .chat-sidebar-pane { display: block !important; width: 100% !important; }
+            .chat-main-pane { display: none !important; }
+          `}
+        }
+      `}</style>
 
       {showContactPicker && (
         <div
@@ -447,7 +472,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
               </div>
               <input
                 className="am-input"
-                placeholder="Cari nama, email, atau role (penjual/driver/admin)..."
+                placeholder="Cari nama, email, atau role..."
                 value={contactSearch}
                 onChange={e => setContactSearch(e.target.value)}
                 style={{ width: '100%', padding: '10px 14px', fontSize: 13, borderRadius: 10 }}
