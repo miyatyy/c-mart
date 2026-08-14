@@ -66,6 +66,7 @@ export default function App() {
     nama: 'Pengunjung Tamu',
     email: 'tamu@antasari.mart',
     role: 'buyer',
+    roles: ['buyer'],
     avatar: ''
   }
 
@@ -130,8 +131,9 @@ export default function App() {
   }, [campus])
 
   useEffect(() => {
-    if (user && user.role) {
-      setRole(user.role as UserRole)
+    if (user) {
+      const userRoles = Array.isArray(user.roles) ? user.roles : [user.role || 'buyer'];
+      setRole(userRoles[0] as UserRole);
     }
   }, [user])
 
@@ -144,6 +146,7 @@ export default function App() {
     const fetchUnreadChats = async () => {
       try {
         const identifier = currentUser.email;
+        // URL Dinamis menggunakan window.location.hostname
         const res = await fetch(`http://${window.location.hostname}:5000/api/chats/${identifier}`);
         const data = await res.json();
         if (data.success && data.chats) {
@@ -161,36 +164,36 @@ export default function App() {
   }, [currentUser, isGuest]);
 
   function handleLogin(r: UserRole, _gender: 'male' | 'female', c: Campus, userData: any) {
-    const activeRole = userData.role || r
-    setRole(activeRole)
-    setUser(userData)
-    setCampus(c)
+    const userRoles = Array.isArray(userData.roles) ? userData.roles : [userData.role || r];
+    setRole(userRoles[0]);
+    setUser(userData);
+    setCampus(c);
     
-    localStorage.setItem('am_user_session', JSON.stringify(userData))
-    localStorage.setItem('am_user_campus', c)
+    localStorage.setItem('am_user_session', JSON.stringify(userData));
+    localStorage.setItem('am_user_campus', c);
     if (userData.avatar) {
-      setUserAvatar(userData.avatar)
-      localStorage.setItem('am_user_avatar', userData.avatar)
+      setUserAvatar(userData.avatar);
+      localStorage.setItem('am_user_avatar', userData.avatar);
     }
-    setLoggedIn(true)
+    setLoggedIn(true);
   }
 
   function handleLogout() {
-    setUser(null)
-    setRole('buyer')
-    localStorage.removeItem('am_user_session')
-    localStorage.removeItem('am_user_avatar')
-    localStorage.removeItem('am_user_name')
-    localStorage.removeItem('am_active_order')
-    localStorage.removeItem('am_delivery_method')
-    setHasActiveOrder(false)
-    setChatUnread(0)
-    setActiveTab('home')
+    setUser(null);
+    setRole('buyer');
+    localStorage.removeItem('am_user_session');
+    localStorage.removeItem('am_user_avatar');
+    localStorage.removeItem('am_user_name');
+    localStorage.removeItem('am_active_order');
+    localStorage.removeItem('am_delivery_method');
+    setHasActiveOrder(false);
+    setChatUnread(0);
+    setActiveTab('home');
     setModalMessage({
       title: 'Berhasil Keluar! 👋',
       desc: 'Anda telah keluar dari akun dan kembali ke mode pengunjung tamu.',
       icon: '🚪'
-    })
+    });
   }
 
   function handleRoleChange(r: UserRole) {
@@ -198,9 +201,9 @@ export default function App() {
       setShowLoginModal(true);
       return;
     }
-    setRole(r)
-    if (r !== 'buyer') setTheme('modern')
-    setActiveTab(r === 'seller' ? 'seller' : r === 'driver' ? 'driver' : r === 'admin' ? 'admin' : 'home')
+    setRole(r);
+    if (r !== 'buyer') setTheme('modern');
+    setActiveTab(r === 'seller' ? 'seller' : r === 'driver' ? 'driver' : r === 'admin' ? 'admin' : 'home');
   }
 
   function addToCart(product: Product, qty: number) {
@@ -212,15 +215,14 @@ export default function App() {
       const existing = prev.find(i => i.product.id === product.id)
       if (existing) return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + qty } : i)
       return [...prev, { product, quantity: qty }]
-    })
+    });
   }
 
-  // 💡 DIKOSONGKAN KERANJANG & KEMBALI MURNI KE BERANDA UTAMA (HOME)
   function handleCheckout(_method: DeliveryMethod, _payment: PaymentMethod, _location: string) {
-    setCart([]) // Dikosongkan bersih
-    localStorage.setItem('am_active_order', 'true')
-    setHasActiveOrder(true)
-    setActiveTab('home') // Langsung kembali ke Katalog Beranda
+    setCart([]);
+    localStorage.setItem('am_active_order', 'true');
+    setHasActiveOrder(true);
+    setActiveTab('home');
   }
 
   async function handleOpenChat(sellerId: string, sellerName: string, productName: string) {
@@ -234,6 +236,7 @@ export default function App() {
     const initialMessage = `Halo Kak ${sellerName}, saya ingin bertanya mengenai produk "${productName}" apakah stoknya tersedia?`;
 
     try {
+      // URL Dinamis menggunakan window.location.hostname
       await fetch(`http://${window.location.hostname}:5000/api/chats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -273,49 +276,48 @@ export default function App() {
     <div className={`am-root theme-${theme}`} style={{ display: 'flex', minHeight: '100vh', background: 'var(--am-bg)', position: 'relative' }}>
       <style>{customModalStyles}</style>
       
-      <div style={{ position: 'relative', zIndex: 99999 }}>
-        <Sidebar
-          theme={theme}
-          role={role}
-          activeTab={activeTab}
-          setActiveTab={(tab) => {
-            if (isGuest && (tab === 'seller' || tab === 'driver' || tab === 'admin' || tab === 'cart' || tab === 'chat' || tab === 'tracker')) {
-              setShowLoginModal(true);
-              return;
-            }
-            if (tab === 'tracker' && !hasActiveOrder) {
-              setModalMessage({
-                title: isGuest ? 'Silakan Login Dulu 🔒' : 'Belum Ada Pesanan 🛵',
-                desc: isGuest 
-                  ? 'Fitur Lacak / Order Pick-Up hanya dapat diakses setelah kamu login dan memiliki pesanan aktif.' 
-                  : 'Belum ada pesanan aktif. Lakukan checkout pesanan terlebih dahulu untuk membuka fitur ini.',
-                icon: '📍'
-              });
-              return;
-            }
-            setActiveTab(tab);
-          }}
-          userName={currentUser.nama || currentUser.name || 'Pengunjung Tamu'}
-          userEmail={currentUser.email}
-          userAvatar={isGuest ? '' : userAvatar}
-          setUserAvatar={setUserAvatar}
-          campus={campus}
-          setCampus={setCampus}
-          onLogout={isGuest ? () => setShowLoginModal(true) : handleLogout}
-          isGuest={isGuest}
-          onRequireLogin={() => setShowLoginModal(true)}
-          hasActiveOrder={hasActiveOrder}
-          onOpenProModal={() => {
-            if (isGuest) {
-              setShowLoginModal(true);
-            } else {
-              setShowProModal(true);
-            }
-          }}
-          isOpenExternal={isMobileSidebarOpen}
-          onCloseExternal={() => setIsMobileSidebarOpen(false)}
-        />
-      </div>
+      <Sidebar
+        theme={theme}
+        role={role}
+        activeTab={activeTab}
+        setActiveTab={(tab) => {
+          if (isGuest && (tab === 'seller' || tab === 'driver' || tab === 'admin' || tab === 'cart' || tab === 'chat' || tab === 'tracker')) {
+            setShowLoginModal(true);
+            return;
+          }
+          if (tab === 'tracker' && !hasActiveOrder) {
+            setModalMessage({
+              title: isGuest ? 'Silakan Login Dulu 🔒' : 'Belum Ada Pesanan 🛵',
+              desc: isGuest 
+                ? 'Fitur Lacak / Order Pick-Up hanya dapat diakses setelah kamu login dan memiliki pesanan aktif.' 
+                : 'Belum ada pesanan aktif. Lakukan checkout pesanan terlebih dahulu untuk membuka fitur ini.',
+              icon: '📍'
+            });
+            return;
+          }
+          setActiveTab(tab);
+          setIsMobileSidebarOpen(false);
+        }}
+        userName={currentUser.nama || currentUser.name || 'Pengunjung Tamu'}
+        userEmail={currentUser.email}
+        userAvatar={isGuest ? '' : userAvatar}
+        setUserAvatar={setUserAvatar}
+        campus={campus}
+        setCampus={setCampus}
+        onLogout={isGuest ? () => setShowLoginModal(true) : handleLogout}
+        isGuest={isGuest}
+        onRequireLogin={() => setShowLoginModal(true)}
+        hasActiveOrder={hasActiveOrder}
+        onOpenProModal={() => {
+          if (isGuest) {
+            setShowLoginModal(true);
+          } else {
+            setShowProModal(true);
+          }
+        }}
+        isOpenExternal={isMobileSidebarOpen}
+        onCloseExternal={() => setIsMobileSidebarOpen(false)}
+      />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <TopBar
@@ -331,7 +333,7 @@ export default function App() {
             }
           }}
           setActiveTab={(tab) => {
-            if (isGuest && (tab === 'cart' || tab === 'chat' || tab === 'tracker')) {
+            if (isGuest && (tab === 'cart' || tab === 'chat' || tab === 'tracker' || tab === 'seller' || tab === 'driver')) {
               setShowLoginModal(true);
               return;
             }
@@ -400,7 +402,7 @@ export default function App() {
               campus={campus}
               items={cart}
               onConfirmOrder={handleCheckout}
-              onBack={() => setActiveTab('home')} // 👈 Mengarahkan pembatalan ke Beranda Produk
+              onBack={() => setActiveTab('home')}
             />
           )}
           {activeTab === 'tracker' && (
@@ -437,6 +439,7 @@ export default function App() {
               <ChatPage theme={theme} campus={campus} />
             )
           )}
+          
           {activeTab === 'seller' && (
             <SellerDashboard
               theme={theme}
@@ -445,6 +448,7 @@ export default function App() {
               sellerName={currentUser.nama || currentUser.name || 'Penjual Koperasi'}
             />
           )}
+
           {activeTab === 'driver' && (
             <DriverDashboard
               theme={theme}
@@ -662,7 +666,7 @@ export default function App() {
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-          backdropFilter: 'blur(5px)'
+          backdropFile: 'blur(5px)'
         }}>
           <div className="modal-appear am-card" style={{
             width: '100%', maxWidth: 380, padding: 30, borderRadius: 24,

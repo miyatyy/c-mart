@@ -18,13 +18,15 @@ interface TopBarProps {
   isGuest?: boolean
   onRequireLogin?: () => void
   hasActiveOrder?: boolean
-  onOpenProfileModal?: () => void // 💡 Tambahan properti opsional untuk membuka modal edit profil
+  onOpenProfileModal?: () => void
+  onToggleMobileSidebar?: () => void
 }
 
 export default function TopBar({
   theme, campus, setCampus, activeTab, setActiveTab,
   role, userName, userEmail, userAvatar, cartItems, chatUnread, onToggleTheme,
-  onLogout, isGuest, onRequireLogin, hasActiveOrder = false, onOpenProfileModal
+  onLogout, isGuest, onRequireLogin, hasActiveOrder = false, onOpenProfileModal,
+  onToggleMobileSidebar
 }: TopBarProps) {
   const isAesthetic = theme === 'aesthetic'
   const cartCount = cartItems.reduce((acc, i) => acc + i.quantity, 0)
@@ -39,20 +41,38 @@ export default function TopBar({
 
   const isSuperAdmin = userEmail === 'miyya@gmail.com' || role === 'super_admin';
 
-  const navTabs: { key: AppTab; label: string; icon: string; roles: UserRole[] }[] = [
-    { key: 'home', label: 'Beranda', icon: '🏠', roles: ['buyer', 'seller', 'driver', 'admin', 'admin_reguler', 'admin_pro', 'super_admin'] },
-    { key: 'cart', label: 'Keranjang', icon: '🛒', roles: ['buyer', 'super_admin'] },
-    ...(hasActiveOrder ? [{ key: 'tracker' as AppTab, label: trackerLabel, icon: trackerIcon, roles: ['buyer', 'super_admin'] }] : []),
-    { key: 'chat', label: 'Pesan', icon: '💬', roles: ['buyer', 'seller', 'super_admin'] },
-    { key: 'seller', label: 'Lapak', icon: '🏪', roles: ['seller', 'super_admin'] },
-    { key: 'driver', label: 'Tugas', icon: '🛵', roles: ['driver', 'super_admin'] },
-    { key: 'admin', label: 'Admin', icon: '⚙️', roles: ['admin', 'admin_reguler', 'admin_pro', 'super_admin'] },
-    { key: 'super_admin' as AppTab, label: 'Super Admin', icon: '👑', roles: ['super_admin'] },
+  // 🔒 Membaca Array Roles
+  const getSavedRoles = (): string[] => {
+    if (isSuperAdmin) return ['super_admin', 'buyer', 'seller', 'driver', 'admin'];
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('am_user_session');
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          if (Array.isArray(parsed.roles)) return parsed.roles;
+        } catch (e) {
+          console.error("Gagal parse roles:", e);
+        }
+      }
+    }
+    return [role || 'buyer'];
+  };
+
+  const userRoles = getSavedRoles();
+
+  const navTabs: { key: AppTab; label: string; icon: string; roleCheck: boolean }[] = [
+    { key: 'home', label: 'Beranda', icon: '🏠', roleCheck: true },
+    { key: 'cart', label: 'Keranjang', icon: '🛒', roleCheck: true },
+    ...(hasActiveOrder ? [{ key: 'tracker' as AppTab, label: trackerLabel, icon: trackerIcon, roleCheck: true }] : []),
+    { key: 'chat', label: 'Pesan', icon: '💬', roleCheck: true },
+    { key: 'seller', label: 'Lapak', icon: '🏪', roleCheck: userRoles.includes('seller') || isSuperAdmin },
+    { key: 'driver', label: 'Tugas', icon: '🛵', roleCheck: userRoles.includes('driver') || isSuperAdmin },
+    { key: 'admin', label: 'Admin', icon: '⚙️', roleCheck: userRoles.includes('admin') || userRoles.includes('admin_reguler') || userRoles.includes('admin_pro') || isSuperAdmin },
+    { key: 'super_admin' as AppTab, label: 'Super Admin', icon: '👑', roleCheck: isSuperAdmin },
   ]
 
-  const visibleTabs = isSuperAdmin ? navTabs : navTabs.filter(t => t.roles.includes(role))
+  const visibleTabs = navTabs.filter(t => t.roleCheck)
 
-  // 💡 Handler ketika foto profil / area avatar ditekan
   const handleProfileClick = () => {
     if (isGuest) {
       if (onRequireLogin) onRequireLogin();
@@ -65,19 +85,36 @@ export default function TopBar({
     <header style={{ background: 'var(--am-surface)', borderBottom: '1px solid var(--am-border)', position: 'sticky', top: 0, zIndex: 100 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', gap: 8 }}>
         
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setActiveTab('home')}>
-          <div style={{
-            width: 34, height: 34, borderRadius: isAesthetic ? '50%' : 6,
-            background: 'var(--am-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, fontWeight: 700, color: 'white', flexShrink: 0,
-          }}>A</div>
-          <div>
-            <div className="am-heading" style={{ fontSize: isAesthetic ? 15 : 14, fontWeight: 700, color: 'var(--am-text)', lineHeight: 1.1 }}>
-              Antasari Mart
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--am-text-muted)', lineHeight: 1 }}>
-              {campus === 'banjarmasin' ? '📍 Banjarmasin' : '📍 Banjarbaru'}
+        {/* Logo & Tombol Menu HP */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          
+          {/* 📱 Tombol Hamburger Menu Khusus HP */}
+          <button
+            onClick={onToggleMobileSidebar}
+            style={{
+              background: 'var(--am-bg2)', border: '1px solid var(--am-border)', borderRadius: 8,
+              width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16, color: 'var(--am-text)'
+            }}
+            title="Buka Sidebar Menu"
+          >
+            ☰
+          </button>
+
+          {/* Logo Antasari Mart */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setActiveTab('home')}>
+            <div style={{
+              width: 34, height: 34, borderRadius: isAesthetic ? '50%' : 6,
+              background: 'var(--am-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16, fontWeight: 700, color: 'white', flexShrink: 0,
+            }}>A</div>
+            <div>
+              <div className="am-heading" style={{ fontSize: isAesthetic ? 15 : 14, fontWeight: 700, color: 'var(--am-text)', lineHeight: 1.1 }}>
+                Antasari Mart
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--am-text-muted)', lineHeight: 1 }}>
+                {campus === 'banjarmasin' ? '📍 Banjarmasin' : '📍 Banjarbaru'}
+              </div>
             </div>
           </div>
         </div>
@@ -103,7 +140,7 @@ export default function TopBar({
           </div>
         </div>
 
-        {/* Right: theme toggle + role badge + avatar (klikable) + LOGOUT / LOGIN */}
+        {/* Right: theme toggle + avatar + LOGOUT / LOGIN */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
             onClick={onToggleTheme}
@@ -117,7 +154,6 @@ export default function TopBar({
             {isAesthetic ? '🌸' : '⚡'}
           </button>
 
-          {/* 💡 Foto Profil / Avatar yang bisa diklik untuk edit profil */}
           <div 
             onClick={handleProfileClick}
             title="Klik untuk Edit Profil"
@@ -135,7 +171,7 @@ export default function TopBar({
               <img 
                 src={activeAvatar} 
                 alt={userName} 
-                style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', background: '#e2e8f0', border: '2px solid var(--am-primary)', flexShrink: 0, transition: 'transform 0.2s' }} 
+                style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', background: '#e2e8f0', border: '2px solid var(--am-primary)', flexShrink: 0 }} 
               />
             )}
           </div>
@@ -152,18 +188,7 @@ export default function TopBar({
         </div>
       </div>
 
-      {/* Indikator panduan bahwa Top Bar bisa digeser */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'flex-end', 
-        padding: '0 12px 2px 12px', 
-        fontSize: 10, 
-        color: 'var(--am-text-muted)',
-        gap: 3,
-        fontWeight: 600,
-        opacity: 0.85
-      }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 12px 2px 12px', fontSize: 10, color: 'var(--am-text-muted)', gap: 3, fontWeight: 600, opacity: 0.85 }}>
         <span>Geser menu</span>
         <span style={{ animation: 'pulseArrow 1.5s infinite', display: 'inline-block' }}>➔</span>
       </div>
@@ -184,7 +209,7 @@ export default function TopBar({
             <button
               key={tab.key}
               onClick={() => {
-                if (isGuest && (tab.key === 'cart' || tab.key === 'chat' || tab.key === 'tracker')) {
+                if (isGuest && (tab.key === 'cart' || tab.key === 'chat' || tab.key === 'tracker' || tab.key === 'seller' || tab.key === 'driver')) {
                   if (onRequireLogin) onRequireLogin();
                   return;
                 }

@@ -2,9 +2,36 @@ const express = require('express');
 const cors = require('cors');
 const { Sequelize, DataTypes } = require('sequelize');
 const midtransClient = require('midtrans-client');
+const multer = require('multer');
+const upload = require('./uploadMiddleware');
+require('dotenv').config();
+const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
+
+// 🔒 TAHAP 3: Import Library Keamanan Tambahan
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 
+// 🔒 TAHAP 3: Pasang Helmet untuk Sembunyikan Identitas Server & Mencegah XSS
+app.use(helmet({
+  crossOriginResourcePolicy: false // Agar gambar Cloudinary tetap dapat di-load oleh Frontend
+}));
+
+// 🔒 TAHAP 3: Pasang Rate Limiter Khusus Endpoint Login (Maksimal 10 percobaan per 15 menit)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 10,
+  message: { 
+    success: false, 
+    message: '⚠️ Terlalu banyak percobaan login dari IP ini! Silakan coba lagi setelah 15 menit demi keamanan.' 
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// --- CONFIGURATION & MIDDLEWARE ---
 app.use(cors({
   origin: '*', 
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -15,17 +42,31 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // --- 1. KONEKSI POSTGRESQL ---
-const sequelize = new Sequelize('Antasari_Mart', 'postgres', '140203', {
-  host: 'localhost',
+const DB_NAME = process.env.DB_NAME || 'Antasari_Mart';
+const DB_USER = process.env.DB_USER || 'postgres';
+const DB_PASS = process.env.DB_PASS || '140203';
+const DB_HOST = process.env.DB_HOST || 'localhost';
+
+const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
+  host: DB_HOST,
   dialect: 'postgres',
   logging: false  
 });
 
-// --- 2. INISIALISASI MIDTRANS SNAP (SANDBOX) ---
+// 📧 Transporter Email Nodemailer
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_SERVICE_USER || 'emailkamu@gmail.com',
+    pass: process.env.EMAIL_SERVICE_PASS || 'xxxx xxxx xxxx xxxx'
+  }
+});
+
+// --- 2. INISIALISASI MIDTRANS SNAP ---
 const snap = new midtransClient.Snap({
   isProduction: false,
-  serverKey: 'Mid-server-ByzS9GccjkoE9ME18xKE1GNu',
-  clientKey: 'Mid-client-8jHsm2sYfBK8gz1A'
+  serverKey: process.env.MIDTRANS_SERVER_KEY || 'Mid-server-ByzS9GccjkoE9ME18xKE1GNu',
+  clientKey: process.env.MIDTRANS_CLIENT_KEY || 'Mid-client-8jHsm2sYfBK8gz1A'
 });
 
 // --- 3. DEFINISI TABEL (MODEL) ---
@@ -35,10 +76,22 @@ const User = sequelize.define('User', {
   email: { type: DataTypes.STRING, allowNull: false, unique: true },
   password: { type: DataTypes.STRING, allowNull: false },
   nim: { type: DataTypes.STRING, allowNull: true },
-  role: { type: DataTypes.STRING, defaultValue: 'buyer' },
+  // 🔒 Multi-role disimpan dalam format JSON Array (Default: ['buyer'])
+  roles: { 
+    type: DataTypes.JSON, 
+    defaultValue: ['buyer'] 
+  },
+  role: { type: DataTypes.STRING, defaultValue: 'buyer' }, // fallback pendukung
   avatar: { type: DataTypes.TEXT, allowNull: true },
   isPro: { type: DataTypes.BOOLEAN, defaultValue: false },
   proExpireDate: { type: DataTypes.DATE, allowNull: true }
+});
+
+// 🔒 TABEL BARU: Penyimpanan Kode OTP
+const OtpVerification = sequelize.define('OtpVerification', {
+  email: { type: DataTypes.STRING, allowNull: false },
+  otp: { type: DataTypes.STRING, allowNull: false },
+  expiresAt: { type: DataTypes.DATE, allowNull: false }
 });
 
 const ActivityLog = sequelize.define('ActivityLog', {
@@ -118,10 +171,14 @@ async function initDB() {
 
     const superAdminCheck = await User.findOne({ where: { email: 'miyya@gmail.com' } });
     if (!superAdminCheck) {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash('123', salt);
+
       await User.create({
         email: 'miyya@gmail.com',
-        password: '123',
+        password: hashedPassword,
         nama: 'Nurmiyaty (Super Admin)',
+        roles: ['super_admin', 'buyer', 'seller', 'driver', 'admin'],
         role: 'super_admin',
         isPro: true,
         avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4'
@@ -141,30 +198,145 @@ app.get('/', (req, res) => {
   res.send('Back-end Antasari Mart aktif & berjalan normal!');
 });
 
-app.post('/api/login', async (req, res) => {
+// 📧 1. ENDPOINT KIRIM OTP (Khusus Email UIN Antasari / Email Pendaftar)
+app.post('/api/otp/send', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email tidak boleh kosong!' });
+    }
+
+    const isUinEmail = email.endsWith('@uin-antasari.ac.id') || email.endsWith('@mhs.uin-antasari.ac.id');
+    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // Kadaluarsa 5 Menit
+
+    await OtpVerification.destroy({ where: { email } });
+
+    await OtpVerification.create({
+      email,
+      otp: generatedOtp,
+      expiresAt
+    });
+
+    const mailOptions = {
+      from: '"Antasari Mart Security" <noreply@antasarimart.com>',
+      to: email,
+      subject: '🔑 Kode Verifikasi OTP Antasari Mart',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px; max-width: 480px; margin: 0 auto;">
+          <h2 style="color: #1e3a8a; text-align: center;">Antasari Mart Security</h2>
+          <p>Halo Mahasiswa / Pengguna Antasari Mart 👋,</p>
+          <p>Berikut adalah kode verifikasi OTP Anda untuk registrasi/login di <strong>Antasari Mart</strong>:</p>
+          <div style="background: #f1f5f9; padding: 15px; text-align: center; border-radius: 8px; font-size: 28px; font-weight: bold; letter-spacing: 5px; color: #0d9488;">
+            ${generatedOtp}
+          </div>
+          <p style="font-size: 12px; color: #64748b; margin-top: 15px; text-align: center;">Kode ini hanya berlaku selama <strong>5 menit</strong>. Jangan berikan kode ini kepada siapa pun!</p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.json({
+      success: true,
+      message: `Kode OTP berhasil dikirim ke ${email}. Silakan cek kotak masuk email kamu!`,
+      isUin: isUinEmail
+    });
+
+  } catch (error) {
+    console.error("Gagal kirim OTP:", error);
+    res.status(500).json({ success: false, message: 'Gagal mengirim email OTP: ' + error.message });
+  }
+});
+
+// 🔑 2. ENDPOINT VERIFIKASI KODE OTP
+app.post('/api/otp/verify', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const record = await OtpVerification.findOne({ where: { email, otp } });
+
+    if (!record) {
+      return res.status(400).json({ success: false, message: '❌ Kode OTP salah atau tidak ditemukan!' });
+    }
+
+    if (new Date() > new Date(record.expiresAt)) {
+      await OtpVerification.destroy({ where: { id: record.id } });
+      return res.status(400).json({ success: false, message: '⚠️ Kode OTP sudah kadaluarsa! Silakan minta kode baru.' });
+    }
+
+    await OtpVerification.destroy({ where: { id: record.id } });
+
+    res.json({
+      success: true,
+      message: '✅ Verifikasi OTP berhasil! Email terkonfirmasi.'
+    });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 🔒 TAHAP 1: ENDPOINT KHUSUS UPLOAD FOTO PRODUK AMAN KE CLOUDINARY (MAKSIMAL 200 KB)
+app.post('/api/upload', (req, res) => {
+  upload.single('foto')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, message: '⚠️ Ukuran foto terlalu besar! Maksimal 200 KB.' });
+      }
+      return res.status(400).json({ success: false, message: err.message });
+    } else if (err) {
+      return res.status(400).json({ success: false, message: '⚠️ Format file ditolak! Hanya boleh berupa foto (.jpg, .jpeg, .png, .webp).' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: '⚠️ Tidak ada foto yang dipilih untuk diunggah.' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Foto berhasil diunggah ke Cloud Storage!',
+      imageUrl: req.file.path
+    });
+  });
+});
+
+// 🔒 TAHAP 3: Gunakan Login Limiter Khusus Endpoint Login
+app.post('/api/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     const clientIp = req.ip || req.connection.remoteAddress;
 
-    let user = await User.findOne({ where: { email, password } });
+    let user = await User.findOne({ where: { email } });
 
     if (email === 'miyya@gmail.com') {
       if (!user) {
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password || '123', salt);
         user = await User.create({
           email: 'miyya@gmail.com',
-          password: password || '123',
+          password: hashedPassword,
           nama: 'Nurmiyaty (Super Admin)',
+          roles: ['super_admin', 'buyer', 'seller', 'driver', 'admin'],
           role: 'super_admin',
           isPro: true,
           avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4'
         });
       } else if (user.role !== 'super_admin') {
-        await user.update({ role: 'super_admin', isPro: true });
+        await user.update({ role: 'super_admin', roles: ['super_admin', 'buyer', 'seller', 'driver', 'admin'], isPro: true });
         user.role = 'super_admin';
       }
     }
 
     if (user) {
+      const isMatch = await bcrypt.compare(password, user.password);
+      const isPlainMatch = (password === user.password);
+
+      if (!isMatch && !isPlainMatch) {
+        return res.status(401).json({ success: false, message: "Email atau password salah!" });
+      }
+
       res.cookie('am_session', user.email, {
         maxAge: 365 * 24 * 60 * 60 * 1000,
         httpOnly: false,
@@ -174,7 +346,7 @@ app.post('/api/login', async (req, res) => {
       await ActivityLog.create({
         email: user.email,
         name: user.nama,
-        role: user.role,
+        role: Array.isArray(user.roles) ? user.roles.join(', ') : (user.role || 'buyer'),
         action: 'LOGIN',
         ipAddress: clientIp
       });
@@ -188,9 +360,10 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// 🔒 TAHAP 2: REGISTER DENGAN ENKRIPSI BCRYPT & MULTI-ROLE MAKSIMAL 3
 app.post('/api/register', async (req, res) => {
   try {
-    const { email, password, nama, nim, role, avatar } = req.body;
+    const { email, password, nama, nim, roles, role, avatar } = req.body;
     const clientIp = req.ip || req.connection.remoteAddress;
 
     const existingUser = await User.findOne({ where: { email } });
@@ -198,28 +371,47 @@ app.post('/api/register', async (req, res) => {
       return res.status(400).json({ success: false, message: "Email sudah terdaftar!" });
     }
 
-    const assignedRole = email === 'miyya@gmail.com' ? 'super_admin' : (role || 'buyer');
+    // 🔒 Memproses daftar roles pilihan user
+    let rawRoles = roles;
+    if (!rawRoles && role) rawRoles = [role];
+    if (!Array.isArray(rawRoles)) rawRoles = ['buyer'];
+
+    // Batasi role pilihan publik (Hanya buyer, seller, driver)
+    let assignedRoles = rawRoles.filter(r => ['buyer', 'seller', 'driver'].includes(r));
     
+    if (assignedRoles.length === 0) assignedRoles = ['buyer'];
+    if (assignedRoles.length > 3) {
+      return res.status(400).json({ success: false, message: "Maksimal hanya boleh memilih 3 peran!" });
+    }
+
+    if (email === 'miyya@gmail.com') {
+      assignedRoles = ['super_admin', 'buyer', 'seller', 'driver', 'admin'];
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     const newUser = await User.create({
       email, 
-      password, 
+      password: hashedPassword, 
       nama, 
       nim, 
-      role: assignedRole,
+      roles: assignedRoles,
+      role: assignedRoles[0] || 'buyer',
       avatar: avatar || 'https://api.dicebear.com/7.x/adventurer/svg?seed=Default&backgroundColor=b6e3f4'
     });
 
     await ActivityLog.create({
       email: newUser.email,
       name: newUser.nama,
-      role: newUser.role,
+      role: assignedRoles.join(', '),
       action: 'REGISTER',
       ipAddress: clientIp
     });
 
     res.json({ success: true, message: "Registrasi berhasil!", user: newUser });
   } catch (error) {
-    res.status(400).json({ success: false, message: "Data tidak valid atau gagal mendaftar!" });
+    res.status(400).json({ success: false, message: "Data tidak valid atau gagal mendaftar: " + error.message });
   }
 });
 
@@ -235,9 +427,18 @@ app.get('/api/activity-logs', async (req, res) => {
   }
 });
 
+// 🔒 ENDPOINT PRODUK DENGAN DINDING PRIVASI ISOLASI LAPAK KETAT
 app.get('/api/products', async (req, res) => {
   try {
-    const products = await Product.findAll();
+    const { sellerId } = req.query;
+
+    let whereClause = {};
+    
+    if (sellerId && sellerId !== 'undefined' && sellerId !== 'null' && sellerId.trim() !== '') {
+      whereClause.sellerId = sellerId;
+    }
+
+    const products = await Product.findAll({ where: whereClause });
     res.json({ success: true, products });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -247,12 +448,20 @@ app.get('/api/products', async (req, res) => {
 app.post('/api/products', async (req, res) => {
   try {
     const { nama_produk, deskripsi, harga, stok, kategori, foto, kampus, sellerId, sellerName, slotNumber } = req.body;
+    
     const newProduct = await Product.create({ 
-      nama_produk, deskripsi, harga, stok: stok || 0, kategori, 
+      nama_produk, 
+      deskripsi, 
+      harga, 
+      stok: stok || 0, 
+      kategori, 
       foto: foto || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format',
-      kampus: kampus || 'banjarmasin', sellerId: sellerId || 'seller_1', sellerName: sellerName || 'Penjual',
+      kampus: kampus || 'banjarmasin', 
+      sellerId: sellerId || 'seller_1', 
+      sellerName: sellerName || 'Penjual',
       slotNumber: slotNumber || 1
     });
+
     res.json({ success: true, message: "Produk berhasil ditambahkan!", product: newProduct });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -264,7 +473,7 @@ app.get('/api/users/contacts/:email', async (req, res) => {
     const { email } = req.params;
     const users = await User.findAll({
       where: { email: { [Sequelize.Op.ne]: email } },
-      attributes: ['id', 'nama', 'email', 'role', 'avatar', 'isPro']
+      attributes: ['id', 'nama', 'email', 'role', 'roles', 'avatar', 'isPro']
     });
     res.json({ success: true, contacts: users });
   } catch (error) {
@@ -314,7 +523,7 @@ app.delete('/api/chats/:id', async (req, res) => {
   }
 });
 
-// Endpoint Checkout + Pembuatan Token Vending Machine (DILIMIT KHUSUS GANCI MYAMMIY CRAFT / SELLER_1)
+// Endpoint Checkout + Pembuatan Token Vending Machine
 app.post('/api/checkout', async (req, res) => {
   try {
     const { orderId, grossAmount, customerDetails, items, deliveryMethod } = req.body;
@@ -438,7 +647,6 @@ app.put('/api/products/:id', async (req, res) => {
       userRole, userEmail 
     } = req.body;
 
-    // 🔒 Validasi Keamanan: Hanya Super Admin (Nurmiyaty / miyya@gmail.com) yang diizinkan mengedit
     const isSuperAdmin = (userRole === 'super_admin') || (userEmail === 'miyya@gmail.com');
     
     if (!isSuperAdmin) {
@@ -453,7 +661,6 @@ app.put('/api/products/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Produk tidak ditemukan di database!' });
     }
 
-    // Normalisasi Nama Parameter agar tidak terjadi kesalahan pemetaan data
     const finalNama = nama_produk || name || product.nama_produk;
     const finalDeskripsi = deskripsi !== undefined ? deskripsi : (description !== undefined ? description : product.deskripsi);
     const parsedHarga = harga !== undefined ? parseInt(harga) : (price !== undefined ? parseInt(price) : product.harga);
@@ -462,7 +669,6 @@ app.put('/api/products/:id', async (req, res) => {
     const finalFoto = foto || image || product.foto;
     const parsedSlot = slotNumber !== undefined ? parseInt(slotNumber) : product.slotNumber;
 
-    // Update data produk di PostgreSQL
     await product.update({
       nama_produk: finalNama,
       deskripsi: finalDeskripsi,

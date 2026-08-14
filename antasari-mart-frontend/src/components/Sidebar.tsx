@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { AppTab, UserRole, ThemeMode, Campus } from '../types'
 
 interface SidebarProps {
@@ -17,6 +17,8 @@ interface SidebarProps {
   onRequireLogin?: () => void
   hasActiveOrder?: boolean
   onOpenProModal?: () => void
+  isOpenExternal?: boolean
+  onCloseExternal?: () => void
 }
 
 const PRESET_AVATARS = [
@@ -47,9 +49,20 @@ export default function Sidebar({
   isGuest,
   onRequireLogin,
   hasActiveOrder = false,
-  onOpenProModal
+  onOpenProModal,
+  isOpenExternal = false,
+  onCloseExternal
 }: SidebarProps) {
+  // Sinkronkan state buka/tutup desktop dengan tombol burger di TopBar (isOpenExternal)
   const [isOpen, setIsOpen] = useState(true)
+
+  // Setiap kali tombol garis 3 di TopBar diklik (isOpenExternal berubah), sinkronkan status sidebar desktop
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth > 768) {
+      setIsOpen(isOpenExternal);
+    }
+  }, [isOpenExternal]);
+
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [currentName, setCurrentName] = useState(userName)
   const [selectedCampus, setSelectedCampus] = useState<Campus>(campus)
@@ -64,48 +77,52 @@ export default function Sidebar({
 
   const isSuperAdminUser = userEmail === 'miyya@gmail.com' || role === 'super_admin';
 
+  const getSavedRoles = (): string[] => {
+    if (isSuperAdminUser) return ['super_admin', 'buyer', 'seller', 'driver', 'admin'];
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('am_user_session');
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          if (Array.isArray(parsed.roles)) return parsed.roles;
+        } catch (e) {
+          console.error("Gagal parse roles:", e);
+        }
+      }
+    }
+    return [role || 'buyer'];
+  };
+
+  const userRoles = getSavedRoles();
+  const hasSeller = userRoles.includes('seller') || isSuperAdminUser;
+  const hasDriver = userRoles.includes('driver') || isSuperAdminUser;
+  const hasAdmin = userRoles.includes('admin') || userRoles.includes('admin_reguler') || userRoles.includes('admin_pro') || isSuperAdminUser;
+
   const getMenuByRole = () => {
-    if (isSuperAdminUser) {
-      return [
-        { key: 'home', label: 'Beranda', icon: '🏠' },
-        { key: 'cart', label: 'Keranjang', icon: '🛒' },
-        { key: 'seller', label: 'Lapak', icon: '🏪' },
-        { key: 'driver', label: 'Kurir', icon: '🛵' },
-        { key: 'admin', label: 'Koperasi', icon: '⚙️' },
-        { key: 'chat', label: 'Pesan', icon: '💬' },
-      ];
+    const menus = [
+      { key: 'home', label: 'Beranda', icon: '🏠' },
+      { key: 'cart', label: 'Keranjang', icon: '🛒' },
+    ];
+
+    if (hasActiveOrder) {
+      menus.push({ key: 'tracker', label: trackerLabel, icon: trackerIcon });
     }
 
-    switch (role) {
-      case 'buyer':
-        return [
-          { key: 'home', label: 'Beranda', icon: '🏠' },
-          { key: 'cart', label: 'Keranjang', icon: '🛒' },
-          ...(hasActiveOrder ? [{ key: 'tracker', label: trackerLabel, icon: trackerIcon }] : []),
-          { key: 'chat', label: 'Pesan', icon: '💬' },
-        ]
-      case 'seller':
-        return [
-          { key: 'home', label: 'Beranda', icon: '🏠' },
-          { key: 'seller', label: 'Lapak', icon: '🏪' },
-          { key: 'chat', label: 'Chat', icon: '💬' },
-        ]
-      case 'driver':
-        return [
-          { key: 'home', label: 'Beranda', icon: '🏠' },
-          { key: 'driver', label: 'Tugas', icon: '🛵' },
-        ]
-      case 'admin':
-      case 'admin_reguler':
-      case 'admin_pro':
-        return [
-          { key: 'home', label: 'Beranda', icon: '🏠' },
-          { key: 'admin', label: 'Panel', icon: '⚙️' },
-          { key: 'chat', label: 'Pesan', icon: '💬' },
-        ]
-      default:
-        return [{ key: 'home', label: 'Beranda', icon: '🏠' }]
+    menus.push({ key: 'chat', label: 'Pesan', icon: '💬' });
+
+    if (hasSeller) {
+      menus.push({ key: 'seller', label: 'Lapak', icon: '🏪' });
     }
+
+    if (hasDriver) {
+      menus.push({ key: 'driver', label: 'Tugas', icon: '🛵' });
+    }
+
+    if (hasAdmin) {
+      menus.push({ key: 'admin', label: 'Koperasi', icon: '⚙️' });
+    }
+
+    return menus;
   }
 
   const menuItems = getMenuByRole()
@@ -121,7 +138,7 @@ export default function Sidebar({
     }
   };
 
-  const successModalStyles = `
+  const responsiveStyles = `
     @keyframes bounceIn {
       0% { opacity: 0; transform: scale(0.8) translateY(20px); }
       70% { transform: scale(1.05) translateY(-5px); }
@@ -139,79 +156,76 @@ export default function Sidebar({
       animation: checkAnim 0.4s ease-in-out 0.1s both;
     }
 
-    /* 📱 CSS Responsif: Sidebar otomatis menyesuaikan jadi menu bawah / drawer di HP */
+    /* 💻 DESKTOP SIDEBAR FIXED POSITION */
+    .am-sidebar-main {
+      width: ${isOpen ? '260px' : '80px'};
+      background: var(--am-surface);
+      border-right: 1px solid var(--am-border);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: fixed !important;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      flex-shrink: 0;
+      font-family: var(--am-font-body);
+      transition: width 0.3s ease-in-out;
+      box-shadow: 4px 0 15px rgba(0,0,0,0.03);
+      overflow-x: hidden;
+      z-index: 1000;
+    }
+
+    /* 📱 MOBILE HP: Sidebar berubah jadi drawer melayang dari kiri */
     @media screen and (max-width: 768px) {
-      .desktop-sidebar {
+      .am-sidebar-main {
+        width: 280px !important;
+        transform: translateX(-100%) !important;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        box-shadow: 15px 0 35px rgba(0,0,0,0.3) !important;
+        z-index: 100000 !important;
+      }
+      .am-sidebar-main.mobile-open {
+        transform: translateX(0) !important;
+      }
+      .am-mobile-backdrop {
         position: fixed !important;
-        bottom: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        width: 100% !important;
-        height: 65px !important;
-        flex-direction: row !important;
-        border-right: none !important;
-        border-top: 1px solid var(--am-border) !important;
-        z-index: 9999 !important;
-        box-shadow: 0 -4px 20px rgba(0,0,0,0.08) !important;
-        padding: 4px 8px !important;
-        background: var(--am-surface) !important;
-      }
-      .desktop-sidebar .hide-on-mobile {
-        display: none !important;
-      }
-      .desktop-sidebar .mobile-nav-container {
-        flex-direction: row !important;
-        width: 100% !important;
-        justify-content: space-around !important;
-        align-items: center !important;
-        padding: 0 !important;
-      }
-      .desktop-sidebar .mobile-nav-item {
-        flex-direction: column !important;
-        gap: 2px !important;
-        padding: 6px 4px !important;
-        font-size: 10px !important;
-        justify-content: center !important;
-        align-items: center !important;
+        inset: 0 !important;
+        background: rgba(0, 0, 0, 0.5) !important;
+        backdrop-filter: blur(3px) !important;
+        z-index: 99999 !important;
       }
     }
   `;
 
+  // Di layar HP, jika isOpenExternal true, anggap sidebar terbuka penuh
+  const effectiveIsOpen = typeof window !== 'undefined' && window.innerWidth <= 768 ? isOpenExternal : isOpen;
+
   return (
     <>
-      <style>{successModalStyles}</style>
-      <aside className="desktop-sidebar" style={{
-        width: isOpen ? 260 : 80,
-        background: 'var(--am-surface)',
-        borderRight: '1px solid var(--am-border)',
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        position: 'sticky',
-        top: 0,
-        flexShrink: 0,
-        fontFamily: 'var(--am-font-body)',
-        transition: 'width 0.3s ease-in-out',
-        boxShadow: '4px 0 15px rgba(0,0,0,0.03)',
-        overflowX: 'hidden'
-      }}>
+      <style>{responsiveStyles}</style>
+
+      {/* Backdrop Gelap untuk HP saat Menu Dibuka */}
+      {isOpenExternal && (
+        <div className="am-mobile-backdrop" onClick={onCloseExternal} />
+      )}
+
+      {/* Spacer agar konten utama di App.tsx tidak tertutup sidebar di desktop */}
+      <div style={{ width: isOpen ? '260px' : '80px', flexShrink: 0, transition: 'width 0.3s ease-in-out' }} className="desktop-sidebar-spacer" />
+
+      <aside className={`am-sidebar-main ${isOpenExternal ? 'mobile-open' : ''}`}>
         
-        <div className="hide-on-mobile" style={{ padding: '12px 16px', display: 'flex', justifyContent: isOpen ? 'flex-end' : 'center', borderBottom: '1px solid var(--am-border)' }}>
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            style={{
-              background: 'var(--am-bg2)', border: '1px solid var(--am-border)', borderRadius: 8,
-              width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 14, fontWeight: 'bold', color: 'var(--am-text)'
-            }}
-            title={isOpen ? "Tutup Sidebar" : "Buka Sidebar"}
-          >
-            {isOpen ? '◀' : '☰'}
-          </button>
+        {/* Header Sidebar Bersih Tanpa Tombol Berlebih (Tombol Burger Tunggal di TopBar yang Mengontrol Semuanya) */}
+        <div style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--am-border)', height: 65 }}>
+          {effectiveIsOpen ? (
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--am-primary)', whiteSpace: 'nowrap' }}>Antasari Mart</div>
+          ) : (
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--am-primary)', margin: '0 auto' }}>AM</div>
+          )}
         </div>
 
-        {isOpen && (
-          <div className="hide-on-mobile" style={{ padding: '16px', borderBottom: '1px solid var(--am-border)', textAlign: 'center' }}>
+        {effectiveIsOpen && (
+          <div style={{ padding: '16px', borderBottom: '1px solid var(--am-border)', textAlign: 'center' }}>
             {isGuest ? (
               <div style={{ 
                 width: 56, height: 56, borderRadius: '50%', background: 'var(--am-bg2)', 
@@ -234,41 +248,36 @@ export default function Sidebar({
               display: 'inline-block', marginTop: 6, padding: '2px 10px', borderRadius: 999, 
               fontSize: 10, fontWeight: 700, background: isSuperAdminUser ? '#F59E0B' : 'var(--am-primary)', color: 'white' 
             }}>
-              {isSuperAdminUser ? '👑 Super Admin Utama' : (role === 'buyer' && (isGuest ? '👤 Pengunjung Tamu' : '🛍 Pembeli'))}
-              {!isSuperAdminUser && role === 'seller' && '🏪 Penjual'}
-              {!isSuperAdminUser && role === 'driver' && '🛵 Driver'}
-              {!isSuperAdminUser && role.includes('admin') && '🏢 Admin Koperasi'}
+              {isSuperAdminUser ? '👑 Super Admin' : (isGuest ? '👤 Tamu' : `Multi-Role (${userRoles.length})`)}
             </div>
           </div>
         )}
 
-        <div className="mobile-nav-container" style={{ flex: 1, padding: '16px 10px', display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto' }}>
-          {isOpen && (
-            <div className="hide-on-mobile" style={{ fontSize: 10, fontWeight: 800, color: 'var(--am-text-muted)', paddingLeft: 8, marginBottom: 4, letterSpacing: 1 }}>
+        <div style={{ flex: 1, padding: '16px 10px', display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto' }}>
+          {effectiveIsOpen && (
+            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--am-text-muted)', paddingLeft: 8, marginBottom: 4, letterSpacing: 1 }}>
               MENU UTAMA
             </div>
           )}
 
           {menuItems.map(item => {
-  const isActive = activeTab === item.key
-  return (
-    <button
-      key={item.key}
-      className="mobile-nav-item"
-      // 💡 TAMBAHKAN ATRIBUT DI BAWAH INI:
-      data-view={item.key}
-      onClick={() => {
-        if (isGuest && (item.key === 'cart' || item.key === 'chat' || item.key === 'tracker')) {
-          if (onRequireLogin) onRequireLogin();
-          return;
-        }
-        setActiveTab(item.key as AppTab);
-      }}
-                title={!isOpen ? item.label : undefined}
+            const isActive = activeTab === item.key
+            return (
+              <button
+                key={item.key}
+                onClick={() => {
+                  if (isGuest && (item.key === 'cart' || item.key === 'chat' || item.key === 'tracker' || item.key === 'seller' || item.key === 'driver')) {
+                    if (onRequireLogin) onRequireLogin();
+                    return;
+                  }
+                  setActiveTab(item.key as AppTab);
+                  if (window.innerWidth <= 768 && onCloseExternal) onCloseExternal();
+                }}
+                title={!effectiveIsOpen ? item.label : undefined}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12, width: '100%',
-                  padding: isOpen ? '10px 14px' : '10px 0', 
-                  justifyContent: isOpen ? 'flex-start' : 'center',
+                  padding: effectiveIsOpen ? '10px 14px' : '10px 0', 
+                  justifyContent: effectiveIsOpen ? 'flex-start' : 'center',
                   borderRadius: 10, border: 'none', cursor: 'pointer',
                   background: isActive ? 'var(--am-primary)' : 'transparent',
                   color: isActive ? 'white' : 'var(--am-text)',
@@ -277,7 +286,7 @@ export default function Sidebar({
                 }}
               >
                 <span style={{ fontSize: 18 }}>{item.icon}</span>
-                {isOpen && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
+                {effectiveIsOpen && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
               </button>
             )
           })}
@@ -285,12 +294,14 @@ export default function Sidebar({
           {/* 👑 TOMBOL KHUSUS SUPER ADMIN CENTER */}
           {isSuperAdminUser && (
             <button
-              className="hide-on-mobile"
-              onClick={() => setActiveTab('super_admin' as any)}
-              title={!isOpen ? "Super Admin Center" : undefined}
+              onClick={() => {
+                setActiveTab('super_admin' as any);
+                if (window.innerWidth <= 768 && onCloseExternal) onCloseExternal();
+              }}
+              title={!effectiveIsOpen ? "Super Admin Center" : undefined}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, width: '100%',
-                padding: isOpen ? '10px 14px' : '10px 0', justifyContent: isOpen ? 'flex-start' : 'center',
+                padding: effectiveIsOpen ? '10px 14px' : '10px 0', justifyContent: effectiveIsOpen ? 'flex-start' : 'center',
                 borderRadius: 10, border: '1.5px dashed #F59E0B', cursor: 'pointer',
                 background: activeTab === ('super_admin' as any) ? '#F59E0B' : 'rgba(245, 158, 11, 0.1)', 
                 color: activeTab === ('super_admin' as any) ? 'white' : '#D97706', 
@@ -298,22 +309,22 @@ export default function Sidebar({
               }}
             >
               <span style={{ fontSize: 18 }}>👑</span>
-              {isOpen && <span style={{ whiteSpace: 'nowrap' }}>Super Admin Center</span>}
+              {effectiveIsOpen && <span style={{ whiteSpace: 'nowrap' }}>Super Admin Center</span>}
             </button>
           )}
 
           {/* 💎 TOMBOL MENU UPGRADE KE AKUN PRO */}
           {!isGuest && (
             <button
-              className="hide-on-mobile"
               onClick={() => {
                 if (onOpenProModal) onOpenProModal();
+                if (window.innerWidth <= 768 && onCloseExternal) onCloseExternal();
               }}
-              title={!isOpen ? "Antasari Mart PRO" : undefined}
+              title={!effectiveIsOpen ? "Antasari Mart PRO" : undefined}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, width: '100%',
-                padding: isOpen ? '10px 14px' : '10px 0', 
-                justifyContent: isOpen ? 'flex-start' : 'center',
+                padding: effectiveIsOpen ? '10px 14px' : '10px 0', 
+                justifyContent: effectiveIsOpen ? 'flex-start' : 'center',
                 borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: 'linear-gradient(135deg, #00B4D8 0%, #03045E 100%)',
                 color: 'white', fontWeight: 700, fontSize: 13,
@@ -322,7 +333,7 @@ export default function Sidebar({
               }}
             >
               <span style={{ fontSize: 18 }}>💎</span>
-              {isOpen && (
+              {effectiveIsOpen && (
                 <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
                   <div style={{ whiteSpace: 'nowrap' }}>Antasari Mart PRO</div>
                   <div style={{ fontSize: 9, opacity: 0.85, fontWeight: 400 }}>Mulai Rp 10rb/bln</div>
@@ -331,36 +342,41 @@ export default function Sidebar({
             </button>
           )}
 
-          {isOpen && !isGuest && (
-            <div className="hide-on-mobile" style={{ fontSize: 10, fontWeight: 800, color: 'var(--am-text-muted)', paddingLeft: 8, marginTop: 16, marginBottom: 4, letterSpacing: 1 }}>
+          {effectiveIsOpen && !isGuest && (
+            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--am-text-muted)', paddingLeft: 8, marginTop: 16, marginBottom: 4, letterSpacing: 1 }}>
               PENGATURAN
             </div>
           )}
 
           {!isGuest && (
             <button
-              className="hide-on-mobile"
-              onClick={() => setShowProfileModal(true)}
-              title={!isOpen ? "Edit / Pengaturan Profil" : undefined}
+              onClick={() => {
+                setShowProfileModal(true);
+                if (window.innerWidth <= 768 && onCloseExternal) onCloseExternal();
+              }}
+              title={!effectiveIsOpen ? "Edit / Pengaturan Profil" : undefined}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, width: '100%',
-                padding: isOpen ? '10px 14px' : '10px 0', 
-                justifyContent: isOpen ? 'flex-start' : 'center',
+                padding: effectiveIsOpen ? '10px 14px' : '10px 0', 
+                justifyContent: effectiveIsOpen ? 'flex-start' : 'center',
                 borderRadius: 10, border: '1.5px solid var(--am-border)', cursor: 'pointer',
                 background: 'var(--am-bg2)', color: 'var(--am-text)', fontWeight: 600, fontSize: 13,
                 transition: 'background 0.2s',
               }}
             >
               <span style={{ fontSize: 18 }}>⚙️</span>
-              {isOpen && <span style={{ whiteSpace: 'nowrap' }}>Edit Profil</span>}
+              {effectiveIsOpen && <span style={{ whiteSpace: 'nowrap' }}>Edit Profil</span>}
             </button>
           )}
         </div>
 
-        <div className="hide-on-mobile" style={{ padding: 12, borderTop: '1px solid var(--am-border)' }}>
+        <div style={{ padding: 12, borderTop: '1px solid var(--am-border)' }}>
           <button
-            onClick={onLogout}
-            title={!isOpen ? "Keluar (Logout)" : undefined}
+            onClick={() => {
+              onLogout();
+              if (window.innerWidth <= 768 && onCloseExternal) onCloseExternal();
+            }}
+            title={!effectiveIsOpen ? "Keluar (Logout)" : undefined}
             style={{
               width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
               background: isGuest ? 'var(--am-primary)' : '#EF4444', color: 'white', fontWeight: 700, fontSize: 13,
@@ -368,14 +384,14 @@ export default function Sidebar({
             }}
           >
             <span style={{ fontSize: 16 }}>{isGuest ? '🔑' : '🚪'}</span>
-            {isOpen && <span>{isGuest ? 'Masuk / Daftar' : 'Keluar'}</span>}
+            {effectiveIsOpen && <span>{isGuest ? 'Masuk / Daftar' : 'Keluar'}</span>}
           </button>
         </div>
       </aside>
 
       {showProfileModal && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100001,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
         }}>
           <div className="am-card am-slide-up" style={{ width: '100%', maxWidth: 440, padding: 24, borderRadius: 20, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -485,7 +501,7 @@ export default function Sidebar({
 
       {successPopupMessage && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999,
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100001,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
           backdropFilter: 'blur(5px)'
         }}>

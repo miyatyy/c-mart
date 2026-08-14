@@ -2,8 +2,6 @@ import { useState, useRef } from 'react';
 import Swal from 'sweetalert2';
 import type { Campus, UserRole } from '../types';
 
-const API_URL = "http://192.168.18.11:5000/api";
-
 const PRESET_AVATARS = [
   { id: 1, name: 'Maya (Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4' },
   { id: 2, name: 'Ahmad (Ramah)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=AhmadHappy&backgroundColor=c0aede' },
@@ -24,18 +22,27 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
   const [showPassword, setShowPassword] = useState(false);
   const [nama, setNama] = useState('');
   const [nim, setNim] = useState('');
-  const [selectedRole, setSelectedRole] = useState<UserRole>('buyer'); 
   
+  // 🔒 Multi-Role State (Default: Pembeli). Maksimal 3 pilihan
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(['buyer']); 
+  
+  // 🔑 State untuk OTP
+  const [otpCode, setOtpCode] = useState('');
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [isOtpVerified, setIsOtpVerified] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+
   const [selectedAvatar, setSelectedAvatar] = useState(PRESET_AVATARS[0].url);
   const [loading, setLoading] = useState(false);
 
-  // State untuk Slider Puzzle Foto Buket Asli
+  // State untuk Slider Puzzle
   const [sliderPos, setSliderPos] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
 
-  const targetPos = 215; // Posisi lubang pas di foto
+  const targetPos = 215; 
   const tolerance = 8; 
 
   const startDrag = () => {
@@ -71,6 +78,88 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
     setSliderPos(0);
   };
 
+  // Handler Centang Multi Role (Maksimal 3)
+  const handleRoleCheckbox = (roleKey: string) => {
+    if (selectedRoles.includes(roleKey)) {
+      if (selectedRoles.length > 1) {
+        setSelectedRoles(prev => prev.filter(r => r !== roleKey));
+      } else {
+        Swal.fire({ icon: 'info', title: 'Perhatian', text: 'Minimal harus memilih 1 peran!', confirmButtonColor: '#00B4D8' });
+      }
+    } else {
+      if (selectedRoles.length < 3) {
+        setSelectedRoles(prev => [...prev, roleKey]);
+      } else {
+        Swal.fire({ icon: 'warning', title: 'Batas Peran', text: '⚠️ Maksimal hanya boleh memilih 3 peran!', confirmButtonColor: '#00B4D8' });
+      }
+    }
+  };
+
+  // Kirim OTP via Email
+  const handleSendOtp = async () => {
+    if (!email) {
+      Swal.fire({ icon: 'warning', title: 'Email Kosong', text: 'Silakan isi alamat email terlebih dahulu!', confirmButtonColor: '#00B4D8' });
+      return;
+    }
+
+    setSendingOtp(true);
+    try {
+      const backendHost = `http://${window.location.hostname}:5000`;
+      const res = await fetch(`${backendHost}/api/otp/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setIsOtpSent(true);
+        Swal.fire({
+          icon: 'success',
+          title: 'Kode OTP Terkirim! 📧',
+          text: data.message,
+          confirmButtonColor: '#00B4D8'
+        });
+      } else {
+        Swal.fire({ icon: 'error', title: 'Gagal Kirim OTP', text: data.message, confirmButtonColor: '#EF4444' });
+      }
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Koneksi Terganggu', text: 'Gagal terhubung ke server pengirim OTP.', confirmButtonColor: '#EF4444' });
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  // Verifikasi Kode OTP
+  const handleVerifyOtp = async () => {
+    if (!otpCode) {
+      Swal.fire({ icon: 'warning', title: 'Kode OTP Kosong', text: 'Masukkan kode OTP yang telah dikirim ke email kamu!', confirmButtonColor: '#00B4D8' });
+      return;
+    }
+
+    setVerifyingOtp(true);
+    try {
+      const backendHost = `http://${window.location.hostname}:5000`;
+      const res = await fetch(`${backendHost}/api/otp/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: otpCode })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setIsOtpVerified(true);
+        Swal.fire({ icon: 'success', title: 'Verifikasi Berhasil! ✅', text: data.message, confirmButtonColor: '#00B4D8' });
+      } else {
+        Swal.fire({ icon: 'error', title: 'Verifikasi Gagal', text: data.message, confirmButtonColor: '#EF4444' });
+      }
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Kesalahan Server', text: 'Gagal memverifikasi OTP.', confirmButtonColor: '#EF4444' });
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
   const animationStyles = `
     @keyframes floatAnimation {
       0% { transform: translateY(0px) rotate(0deg); }
@@ -81,9 +170,6 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
       animation: floatAnimation 3s ease-in-out infinite;
     }
   `;
-
-  const backendHost = 'http://192.168.18.11:5000';
-  const url = isRegister ? `${backendHost}/api/register` : `${backendHost}/api/login`;
 
   const handleDeviceImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -104,17 +190,27 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
         icon: 'warning',
         title: 'Verifikasi Belum Selesai',
         text: 'Silakan geser potongan puzzle foto buket bunga sampai pas untuk melanjutkan!',
-        confirmButtonColor: '#00B4D8',
-        background: '#ffffff',
-        color: '#333333'
+        confirmButtonColor: '#00B4D8'
+      });
+      return;
+    }
+
+    if (isRegister && !isOtpVerified) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Email Belum Diverifikasi',
+        text: 'Silakan masukkan dan verifikasi kode OTP yang telah dikirim ke email kamu!',
+        confirmButtonColor: '#00B4D8'
       });
       return;
     }
 
     setLoading(true);
+    const backendHost = `http://${window.location.hostname}:5000`;
+    const targetUrl = isRegister ? `${backendHost}/api/register` : `${backendHost}/api/login`;
     
     try {
-      const response = await fetch(url, {
+      const response = await fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -122,7 +218,8 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
           password, 
           nama, 
           nim, 
-          role: selectedRole,
+          roles: selectedRoles,
+          role: selectedRoles[0] || 'buyer',
           avatar: selectedAvatar 
         })
       });
@@ -136,26 +233,26 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
             title: 'Pendaftaran Berhasil! 🎉',
             text: 'Akun Anda berhasil dibuat. Silakan login.',
             confirmButtonText: 'Masuk Sekarang',
-            confirmButtonColor: '#00B4D8',
-            background: '#ffffff',
-            color: '#333333',
+            confirmButtonColor: '#00B4D8'
           });
           setIsRegister(false); 
           resetCaptcha();
+          setIsOtpSent(false);
+          setIsOtpVerified(false);
+          setOtpCode('');
         } else {
           if (data.user.avatar) {
             localStorage.setItem('am_user_avatar', data.user.avatar);
           }
-          onLogin(data.user.role, 'female', 'banjarmasin', data.user);
+          const primaryRole = Array.isArray(data.user.roles) ? data.user.roles[0] : (data.user.role || 'buyer');
+          onLogin(primaryRole, 'female', 'banjarmasin', data.user);
         }
       } else {
         Swal.fire({
           icon: 'error',
           title: 'Gagal Masuk',
           text: data.message || "Terjadi kesalahan pada data yang dimasukkan!",
-          confirmButtonColor: '#EF4444',
-          background: '#ffffff',
-          color: '#333333'
+          confirmButtonColor: '#EF4444'
         });
         resetCaptcha();
       }
@@ -166,9 +263,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
         icon: 'error',
         title: 'Koneksi Terganggu',
         text: 'Terjadi kesalahan pada server atau jaringan.',
-        confirmButtonColor: '#EF4444',
-        background: '#ffffff',
-        color: '#333333'
+        confirmButtonColor: '#EF4444'
       });
       resetCaptcha();
     } finally {
@@ -200,7 +295,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
           {isRegister ? "Buat Akun Baru" : "Login Antasari Mart"}
         </h2>
         <p style={{ fontSize: 12, color: '#64748B', marginBottom: 12 }}>
-          {isRegister ? "Pilih karakter kartun senyum manis favoritmu atau unggah foto" : "Selamat datang kembali, silakan masuk"}
+          {isRegister ? "Isi data, verifikasi OTP email, & pilih peran akun" : "Selamat datang kembali, silakan masuk"}
         </p>
         
         <form onSubmit={handleSubmit} style={{ textAlign: 'left' }}>
@@ -229,7 +324,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
                   </div>
                 </div>
 
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', marginBottom: 6 }}>Pilih Karakter Kartun (7 Reguler & 3 Pro):</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', marginBottom: 6 }}>Pilih Karakter Kartun:</div>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, maxHeight: 110, overflowY: 'auto', padding: 2 }}>
                   {PRESET_AVATARS.map(avatar => (
@@ -267,10 +362,85 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
 
           <div>
             <label style={{ fontSize: 11, fontWeight: 'bold', color: '#64748B' }}>Email</label>
-            <input placeholder="email@uin-antasari.ac.id" type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} required />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input 
+                placeholder="email@uin-antasari.ac.id" 
+                type="email" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                style={{ ...inputStyle, flex: 1, margin: 0 }} 
+                required 
+              />
+              {isRegister && (
+                <button 
+                  type="button" 
+                  onClick={handleSendOtp} 
+                  disabled={sendingOtp || isOtpVerified}
+                  style={{
+                    padding: '12px 12px', fontSize: 11, fontWeight: 700, borderRadius: 8, border: 'none',
+                    background: isOtpVerified ? '#16A34A' : '#00B4D8', color: 'white', cursor: (sendingOtp || isOtpVerified) ? 'default' : 'pointer', whiteSpace: 'nowrap'
+                  }}
+                >
+                  {isOtpVerified ? '✅ Terkirim' : sendingOtp ? 'Sending...' : 'Kirim OTP 📧'}
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* 🔒 KOLOM TERPISAH KHUSUS KODE OTP (Tampil permanen saat registrasi) */}
+          {isRegister && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: 11, fontWeight: 'bold', color: '#64748B' }}>Kode OTP Email</label>
+                {isOtpVerified ? (
+                  <span style={{ fontSize: 10, color: '#16A34A', fontWeight: 800 }}>✅ Sudah Diverifikasi</span>
+                ) : (
+                  <span style={{ fontSize: 10, color: '#D97706', fontWeight: 700 }}>⚠️ Belum Diverifikasi</span>
+                )}
+              </div>
+              
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+                <input 
+                  placeholder="Masukkan 6 Digit OTP" 
+                  value={otpCode} 
+                  disabled={isOtpVerified}
+                  onChange={(e) => setOtpCode(e.target.value)} 
+                  style={{ 
+                    ...inputStyle, 
+                    flex: 1, 
+                    margin: 0, 
+                    letterSpacing: 2, 
+                    fontWeight: 'bold',
+                    background: isOtpVerified ? '#F0FDF4' : '#F8FAFC',
+                    borderColor: isOtpVerified ? '#86EFAC' : '#CBD5E1'
+                  }} 
+                />
+                <button 
+                  type="button" 
+                  onClick={handleVerifyOtp}
+                  disabled={isOtpVerified || verifyingOtp}
+                  style={{ 
+                    padding: '12px 14px', 
+                    background: isOtpVerified ? '#16A34A' : '#0284c7', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: 8, 
+                    fontWeight: 700, 
+                    cursor: (isOtpVerified || verifyingOtp) ? 'default' : 'pointer', 
+                    fontSize: 11,
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {isOtpVerified ? 'Terverifikasi ✓' : verifyingOtp ? 'Cek...' : 'Verifikasi OTP'}
+                </button>
+              </div>
+              <small style={{ fontSize: 10, color: '#64748B', display: 'block', marginTop: 2 }}>
+                * Tekan "Kirim OTP", cek kotak masuk/spam email, lalu masukkan 6 digit kodenya.
+              </small>
+            </div>
+          )}
           
-          <div>
+          <div style={{ marginTop: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 'bold', color: '#64748B' }}>Password</label>
             <div style={{ position: 'relative', width: '100%' }}>
               <input 
@@ -278,7 +448,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
                 placeholder="••••••••" 
                 value={password} 
                 onChange={(e) => setPassword(e.target.value)} 
-                style={{ ...inputStyle, paddingRight: 40, margin: '6px 0 0 0' }} 
+                style={{ ...inputStyle, paddingRight: 40, margin: '4px 0 0 0' }} 
                 required 
               />
               <button
@@ -299,25 +469,42 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
             )}
           </div>
           
+          {/* 🔒 PILIHAN MULTI-ROLE (MAKSIMAL 3 ROLE) */}
           {isRegister && (
-            <div style={{ marginTop: 6 }}>
-              <label style={{ display: 'block', marginBottom: 2, fontSize: 11, fontWeight: 'bold', color: '#64748B' }}>
-                Daftar Sebagai:
+            <div style={{ marginTop: 10, background: '#F8FAFC', padding: 10, borderRadius: 12, border: '1px solid #CBD5E1' }}>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 'bold', color: '#334155' }}>
+                Pilih Peran Akun Kamu (Maksimal 3):
               </label>
-              <select 
-                value={selectedRole} 
-                onChange={(e) => setSelectedRole(e.target.value as UserRole)}
-                style={inputStyle}
-              >
-                <option value="buyer">🛍 Pembeli</option>
-                <option value="seller">🏪 Penjual</option>
-                <option value="driver">🛵 Driver</option>
-                <option value="admin">🏢 Admin Koperasi</option>
-              </select>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer', color: '#1e293b' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedRoles.includes('buyer')} 
+                    onChange={() => handleRoleCheckbox('buyer')} 
+                  />
+                  🛍️ Pembeli (Belanja Produk & Jasa)
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer', color: '#1e293b' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedRoles.includes('seller')} 
+                    onChange={() => handleRoleCheckbox('seller')} 
+                  />
+                  🏪 Penjual (Buka Lapak Dagangan)
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer', color: '#1e293b' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedRoles.includes('driver')} 
+                    onChange={() => handleRoleCheckbox('driver')} 
+                  />
+                  🛵 Driver / Kurir Kampus (Antar Pesanan)
+                </label>
+              </div>
             </div>
           )}
 
-          {/* 💡 KOTAK SLIDER PUZZLE FOTO BUKET BUNGA ASLI */}
+          {/* KOTAK SLIDER PUZZLE */}
           <div style={{ marginTop: 10, background: '#F8FAFC', padding: 12, borderRadius: 14, border: '1px solid #E2E8F0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <label style={{ fontSize: 11, fontWeight: 'bold', color: '#334155' }}>
@@ -326,14 +513,12 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
               {isVerified && <span style={{ fontSize: 10, color: '#16A34A', fontWeight: 800 }}>✔ Terverifikasi</span>}
             </div>
 
-            {/* Kotak Latar Foto Buket Bunga Asli */}
             <div style={{ 
               position: 'relative', width: '100%', height: 110, borderRadius: 10, overflow: 'hidden', 
               backgroundImage: 'url("https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=500&auto=format&fit=crop&q=60")', 
               backgroundSize: 'cover', backgroundPosition: 'center', marginBottom: 8,
               boxShadow: 'inset 0 0 20px rgba(0,0,0,0.2)'
             }}>
-              {/* Efek Lapisan Transparan Agar Estetik */}
               <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.15)' }} />
 
               <div style={{ 
@@ -343,13 +528,11 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
                 🌸 Pasangkan Potongan Buket
               </div>
               
-              {/* Target Lubang Puzzle */}
               <div style={{
                 position: 'absolute', left: targetPos, top: 30, width: 45, height: 50,
                 background: 'rgba(0,0,0,0.6)', border: '2px dashed rgba(255,255,255,0.9)', borderRadius: 6, zIndex: 2
               }} />
 
-              {/* Potongan Puzzle Foto Buket Bunga yang Digeser */}
               <div style={{
                 position: 'absolute', left: sliderPos, top: 30, width: 45, height: 50,
                 backgroundImage: 'url("https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=500&auto=format&fit=crop&q=60")',
@@ -360,7 +543,6 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
               }} />
             </div>
 
-            {/* Track Slider Bar */}
             <div 
               ref={trackRef}
               onMouseMove={onDrag}
@@ -376,7 +558,6 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
                 {isVerified ? "Verifikasi Berhasil ✨" : "Geser puzzle ke kanan dengan pas ➔"}
               </div>
 
-              {/* Tombol Handle Slider */}
               <div 
                 onMouseDown={startDrag}
                 onTouchStart={startDrag}
@@ -393,11 +574,11 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
           
           <button 
             type="submit" 
-            disabled={loading || !isVerified}
+            disabled={loading || !isVerified || (isRegister && !isOtpVerified)}
             style={{ 
               width: '100%', padding: '12px 0', marginTop: 14, 
-              background: (loading || !isVerified) ? '#CBD5E1' : '#00B4D8', color: 'white', 
-              border: 'none', borderRadius: 10, cursor: (loading || !isVerified) ? 'not-allowed' : 'pointer', fontWeight: 700,
+              background: (loading || !isVerified || (isRegister && !isOtpVerified)) ? '#CBD5E1' : '#00B4D8', color: 'white', 
+              border: 'none', borderRadius: 10, cursor: (loading || !isVerified || (isRegister && !isOtpVerified)) ? 'not-allowed' : 'pointer', fontWeight: 700,
               fontSize: 14, transition: 'background 0.2s' 
             }}
           >

@@ -44,7 +44,8 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
   `;
 
   useEffect(() => {
-    const backendUrl = `http://192.168.18.11:5000/api/products`;
+    // ✅ URL DINAMIS: Menggunakan window.location.hostname agar tidak ketergantungan IP manual
+    const backendUrl = `http://${window.location.hostname}:5000/api/products`;
 
     fetch(backendUrl)
       .then(res => res.json())
@@ -120,7 +121,8 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
     const initialMessage = `Halo Kak ${sellerName}, saya ingin bertanya mengenai produk "${product.name}" (${formatRupiah(product.price)}) apakah stoknya tersedia?`;
 
     try {
-      await fetch(`http://192.168.18.11:5000/api/chats`, {
+      // ✅ URL DINAMIS: Menggunakan window.location.hostname
+      await fetch(`http://${window.location.hostname}:5000/api/chats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -137,7 +139,6 @@ export default function ProductList({ theme, campus, cartItems, onAddToCart, onC
       console.error("Gagal mengirim pesan awal chat:", error);
     }
 
-    // Simpan target chat & arahkan langsung ke halaman pesan
     localStorage.setItem('am_target_chat', JSON.stringify({
       email: sellerId,
       nama: sellerName

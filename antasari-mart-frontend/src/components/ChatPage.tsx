@@ -66,7 +66,9 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
   const [contactSearch, setContactSearch] = useState('')
 
   const chatScrollRef = useRef<HTMLDivElement>(null)
-  const apiBase = `http://192.168.18.11:5000`
+  
+  // ✅ URL DINAMIS: Mengambil hostname secara otomatis dari browser
+  const apiBase = `http://${window.location.hostname}:5000`
   
   const prevChatsLengthRef = useRef<number>(0)
 

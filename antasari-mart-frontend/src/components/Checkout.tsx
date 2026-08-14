@@ -122,7 +122,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
 
   async function handleMidtransPayment() {
     try {
-      const backendUrl = `http://192.168.18.11:5000/api/checkout`;
+      const backendUrl = `http://${window.location.hostname}:5000/api/checkout`;
       const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -167,7 +167,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   async function processOrderWithoutMidtrans(deliveryMethod: DeliveryMethod | 'vending') {
     const generatedOrderId = `ANTASARI-${Date.now()}`;
     try {
-      const backendUrl = `http://192.168.18.11:5000/api/checkout`;
+      const backendUrl = `http://${window.location.hostname}:5000/api/checkout`;
       await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -230,7 +230,6 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     }
   }
 
-  // 📄 1. LAYAR STRUK / ANTRIAN DIGITAL WARUNG
   if (step === 'receipt_pickup' && receiptData) {
     return (
       <div className="am-slide-up" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '30px 20px', gap: 16, maxWidth: 440, margin: '0 auto' }}>
@@ -280,7 +279,6 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
 
         </div>
 
-        {/* 💡 DIUBAH: Mengosongkan keranjang & membawa ke Beranda Katalog Utama */}
         <button 
           className="am-btn-primary"
           onClick={() => {
@@ -295,7 +293,6 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     );
   }
 
-  // 🤖 2. LAYAR QR CODE (10 DETIK COUNTDOWN)
   if (step === 'vending_qr' && vendingData) {
     return (
       <div className="am-slide-up" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '36px 24px', gap: 16, maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
@@ -338,7 +335,6 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     );
   }
 
-  // 🤖 3. LAYAR ANIMASI MESIN MENJATUHKAN BARANG
   if (step === 'vending_dispensing') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 24px', gap: 20, textAlign: 'center' }}>
@@ -368,7 +364,6 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     );
   }
 
-  // 🤖 4. LAYAR FINISH "SILAKAN AMBIL BARANG ANDA!"
   if (step === 'vending_done') {
     return (
       <div className="am-slide-up" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px', gap: 20, maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
@@ -399,7 +394,6 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
           </div>
         </div>
 
-        {/* 💡 DIUBAH: Mengosongkan keranjang & membawa ke Beranda Katalog Utama */}
         <button 
           className="am-btn-primary" 
           onClick={() => {
@@ -438,12 +432,10 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   return (
     <div style={{ padding: '16px 16px 100px', maxWidth: 600, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-        {/* 💡 DIUBAH: Klik tombol panah kembali (<-) langsung kembali murni ke Beranda Utama */}
         <button onClick={onBack} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, color: 'var(--am-text)' }}>←</button>
         <h2 className="am-heading" style={{ margin: 0, fontSize: 20, color: 'var(--am-text)' }}>Checkout Pesanan</h2>
       </div>
 
-      {/* 📦 SEKSI METODE PENGIRIMAN */}
       <div className="am-card" style={{ padding: 16, marginBottom: 16, borderRadius: 16 }}>
         <h3 className="am-heading" style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--am-text)' }}>📦 Metode Pengambilan</h3>
         
@@ -516,7 +508,6 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
         )}
       </div>
 
-      {/* 💳 SEKSI METODE PEMBAYARAN */}
       <div className="am-card" style={{ padding: 16, marginBottom: 16, borderRadius: 16 }}>
         <h3 className="am-heading" style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--am-text)' }}>💳 Metode Pembayaran</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -544,7 +535,6 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
         </div>
       </div>
 
-      {/* 🧾 SEKSI RINGKASAN PESANAN */}
       <div className="am-card" style={{ padding: 16, marginBottom: 20, borderRadius: 16 }}>
         <h3 className="am-heading" style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--am-text)' }}>🧾 Ringkasan Pesanan</h3>
         {items.map(i => (
@@ -564,7 +554,6 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
         </div>
       </div>
 
-      {/* 🚀 TOMBOL PROSES CHECKOUT */}
       <button
         className="am-btn-primary"
         style={{ width: '100%', padding: '15px 0', fontSize: 16, opacity: (delivery === 'courier' && !finalLocation) ? 0.6 : 1, borderRadius: 12 }}

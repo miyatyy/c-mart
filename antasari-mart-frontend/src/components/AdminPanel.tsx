@@ -83,7 +83,9 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
 
     try {
       const adminUser = JSON.parse(localStorage.getItem('am_current_user') || `{"email": "${currentUserId}", "nama": "${currentUserName}"}`)
-      await fetch(`http://192.168.18.11:5000/api/chats`, {
+      
+      // ✅ URL DINAMIS: Menggunakan window.location.hostname agar tidak ketergantungan IP
+      await fetch(`http://${window.location.hostname}:5000/api/chats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -126,7 +128,6 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
     }
 
     if (isEditing && editId) {
-      // Update (U)
       setReportsList(prev => prev.map(r => r.id === editId ? {
         ...r,
         title: formTitle,
@@ -136,7 +137,6 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
       } : r))
       Swal.fire({ icon: 'success', title: 'Berhasil Diperbarui!', timer: 1500, showConfirmButton: false })
     } else {
-      // Create (C)
       const newRep: ManualReport = {
         id: 'rep_' + Date.now(),
         title: formTitle,
@@ -149,7 +149,6 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
       Swal.fire({ icon: 'success', title: 'Laporan Baru Ditambahkan! 🎉', timer: 1500, showConfirmButton: false })
     }
 
-    // Reset Form
     setIsEditing(false)
     setEditId(null)
     setFormTitle('')
@@ -158,7 +157,6 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
     setFormNominal('')
   }
 
-  // Edit (U - persiapan)
   const handleEditClick = (rep: ManualReport) => {
     setIsEditing(true)
     setEditId(rep.id)
@@ -168,7 +166,6 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
     setFormNominal(rep.nominal.toString())
   }
 
-  // Delete (D)
   const handleDeleteReport = (id: string) => {
     Swal.fire({
       title: 'Hapus Laporan Ini?',
@@ -187,7 +184,6 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
     })
   }
 
-  // Print Clean Report
   const handlePrintReport = (rep: ManualReport) => {
     setSelectedReportToPrint(rep)
     setTimeout(() => {
@@ -349,7 +345,7 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
         </div>
       )}
 
-      {/* 💎 TAB CRUD LAPORAN MANUAL (EKSKLUSIF PRO / SUPER ADMIN) */}
+      {/* 💎 TAB CRUD LAPORAN MANUAL */}
       {tab === 'manual_report' && (
         <div style={{ padding: '0 16px' }}>
           <div className="am-card" style={{ padding: 24, borderRadius: 16, background: 'var(--am-surface)', marginBottom: 20 }}>
@@ -391,7 +387,6 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
             </form>
           </div>
 
-          {/* Daftar Laporan Tersimpan (Read & Action CRUD) */}
           <div className="am-card" style={{ padding: 20, borderRadius: 16 }}>
             <h4 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700, color: 'var(--am-text)' }}>📂 Daftar Arsip Laporan Manual ({reportsList.length})</h4>
             
@@ -414,7 +409,6 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
             </div>
           </div>
 
-          {/* Hidden Printable Single Report Area */}
           <div style={{ display: 'none' }}>
             {selectedReportToPrint && (
               <div id="printable-single-report">

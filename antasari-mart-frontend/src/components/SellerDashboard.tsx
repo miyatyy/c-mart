@@ -33,7 +33,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
   // 🌟 State untuk Custom Alert Popup Beranimasi
   const [alertPopup, setAlertPopup] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   
-  // State untuk Modal "Atur Pengiriman" (Ala Shopee)
+  // State untuk Modal "Atur Pengiriman"
   const [showShippingModal, setShowShippingModal] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<any>(null)
   const [selectedCourier, setSelectedCourier] = useState('JNE Regular')
@@ -50,6 +50,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
 
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   const [newProd, setNewProd] = useState<NewProduct>({ 
     name: '', 
@@ -72,7 +73,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     @keyframes checkAnim {
       0% { transform: scale(0); }
       50% { transform: scale(1.2); }
-      100% { transform: scale(1); }
+      100% { opacity: 1; transform: scale(1); }
     }
     .success-modal-appear {
       animation: bounceIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
@@ -82,8 +83,9 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     }
   `;
 
+  // 🔒 DINDING PRIVASI: Memuat Produk Khusus Milik Seller yang Login
   useEffect(() => {
-    const backendUrl = `http://${window.location.hostname}:5000/api/products`;
+    const backendUrl = `http://${window.location.hostname}:5000/api/products?sellerId=${encodeURIComponent(sellerId)}`;
 
     fetch(backendUrl)
       .then(res => res.json())
@@ -121,6 +123,49 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
 
   const activeProducts = products.filter(p => p.stock > 0)
   const emptyProducts = products.filter(p => p.stock === 0)
+
+  // 🔒 Halaman Handler Upload Foto Aman ke Cloudinary (Maksimal 200 KB)
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, isEditMode = false) {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+
+      // Validasi Ukuran File awal (Max 200 KB)
+      if (file.size > 200 * 1024) {
+        setAlertPopup({ message: "⚠️ Ukuran foto terlalu besar! Maksimal 200 KB.", type: 'error' });
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('foto', file);
+
+      setUploadingImage(true);
+
+      try {
+        const backendUrl = `http://${window.location.hostname}:5000/api/upload`;
+        const response = await fetch(backendUrl, {
+          method: 'POST',
+          body: formData
+        });
+        const data = await response.json();
+
+        if (data.success && data.imageUrl) {
+          if (isEditMode) {
+            setEditingProduct((prev: any) => ({ ...prev, image: data.imageUrl }));
+          } else {
+            setImageFile(data.imageUrl);
+          }
+          setAlertPopup({ message: "Foto berhasil diunggah ke Cloud Storage! ☁️", type: 'success' });
+        } else {
+          setAlertPopup({ message: data.message || "Gagal mengunggah foto produk.", type: 'error' });
+        }
+      } catch (err) {
+        console.error("Error upload foto:", err);
+        setAlertPopup({ message: "Terjadi kesalahan jaringan saat unggah foto.", type: 'error' });
+      } finally {
+        setUploadingImage(false);
+      }
+    }
+  }
 
   // 1. Tambah Produk
   async function handleAddProduct() {
@@ -182,7 +227,7 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
     setShowAddModal(false)
   }
 
-  // 👑 2. Update Produk (DIPERBAIKI: SERTAKAN IDENTITAS SUPER ADMIN)
+  // 👑 2. Update Produk (SERTAKAN IDENTITAS SUPER ADMIN)
   async function handleUpdateProduct() {
     if (!editingProduct || !editingProduct.id) {
       setAlertPopup({ message: "ID Produk tidak valid!", type: 'error' });
@@ -203,7 +248,6 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
           kampus: editingProduct.campus,
           foto: editingProduct.image,
           
-          // 👑 Identitas Wajib Super Admin Nurmiyaty agar diizinkan backend:
           userRole: 'super_admin',
           userEmail: 'miyya@gmail.com'
         })
@@ -793,27 +837,20 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
 
               <div style={{ margin: '4px 0' }}>
                 <label style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--am-text-muted)', display: 'block', marginBottom: 4 }}>
-                  Foto Produk
+                  Foto Produk (Aman max 200 KB)
                 </label>
                 <input 
                   type="file" 
                   accept="image/*"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      const file = e.target.files[0];
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        setImageFile(reader.result as string);
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  }} 
+                  onChange={(e) => handleImageUpload(e, false)}
                   style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', fontSize: 12 }}
                 />
+                {uploadingImage && <div style={{ fontSize: 11, color: 'var(--am-primary)', marginTop: 4 }}>Mengunggah foto ke Cloud Storage... ☁️</div>}
+                {imageFile && <img src={imageFile} alt="Preview" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6, marginTop: 6 }} />}
               </div>
 
-              <button className="am-btn-primary" style={{ padding: '12px 0', fontSize: 15 }} onClick={handleAddProduct}>
-                Simpan Produk
+              <button className="am-btn-primary" disabled={uploadingImage} style={{ padding: '12px 0', fontSize: 15 }} onClick={handleAddProduct}>
+                {uploadingImage ? 'Mengunggah Foto...' : 'Simpan Produk'}
               </button>
             </div>
           </div>
@@ -860,8 +897,22 @@ export default function SellerDashboard({ theme, campus, sellerId, sellerName }:
                 </select>
               </div>
 
-              <button className="am-btn-primary" style={{ padding: '12px 0', fontSize: 15, marginTop: 8 }} onClick={handleUpdateProduct}>
-                Simpan Perubahan
+              <div style={{ margin: '4px 0' }}>
+                <label style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--am-text-muted)', display: 'block', marginBottom: 4 }}>
+                  Ubah Foto Produk (Max 200 KB)
+                </label>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={(e) => handleImageUpload(e, true)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', fontSize: 12 }}
+                />
+                {uploadingImage && <div style={{ fontSize: 11, color: 'var(--am-primary)', marginTop: 4 }}>Mengunggah foto ke Cloud Storage... ☁️</div>}
+                {editingProduct.image && <img src={editingProduct.image} alt="Preview" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6, marginTop: 6 }} />}
+              </div>
+
+              <button className="am-btn-primary" disabled={uploadingImage} style={{ padding: '12px 0', fontSize: 15, marginTop: 8 }} onClick={handleUpdateProduct}>
+                {uploadingImage ? 'Mengunggah Foto...' : 'Simpan Perubahan'}
               </button>
             </div>
           </div>

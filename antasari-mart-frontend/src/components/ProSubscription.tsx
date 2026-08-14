@@ -7,14 +7,16 @@ interface ProProps {
   onSuccessPro: () => void;
 }
 
-export default function ProSubscription({ user, onClose, onSuccessPro }: ProProps) {
+export default function ProSubscription({ user, onClose, onSuccessPro: _onSuccessPro }: ProProps) {
   const [loading, setLoading] = useState(false);
 
   const handleSubscribe = async () => {
     setLoading(true);
     try {
-      // Hubungkan ke endpoint Midtrans untuk pembayaran Rp 10.000
-      const response = await fetch(`http://192.168.18.11:5000/api/checkout`, {
+      // ✅ URL DINAMIS: Menggunakan window.location.hostname agar tidak ketergantungan IP manual
+      const backendUrl = `http://${window.location.hostname}:5000/api/checkout`;
+      
+      const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -50,7 +52,7 @@ export default function ProSubscription({ user, onClose, onSuccessPro }: ProProp
         </p>
 
         <div style={{ background: 'var(--am-bg2)', padding: 16, borderRadius: 16, textAlign: 'left', marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13, color: 'var(--am-text)' }}>
-          <div style={{ fontWeight: 700, color: 'var(--am-primary)', marginBottom: 2 }}>✨ Keuntungan Sesuai Peranmu ({user.role.toUpperCase()}):</div>
+          <div style={{ fontWeight: 700, color: 'var(--am-primary)', marginBottom: 2 }}>✨ Keuntungan Sesuai Peranmu ({user.role.toUpperCase()})</div>
           <div>🚀 <strong>Pembeli:</strong> Gratis ongkir sepuasnya & diskon eksklusif 10%.</div>
           <div>📈 <strong>Penjual:</strong> Produk tampil di urutan teratas & 0% biaya potongan.</div>
           <div>🛵 <strong>Driver:</strong> Prioritas orderan masuk & bonus komisi tambahan.</div>

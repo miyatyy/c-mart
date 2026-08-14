@@ -62,7 +62,9 @@ export default function ProModal({ user, onClose }: ProModalProps) {
   const handleSubscribe = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://192.168.18.11:5000/api/checkout`, {
+      // ✅ URL DINAMIS: Menggunakan window.location.hostname agar tidak ketergantungan IP manual
+      const backendUrl = `http://${window.location.hostname}:5000/api/checkout`;
+      const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
