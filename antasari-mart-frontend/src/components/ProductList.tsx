@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Product, CartItem, Campus, ThemeMode } from '../types';
-import { CATEGORIES, formatRupiah } from '../data';
+import { CATEGORIES, formatRupiah, MOCK_PRODUCTS } from '../data';
 import { getProductsApi } from '../lib/api';
 
 interface ProductListProps {
@@ -48,13 +48,16 @@ export default function ProductList({ theme, campus, cartItems: _cartItems, onAd
     setLoading(true);
     getProductsApi()
       .then(data => {
-        if (data.success && data.products) {
+        if (data.success && data.products && data.products.length > 0) {
           setProductsList(data.products);
+        } else {
+          setProductsList(MOCK_PRODUCTS);
         }
         setLoading(false);
       })
       .catch(err => {
         console.error("Gagal mengambil produk dari backend:", err);
+        setProductsList(MOCK_PRODUCTS);
         setLoading(false);
       });
   }, [campus]);

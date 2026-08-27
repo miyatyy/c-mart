@@ -224,6 +224,99 @@ async function initDB() {
           console.log(`👑 Akun Super Admin (${superAdminEmail}) berhasil diinisialisasi!`);
         }
       }
+
+      // 📦 Inisialisasi Produk Awal Katalog jika database masih kosong
+      const productCount = await Product.count();
+      if (productCount === 0) {
+        await Product.bulkCreate([
+          {
+            nama_produk: 'Almamater UIN Antasari',
+            deskripsi: 'Jaket almamater resmi UIN Antasari Banjarmasin. Bahan tebal, bordir logo, tersedia size S–XXL.',
+            harga: 185000,
+            stok: 42,
+            kategori: 'pakaian',
+            kampus: 'banjarmasin',
+            sellerId: 's1',
+            sellerName: 'Koperasi UIN Antasari',
+            foto: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400&h=400&fit=crop&auto=format',
+            isKoperasi: true,
+            rating: 4.9,
+            sold: 312
+          },
+          {
+            nama_produk: 'Ganci Myammiy Craft (Vending)',
+            deskripsi: 'Gantungan kunci rajut buatan mahasiswa, siap diambil instan di Vending Machine Kampus.',
+            harga: 15000,
+            stok: 25,
+            kategori: 'aksesoris',
+            kampus: 'banjarmasin',
+            sellerId: 'seller_1',
+            sellerName: 'Myammiy Craft',
+            foto: 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=400&h=400&fit=crop&auto=format',
+            isKoperasi: false,
+            slotNumber: 1,
+            rating: 5.0,
+            sold: 84
+          },
+          {
+            nama_produk: 'Nasi Kuning Koperasi',
+            deskripsi: 'Nasi kuning + ayam goreng + sambal + kerupuk. Makanan andalan kantin koperasi, tersedia setiap hari.',
+            harga: 15000,
+            stok: 30,
+            kategori: 'makanan',
+            kampus: 'banjarmasin',
+            sellerId: 's1',
+            sellerName: 'Koperasi UIN Antasari',
+            foto: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=400&h=400&fit=crop&auto=format',
+            isKoperasi: true,
+            rating: 4.8,
+            sold: 478
+          },
+          {
+            nama_produk: 'Paket ATK Lengkap',
+            deskripsi: 'Ballpoint 3 warna, stabilo 4 warna, penggaris, penghapus & map folio. Cocok untuk awal semester.',
+            harga: 32000,
+            stok: 55,
+            kategori: 'atk',
+            kampus: 'banjarmasin',
+            sellerId: 's1',
+            sellerName: 'Koperasi UIN Antasari',
+            foto: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=400&h=400&fit=crop&auto=format',
+            isKoperasi: true,
+            rating: 4.5,
+            sold: 201
+          },
+          {
+            nama_produk: 'Buku Fiqh Kontemporer',
+            deskripsi: 'Referensi wajib Prodi Hukum Ekonomi Syariah. Edisi terbaru 2024, dilengkapi indeks & glosarium.',
+            harga: 75000,
+            stok: 18,
+            kategori: 'buku',
+            kampus: 'banjarmasin',
+            sellerId: 's1',
+            sellerName: 'Koperasi UIN Antasari',
+            foto: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400&h=400&fit=crop&auto=format',
+            isKoperasi: true,
+            rating: 4.7,
+            sold: 89
+          },
+          {
+            nama_produk: 'Hijab Segi Empat Premium',
+            deskripsi: 'Bahan voal lasercut anti-lusuh. Tersedia 12 warna netral cocok untuk kegiatan kampus & formal.',
+            harga: 45000,
+            stok: 24,
+            kategori: 'pakaian',
+            kampus: 'banjarmasin',
+            sellerId: 's2',
+            sellerName: 'Siti Noor Hidayah',
+            foto: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=400&h=400&fit=crop&auto=format',
+            isKoperasi: false,
+            rating: 4.9,
+            sold: 145
+          }
+        ]);
+        console.log('📦 Produk awal katalog berhasil diisi ke database!');
+      }
     } catch (error) {
       console.error('❌ Gagal terhubung ke PostgreSQL:', error.message);
     }
