@@ -48,11 +48,24 @@ export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [chatUnread, setChatUnread] = useState(0);
 
+  function getEffectiveUserName(u: SessionUser | null): string {
+    if (!u) return 'Pengunjung Tamu';
+    if (u.nama && u.nama !== 'Pengunjung Tamu' && u.nama !== 'Pengunjung') return u.nama;
+    if (u.name && u.name !== 'Pengunjung Tamu' && u.name !== 'Pengunjung') return u.name;
+    const savedCustomName = localStorage.getItem('am_user_name');
+    if (savedCustomName && savedCustomName !== 'Pengunjung Tamu') return savedCustomName;
+    if (u.email === 'miyya@gmail.com' || u.email === 'mnurmiyaty2@gmail.com') return 'Nurmiyaty (Super Admin)';
+    const prefix = u.email.split('@')[0];
+    return prefix.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
   const [user, setUser] = useState<SessionUser | null>(() => {
     const savedUser = localStorage.getItem('am_user_session');
     if (savedUser) {
       try {
-        return JSON.parse(savedUser);
+        const parsed = JSON.parse(savedUser);
+        const effectiveName = getEffectiveUserName(parsed);
+        return { ...parsed, nama: effectiveName, name: effectiveName };
       } catch (e) {
         console.error("Gagal parse user session:", e);
         return null;
@@ -81,7 +94,7 @@ export default function App() {
   const [showProModal, setShowProModal] = useState(false);
 
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [currentName, setCurrentName] = useState(currentUser.nama || currentUser.name || 'Pengunjung Tamu');
+  const [currentName, setCurrentName] = useState(() => getEffectiveUserName(user));
   const [selectedCampus, setSelectedCampus] = useState<Campus>(campus);
   const [userAvatar, setUserAvatar] = useState<string>(() => {
     return localStorage.getItem('am_user_avatar') || currentUser.avatar || '';
@@ -138,6 +151,12 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
+      const realName = getEffectiveUserName(user);
+      setCurrentName(realName);
+      if (user.avatar) {
+        setUserAvatar(user.avatar);
+        setCurrentAvatar(user.avatar);
+      }
       const userRoles = Array.isArray(user.roles) ? user.roles : [user.role || 'buyer'];
       setRole(userRoles[0] as UserRole);
     }
@@ -170,19 +189,24 @@ export default function App() {
   }, [currentUser, isGuest]);
 
   function handleLogin(r: UserRole, _gender: 'male' | 'female', c: Campus, userData: any) {
-    const userRoles = Array.isArray(userData.roles) ? userData.roles : [userData.role || r];
+    const effectiveName = getEffectiveUserName(userData);
+    const updatedUser = { ...userData, nama: effectiveName, name: effectiveName };
+
+    const userRoles = Array.isArray(updatedUser.roles) ? updatedUser.roles : [updatedUser.role || r];
     setRole(userRoles[0]);
-    setUser(userData);
+    setUser(updatedUser);
+    setCurrentName(effectiveName);
+    if (updatedUser.avatar) {
+      setUserAvatar(updatedUser.avatar);
+      setCurrentAvatar(updatedUser.avatar);
+      localStorage.setItem('am_user_avatar', updatedUser.avatar);
+    }
     setCampus(c);
 
-    localStorage.setItem('am_user_session', JSON.stringify(userData));
-    localStorage.setItem('am_current_user', JSON.stringify(userData));
+    localStorage.setItem('am_user_session', JSON.stringify(updatedUser));
+    localStorage.setItem('am_current_user', JSON.stringify(updatedUser));
+    localStorage.setItem('am_user_name', effectiveName);
     localStorage.setItem('am_user_campus', c);
-    if (userData.avatar) {
-      setUserAvatar(userData.avatar);
-      localStorage.setItem('am_user_avatar', userData.avatar);
-    }
-    setLoggedIn(true);
   }
 
   function handleLogout() {
