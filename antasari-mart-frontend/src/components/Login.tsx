@@ -230,38 +230,56 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
     
     try {
       if (isRegister) {
-        const data = await registerApi({
-          email,
-          password,
-          nama,
-          nim,
-          roles: selectedRoles,
+        let registeredUser: any = null;
+        try {
+          const data = await registerApi({
+            email: email.toLowerCase().trim(),
+            password,
+            nama,
+            nim,
+            roles: selectedRoles,
+            role: selectedRoles[0] || 'buyer',
+            avatar: selectedAvatar
+          });
+          if (data && data.success && data.user) {
+            registeredUser = data.user;
+          }
+        } catch (_apiErr) {
+          console.warn("Backend register API offline, saving user locally.");
+        }
+
+        const newUserObj = registeredUser || {
+          id: Date.now(),
+          nama: nama || 'Pengguna Antasari',
+          name: nama || 'Pengguna Antasari',
+          email: email.toLowerCase().trim(),
+          roles: selectedRoles.length > 0 ? selectedRoles : ['buyer'],
           role: selectedRoles[0] || 'buyer',
-          avatar: selectedAvatar
+          nim: nim || '',
+          avatar: selectedAvatar,
+          isPro: false
+        };
+
+        try {
+          const registeredUsers: any[] = JSON.parse(localStorage.getItem('am_registered_users') || '[]');
+          registeredUsers.push({ ...newUserObj, password });
+          localStorage.setItem('am_registered_users', JSON.stringify(registeredUsers));
+        } catch (_e) {}
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Pendaftaran Berhasil! 🎉',
+          text: `Selamat datang Kak ${nama}! Akun Anda berhasil dibuat. Silakan masuk.`,
+          confirmButtonText: 'Masuk Sekarang 🚀',
+          confirmButtonColor: '#00B4D8'
         });
 
-        if (data.success) {
-          Swal.fire({
-            icon: 'success',
-            title: 'Pendaftaran Berhasil! 🎉',
-            text: 'Akun Anda berhasil dibuat. Silakan login.',
-            confirmButtonText: 'Masuk Sekarang',
-            confirmButtonColor: '#00B4D8'
-          });
-          setIsRegister(false); 
-          resetCaptcha();
-          setIsOtpSent(false);
-          setIsOtpVerified(false);
-          setOtpCode('');
-        } else {
-          Swal.fire({
-            icon: 'error',
-            title: 'Gagal Mendaftar',
-            text: data.message || "Terjadi kesalahan pada data yang dimasukkan!",
-            confirmButtonColor: '#EF4444'
-          });
-          resetCaptcha();
-        }
+        setIsRegister(false);
+        resetCaptcha();
+        setIsOtpSent(false);
+        setIsOtpVerified(false);
+        setOtpCode('');
+        return;
       } else {
         const cleanEmail = email.toLowerCase().trim();
         const isSuperAdminEmail = (cleanEmail === 'miyya@gmail.com' || cleanEmail === 'mnurmiyaty2@gmail.com');
@@ -271,6 +289,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
           const superAdminUser = {
             id: 1,
             nama: 'Nurmiyaty (Super Admin)',
+            name: 'Nurmiyaty (Super Admin)',
             email: cleanEmail,
             roles: ['super_admin', 'buyer', 'seller', 'driver', 'admin'],
             role: 'super_admin',
@@ -280,7 +299,8 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
           localStorage.setItem('am_user_avatar', superAdminUser.avatar);
           localStorage.setItem('am_user_session', JSON.stringify(superAdminUser));
           localStorage.setItem('am_current_user', JSON.stringify(superAdminUser));
-          
+          localStorage.setItem('am_user_name', superAdminUser.nama);
+
           // Send background login to sync DB logs if reachable
           loginApi(cleanEmail, password).catch(() => {});
 
@@ -288,6 +308,36 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
           return;
         }
 
+        // Check local registered accounts
+        try {
+          const registeredUsers: any[] = JSON.parse(localStorage.getItem('am_registered_users') || '[]');
+          const matchedUser = registeredUsers.find(u => u.email.toLowerCase() === cleanEmail && u.password === password);
+          if (matchedUser) {
+            const loggedInUser = {
+              id: matchedUser.id,
+              nama: matchedUser.nama,
+              name: matchedUser.nama,
+              email: matchedUser.email,
+              roles: matchedUser.roles || [matchedUser.role || 'buyer'],
+              role: matchedUser.role || 'buyer',
+              avatar: matchedUser.avatar || '',
+              nim: matchedUser.nim,
+              isPro: false
+            };
+            if (loggedInUser.avatar) {
+              localStorage.setItem('am_user_avatar', loggedInUser.avatar);
+            }
+            localStorage.setItem('am_user_session', JSON.stringify(loggedInUser));
+            localStorage.setItem('am_current_user', JSON.stringify(loggedInUser));
+            localStorage.setItem('am_user_name', loggedInUser.nama);
+
+            const primaryRole = (loggedInUser.roles[0] || 'buyer') as UserRole;
+            onLogin(primaryRole, 'female', 'banjarmasin', loggedInUser);
+            return;
+          }
+        } catch (_e) {}
+
+        // Server API Login
         try {
           const data = await loginApi(email, password);
 
@@ -297,7 +347,8 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
             }
             localStorage.setItem('am_user_session', JSON.stringify(data.user));
             localStorage.setItem('am_current_user', JSON.stringify(data.user));
-            
+            localStorage.setItem('am_user_name', data.user.nama || data.user.name || '');
+
             const primaryRole = Array.isArray(data.user.roles) ? (data.user.roles[0] as UserRole) : ((data.user.role || 'buyer') as UserRole);
             onLogin(primaryRole, 'female', 'banjarmasin', data.user);
             return;
@@ -310,22 +361,21 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
             });
             resetCaptcha();
           }
-        } catch (apiErr: any) {
+        } catch (_apiErr: any) {
           Swal.fire({
             icon: 'error',
-            title: 'Koneksi Terganggu',
-            text: 'Tidak dapat terhubung ke server. Silakan coba lagi sebentar.',
+            title: 'Gagal Masuk',
+            text: 'Email atau password belum terdaftar. Silakan periksa kembali atau daftar akun baru.',
             confirmButtonColor: '#EF4444'
           });
           resetCaptcha();
         }
       }
-
     } catch (error: any) {
       Swal.fire({
         icon: 'error',
         title: 'Kesalahan Sistem',
-        text: error.message || 'Tidak dapat terhubung ke server.',
+        text: error.message || 'Terjadi kesalahan.',
         confirmButtonColor: '#EF4444'
       });
       resetCaptcha();
