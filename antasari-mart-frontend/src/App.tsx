@@ -205,7 +205,7 @@ export default function App() {
   }
 
   const handleSetActiveTab = (tab: AppTab) => {
-    const guestRestricted: AppTab[] = ['seller', 'driver', 'admin', 'cart', 'chat', 'tracker'];
+    const guestRestricted: AppTab[] = ['seller', 'driver', 'admin', 'tracker'];
     if (isGuest && guestRestricted.includes(tab)) {
       setShowLoginModal(true);
       return;
@@ -235,10 +235,6 @@ export default function App() {
   }
 
   function addToCart(product: Product, qty: number) {
-    if (isGuest) {
-      setShowLoginModal(true);
-      return;
-    }
     setCart(prev => {
       const existing = prev.find(i => i.product.id === product.id);
       if (existing) return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + qty } : i);
@@ -310,7 +306,7 @@ export default function App() {
         setUserAvatar={setUserAvatar}
         campus={campus}
         setCampus={setCampus}
-        onLogout={isGuest ? () => setShowLoginModal(true) : handleLogout}
+        onLogout={isGuest ? () => setActiveTab('login_page') : handleLogout}
         isGuest={isGuest}
         onRequireLogin={() => setShowLoginModal(true)}
         hasActiveOrder={hasActiveOrder}
@@ -347,7 +343,7 @@ export default function App() {
           cartItems={cart}
           chatUnread={chatUnread}
           onToggleTheme={() => setTheme(t => t === 'aesthetic' ? 'modern' : 'aesthetic')}
-          onLogout={isGuest ? () => setShowLoginModal(true) : handleLogout}
+          onLogout={isGuest ? () => setActiveTab('login_page') : handleLogout}
           isGuest={isGuest}
           onRequireLogin={() => setShowLoginModal(true)}
           hasActiveOrder={hasActiveOrder}
@@ -366,25 +362,20 @@ export default function App() {
             />
           )}
           {activeTab === 'cart' && (
-            isGuest ? (
-              <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--am-text-muted)' }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>🛒🔒</div>
-                <h3 style={{ color: 'var(--am-text)', margin: '0 0 8px' }}>Akses Keranjang Dibatasi</h3>
-                <p style={{ fontSize: 13, marginBottom: 20 }}>Silakan login atau daftar terlebih dahulu untuk melihat isi keranjang belanjaanmu.</p>
-                <button className="am-btn-primary" onClick={() => setShowLoginModal(true)} style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
-                  Masuk / Daftar Sekarang 🚀
-                </button>
-              </div>
-            ) : (
-              <Cart
-                theme={theme}
-                items={cart}
-                onUpdateQty={(id, qty) => setCart(prev => prev.map(i => i.product.id === id ? { ...i, quantity: qty } : i))}
-                onRemove={id => setCart(prev => prev.filter(i => i.product.id !== id))}
-                onCheckout={() => setActiveTab('checkout')}
-                onContinueShopping={() => setActiveTab('home')}
-              />
-            )
+            <Cart
+              theme={theme}
+              items={cart}
+              onUpdateQty={(id, qty) => setCart(prev => prev.map(i => i.product.id === id ? { ...i, quantity: qty } : i))}
+              onRemove={id => setCart(prev => prev.filter(i => i.product.id !== id))}
+              onCheckout={() => {
+                if (isGuest) {
+                  setShowLoginModal(true);
+                } else {
+                  setActiveTab('checkout');
+                }
+              }}
+              onContinueShopping={() => setActiveTab('home')}
+            />
           )}
           {activeTab === 'checkout' && (
             <Checkout
@@ -473,17 +464,15 @@ export default function App() {
       {/* Modals */}
       {modalMessage && (
         <InfoModal
-          title={modalMessage.title}
-          desc={modalMessage.desc}
-          icon={modalMessage.icon}
+          data={modalMessage}
           onClose={() => setModalMessage(null)}
         />
       )}
 
       {showLoginModal && (
         <LoginPromptModal
-          onClose={() => setShowLoginModal(false)}
-          onLogin={() => {
+          onDismiss={() => setShowLoginModal(false)}
+          onGoToLogin={() => {
             setShowLoginModal(false);
             setActiveTab('login_page');
           }}
@@ -504,14 +493,13 @@ export default function App() {
 
       {showProfileModal && (
         <ProfileModal
-          theme={theme}
-          user={currentUser}
+          email={currentUser.email}
           currentName={currentName}
           setCurrentName={setCurrentName}
-          selectedCampus={selectedCampus}
-          setSelectedCampus={setSelectedCampus}
           currentAvatar={currentAvatar}
           setCurrentAvatar={setCurrentAvatar}
+          selectedCampus={selectedCampus}
+          setSelectedCampus={setSelectedCampus}
           presetAvatars={PRESET_AVATARS}
           onImageChange={handleImageChange}
           onSave={() => {
