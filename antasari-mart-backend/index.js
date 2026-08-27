@@ -76,18 +76,16 @@ const User = sequelize.define('User', {
   email: { type: DataTypes.STRING, allowNull: false, unique: true },
   password: { type: DataTypes.STRING, allowNull: false },
   nim: { type: DataTypes.STRING, allowNull: true },
-  // 🔒 Multi-role disimpan dalam format JSON Array (Default: ['buyer'])
   roles: { 
     type: DataTypes.JSON, 
     defaultValue: ['buyer'] 
   },
-  role: { type: DataTypes.STRING, defaultValue: 'buyer' }, // fallback pendukung
+  role: { type: DataTypes.STRING, defaultValue: 'buyer' },
   avatar: { type: DataTypes.TEXT, allowNull: true },
   isPro: { type: DataTypes.BOOLEAN, defaultValue: false },
   proExpireDate: { type: DataTypes.DATE, allowNull: true }
 });
 
-// 🔒 TABEL BARU: Penyimpanan Kode OTP
 const OtpVerification = sequelize.define('OtpVerification', {
   email: { type: DataTypes.STRING, allowNull: false },
   otp: { type: DataTypes.STRING, allowNull: false },
@@ -144,6 +142,7 @@ const Voucher = sequelize.define('Voucher', {
   isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
 });
 
+// 💬 TABEL CHAT / PESAN BERBASIS STRING
 const Chat = sequelize.define('Chat', {
   roomId: { type: DataTypes.STRING, allowNull: false }, 
   senderId: { type: DataTypes.STRING, allowNull: false }, 
@@ -198,26 +197,20 @@ app.get('/', (req, res) => {
   res.send('Back-end Antasari Mart aktif & berjalan normal!');
 });
 
-// 📧 1. ENDPOINT KIRIM OTP (Khusus Email UIN Antasari / Email Pendaftar)
+// 📧 1. ENDPOINT KIRIM OTP
 app.post('/api/otp/send', async (req, res) => {
   try {
     const { email } = req.body;
-
     if (!email) {
       return res.status(400).json({ success: false, message: 'Email tidak boleh kosong!' });
     }
 
     const isUinEmail = email.endsWith('@uin-antasari.ac.id') || email.endsWith('@mhs.uin-antasari.ac.id');
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // Kadaluarsa 5 Menit
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
     await OtpVerification.destroy({ where: { email } });
-
-    await OtpVerification.create({
-      email,
-      otp: generatedOtp,
-      expiresAt
-    });
+    await OtpVerification.create({ email, otp: generatedOtp, expiresAt });
 
     const mailOptions = {
       from: '"Antasari Mart Security" <noreply@antasarimart.com>',
@@ -231,19 +224,13 @@ app.post('/api/otp/send', async (req, res) => {
           <div style="background: #f1f5f9; padding: 15px; text-align: center; border-radius: 8px; font-size: 28px; font-weight: bold; letter-spacing: 5px; color: #0d9488;">
             ${generatedOtp}
           </div>
-          <p style="font-size: 12px; color: #64748b; margin-top: 15px; text-align: center;">Kode ini hanya berlaku selama <strong>5 menit</strong>. Jangan berikan kode ini kepada siapa pun!</p>
+          <p style="font-size: 12px; color: #64748b; margin-top: 15px; text-align: center;">Kode ini hanya berlaku selama <strong>5 menit</strong>.</p>
         </div>
       `
     };
 
     await transporter.sendMail(mailOptions);
-
-    res.json({
-      success: true,
-      message: `Kode OTP berhasil dikirim ke ${email}. Silakan cek kotak masuk email kamu!`,
-      isUin: isUinEmail
-    });
-
+    res.json({ success: true, message: `Kode OTP berhasil dikirim ke ${email}.`, isUin: isUinEmail });
   } catch (error) {
     console.error("Gagal kirim OTP:", error);
     res.status(500).json({ success: false, message: 'Gagal mengirim email OTP: ' + error.message });
@@ -254,7 +241,6 @@ app.post('/api/otp/send', async (req, res) => {
 app.post('/api/otp/verify', async (req, res) => {
   try {
     const { email, otp } = req.body;
-
     const record = await OtpVerification.findOne({ where: { email, otp } });
 
     if (!record) {
@@ -263,22 +249,17 @@ app.post('/api/otp/verify', async (req, res) => {
 
     if (new Date() > new Date(record.expiresAt)) {
       await OtpVerification.destroy({ where: { id: record.id } });
-      return res.status(400).json({ success: false, message: '⚠️ Kode OTP sudah kadaluarsa! Silakan minta kode baru.' });
+      return res.status(400).json({ success: false, message: '⚠️ Kode OTP sudah kadaluarsa!' });
     }
 
     await OtpVerification.destroy({ where: { id: record.id } });
-
-    res.json({
-      success: true,
-      message: '✅ Verifikasi OTP berhasil! Email terkonfirmasi.'
-    });
-
+    res.json({ success: true, message: '✅ Verifikasi OTP berhasil!' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 🔒 TAHAP 1: ENDPOINT KHUSUS UPLOAD FOTO PRODUK AMAN KE CLOUDINARY (MAKSIMAL 200 KB)
+// UPLOAD FOTO
 app.post('/api/upload', (req, res) => {
   upload.single('foto')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
@@ -287,22 +268,16 @@ app.post('/api/upload', (req, res) => {
       }
       return res.status(400).json({ success: false, message: err.message });
     } else if (err) {
-      return res.status(400).json({ success: false, message: '⚠️ Format file ditolak! Hanya boleh berupa foto (.jpg, .jpeg, .png, .webp).' });
+      return res.status(400).json({ success: false, message: '⚠️ Format file ditolak!' });
     }
-
     if (!req.file) {
-      return res.status(400).json({ success: false, message: '⚠️ Tidak ada foto yang dipilih untuk diunggah.' });
+      return res.status(400).json({ success: false, message: '⚠️ Tidak ada foto yang dipilih.' });
     }
-
-    res.json({
-      success: true,
-      message: 'Foto berhasil diunggah ke Cloud Storage!',
-      imageUrl: req.file.path
-    });
+    res.json({ success: true, message: 'Foto berhasil diunggah!', imageUrl: req.file.path });
   });
 });
 
-// 🔒 TAHAP 3: Gunakan Login Limiter Khusus Endpoint Login
+// LOGIN
 app.post('/api/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -337,12 +312,6 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         return res.status(401).json({ success: false, message: "Email atau password salah!" });
       }
 
-      res.cookie('am_session', user.email, {
-        maxAge: 365 * 24 * 60 * 60 * 1000,
-        httpOnly: false,
-        sameSite: 'lax'
-      });
-
       await ActivityLog.create({
         email: user.email,
         name: user.nama,
@@ -360,7 +329,7 @@ app.post('/api/login', loginLimiter, async (req, res) => {
   }
 });
 
-// 🔒 TAHAP 2: REGISTER DENGAN ENKRIPSI BCRYPT & MULTI-ROLE MAKSIMAL 3
+// REGISTER
 app.post('/api/register', async (req, res) => {
   try {
     const { email, password, nama, nim, roles, role, avatar } = req.body;
@@ -371,18 +340,12 @@ app.post('/api/register', async (req, res) => {
       return res.status(400).json({ success: false, message: "Email sudah terdaftar!" });
     }
 
-    // 🔒 Memproses daftar roles pilihan user
     let rawRoles = roles;
     if (!rawRoles && role) rawRoles = [role];
     if (!Array.isArray(rawRoles)) rawRoles = ['buyer'];
 
-    // Batasi role pilihan publik (Hanya buyer, seller, driver)
     let assignedRoles = rawRoles.filter(r => ['buyer', 'seller', 'driver'].includes(r));
-    
     if (assignedRoles.length === 0) assignedRoles = ['buyer'];
-    if (assignedRoles.length > 3) {
-      return res.status(400).json({ success: false, message: "Maksimal hanya boleh memilih 3 peran!" });
-    }
 
     if (email === 'miyya@gmail.com') {
       assignedRoles = ['super_admin', 'buyer', 'seller', 'driver', 'admin'];
@@ -411,33 +374,27 @@ app.post('/api/register', async (req, res) => {
 
     res.json({ success: true, message: "Registrasi berhasil!", user: newUser });
   } catch (error) {
-    res.status(400).json({ success: false, message: "Data tidak valid atau gagal mendaftar: " + error.message });
+    res.status(400).json({ success: false, message: "Gagal mendaftar: " + error.message });
   }
 });
 
 app.get('/api/activity-logs', async (req, res) => {
   try {
-    const logs = await ActivityLog.findAll({
-      order: [['createdAt', 'DESC']],
-      limit: 100
-    });
+    const logs = await ActivityLog.findAll({ order: [['createdAt', 'DESC']], limit: 100 });
     res.json({ success: true, logs });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 🔒 ENDPOINT PRODUK DENGAN DINDING PRIVASI ISOLASI LAPAK KETAT
+// PRODUK
 app.get('/api/products', async (req, res) => {
   try {
     const { sellerId } = req.query;
-
     let whereClause = {};
-    
     if (sellerId && sellerId !== 'undefined' && sellerId !== 'null' && sellerId.trim() !== '') {
       whereClause.sellerId = sellerId;
     }
-
     const products = await Product.findAll({ where: whereClause });
     res.json({ success: true, products });
   } catch (error) {
@@ -448,20 +405,11 @@ app.get('/api/products', async (req, res) => {
 app.post('/api/products', async (req, res) => {
   try {
     const { nama_produk, deskripsi, harga, stok, kategori, foto, kampus, sellerId, sellerName, slotNumber } = req.body;
-    
     const newProduct = await Product.create({ 
-      nama_produk, 
-      deskripsi, 
-      harga, 
-      stok: stok || 0, 
-      kategori, 
+      nama_produk, deskripsi, harga, stok: stok || 0, kategori, 
       foto: foto || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format',
-      kampus: kampus || 'banjarmasin', 
-      sellerId: sellerId || 'seller_1', 
-      sellerName: sellerName || 'Penjual',
-      slotNumber: slotNumber || 1
+      kampus: kampus || 'banjarmasin', sellerId: sellerId || 'seller_1', sellerName: sellerName || 'Penjual', slotNumber: slotNumber || 1
     });
-
     res.json({ success: true, message: "Produk berhasil ditambahkan!", product: newProduct });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -481,12 +429,18 @@ app.get('/api/users/contacts/:email', async (req, res) => {
   }
 });
 
+// --- 💬 ENDPOINT CHAT / PESAN (TERHUBUNG KE DATABASE) ---
 app.get('/api/chats/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params;
     const chats = await Chat.findAll({
       where: {
-        [Sequelize.Op.or]: [{ senderId: identifier }, { receiverId: identifier }]
+        [Sequelize.Op.or]: [
+          { senderId: identifier }, 
+          { receiverId: identifier },
+          { receiverRole: 'admin' },
+          { receiverName: { [Sequelize.Op.iLike]: '%koperasi%' } }
+        ]
       },
       order: [['createdAt', 'ASC']]
     });
@@ -503,11 +457,16 @@ app.post('/api/chats', async (req, res) => {
 
     const newChat = await Chat.create({
       roomId: buildRoomId(fromId, toId),
-      senderId: fromId, senderName: fromName || fromId, senderRole: fromRole || 'buyer',
-      receiverId: toId, receiverName: toName || toId, receiverRole: toRole || 'buyer',
-      text: text.trim(), time: timeNow
+      senderId: fromId, 
+      senderName: fromName || fromId, 
+      senderRole: fromRole || 'buyer',
+      receiverId: toId, 
+      receiverName: toName || toId, 
+      receiverRole: toRole || 'buyer',
+      text: text.trim(), 
+      time: timeNow
     });
-    res.json({ success: true, message: "Pesan terkirim!", chat: newChat });
+    res.json({ success: true, message: "Pesan terkirim dan tersimpan!", chat: newChat });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -523,7 +482,7 @@ app.delete('/api/chats/:id', async (req, res) => {
   }
 });
 
-// Endpoint Checkout + Pembuatan Token Vending Machine
+// CHECKOUT & MIDTRANS
 app.post('/api/checkout', async (req, res) => {
   try {
     const { orderId, grossAmount, customerDetails, items, deliveryMethod } = req.body;
@@ -545,9 +504,7 @@ app.post('/api/checkout', async (req, res) => {
             if (product.sellerId !== 'seller_1' && !product.nama_produk.toLowerCase().includes('ganci')) {
               isAllVendingEligible = false;
             }
-
             targetSlotNumber = product.slotNumber || 1;
-
             await product.update({ 
               stok: Math.max(0, product.stok - buyQty), 
               sold: (product.sold || 0) + buyQty 
@@ -594,102 +551,60 @@ app.post('/api/checkout', async (req, res) => {
   }
 });
 
-// 🤖 ENDPOINT KHUSUS VENDING MACHINE
+// VENDING MACHINE CLAIM
 app.post('/api/vending/claim', async (req, res) => {
   try {
     const { token } = req.body;
-
     if (!token) {
-      return res.status(400).json({ success: false, message: 'Token tidak ditemukan dalam request!' });
+      return res.status(400).json({ success: false, message: 'Token tidak ditemukan!' });
     }
-
     const order = await Order.findOne({ where: { vendingToken: token } });
-
     if (!order) {
       return res.status(404).json({ success: false, message: 'Transaksi Vending tidak ditemukan!' });
     }
-
     if (order.status === 'claimed') {
-      return res.status(400).json({ success: false, message: 'Gagal! Barang dari transaksi ini sudah pernah diambil.' });
+      return res.status(400).json({ success: false, message: 'Barang dari transaksi ini sudah pernah diambil.' });
     }
-
     await order.update({ status: 'claimed' });
-
-    console.log(`[VENDING CLAIM] Barang untuk Order ${order.orderId} sedang dikeluarkan dari Slot: ${order.slotNumber}`);
-
     res.json({
       success: true,
       message: 'QR Valid! Mengeluarkan barang dari Vending Machine.',
-      dispense: {
-        orderId: order.orderId,
-        slotNumber: order.slotNumber,
-        buyerName: order.buyerName
-      }
+      dispense: { orderId: order.orderId, slotNumber: order.slotNumber, buyerName: order.buyerName }
     });
-
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 👑 Endpoint Edit / Update Stok Produk (KHUSUS SUPER ADMIN)
+// UPDATE PRODUK
 app.put('/api/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      nama_produk, name, 
-      deskripsi, description, 
-      harga, price, 
-      stok, stock, 
-      kategori, category, 
-      foto, image, 
-      slotNumber, 
-      userRole, userEmail 
-    } = req.body;
+    const { nama_produk, name, deskripsi, description, harga, price, stok, stock, kategori, category, foto, image, slotNumber, userRole, userEmail } = req.body;
 
     const isSuperAdmin = (userRole === 'super_admin') || (userEmail === 'miyya@gmail.com');
-    
     if (!isSuperAdmin) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Akses ditolak! Hanya Super Admin (Nurmiyaty) yang diizinkan mengubah stok atau data produk.' 
-      });
+      return res.status(403).json({ success: false, message: 'Akses ditolak! Hanya Super Admin yang diizinkan.' });
     }
 
     const product = await Product.findByPk(id);
     if (!product) {
-      return res.status(404).json({ success: false, message: 'Produk tidak ditemukan di database!' });
+      return res.status(404).json({ success: false, message: 'Produk tidak ditemukan!' });
     }
 
-    const finalNama = nama_produk || name || product.nama_produk;
-    const finalDeskripsi = deskripsi !== undefined ? deskripsi : (description !== undefined ? description : product.deskripsi);
-    const parsedHarga = harga !== undefined ? parseInt(harga) : (price !== undefined ? parseInt(price) : product.harga);
-    const parsedStok = stok !== undefined ? parseInt(stok) : (stock !== undefined ? parseInt(stock) : product.stok);
-    const finalKategori = kategori || category || product.kategori;
-    const finalFoto = foto || image || product.foto;
-    const parsedSlot = slotNumber !== undefined ? parseInt(slotNumber) : product.slotNumber;
-
     await product.update({
-      nama_produk: finalNama,
-      deskripsi: finalDeskripsi,
-      harga: isNaN(parsedHarga) ? product.harga : parsedHarga,
-      stok: isNaN(parsedStok) ? product.stok : parsedStok,
-      kategori: finalKategori,
-      foto: finalFoto,
-      slotNumber: isNaN(parsedSlot) ? product.slotNumber : parsedSlot
+      nama_produk: nama_produk || name || product.nama_produk,
+      deskripsi: deskripsi !== undefined ? deskripsi : (description !== undefined ? description : product.deskripsi),
+      harga: harga !== undefined ? parseInt(harga) : (price !== undefined ? parseInt(price) : product.harga),
+      stok: stok !== undefined ? parseInt(stok) : (stock !== undefined ? parseInt(stock) : product.stok),
+      kategori: kategori || category || product.kategori,
+      foto: foto || image || product.foto,
+      slotNumber: slotNumber !== undefined ? parseInt(slotNumber) : product.slotNumber
     });
 
-    console.log(`[SUPER ADMIN] Stok produk ID ${id} (${product.nama_produk}) berhasil diperbarui menjadi: ${product.stok}`);
-
-    res.json({
-      success: true,
-      message: 'Berhasil! Data stok produk telah diperbarui oleh Super Admin.',
-      product
-    });
-
+    res.json({ success: true, message: 'Data produk berhasil diperbarui!', product });
   } catch (error) {
-    console.error('Error saat update produk di database:', error);
-    res.status(500).json({ success: false, message: 'Gagal mengupdate produk di database: ' + error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

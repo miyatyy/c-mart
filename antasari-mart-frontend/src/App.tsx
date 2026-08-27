@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { AppTab, Campus, CartItem, DeliveryMethod, PaymentMethod, ThemeMode, UserRole } from './types'
+import type { AppTab, Campus, CartItem, DeliveryMethod, PaymentMethod, SessionUser, ThemeMode, UserRole } from './types'
 import type { Product } from './types'
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
@@ -13,7 +13,9 @@ import DriverDashboard from './components/DriverDashboard'
 import Login from './components/Login'
 import ChatPage from './components/ChatPage'
 import ProModal from './components/ProModal'
+import { ProfileModal, SuccessPopup, InfoModal, LoginPromptModal } from './components/AppModals'
 import SuperAdminPanel from './components/SuperAdminPanel'
+import VendingSimulator from './components/VendingSimulator'
 
 const PRESET_AVATARS = [
   { id: 1, name: 'Maya (Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4' },
@@ -28,21 +30,24 @@ const PRESET_AVATARS = [
   { id: 10, name: 'Ken (Pro Stylish)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585' },
 ];
 
+const VALID_CAMPUSES: Campus[] = ['banjarmasin', 'banjarbaru']
+
 export default function App() {
   const [_loggedIn, setLoggedIn] = useState(true)
   const [role, setRole] = useState<UserRole>('buyer')
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
-  
+
   const [campus, setCampus] = useState<Campus>(() => {
-    return (localStorage.getItem('am_user_campus') as Campus) || 'banjarmasin'
+    const saved = localStorage.getItem('am_user_campus')
+    return saved && (VALID_CAMPUSES as string[]).includes(saved) ? (saved as Campus) : 'banjarmasin'
   })
 
   const [theme, setTheme] = useState<ThemeMode>('aesthetic')
   const [activeTab, setActiveTab] = useState<AppTab>('home')
   const [cart, setCart] = useState<CartItem[]>([])
   const [chatUnread, setChatUnread] = useState(0)
-  
-  const [user, setUser] = useState<any>(() => {
+
+  const [user, setUser] = useState<SessionUser | null>(() => {
     const savedUser = localStorage.getItem('am_user_session')
     if (savedUser) {
       try {
@@ -77,8 +82,8 @@ export default function App() {
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [currentName, setCurrentName] = useState(currentUser.nama || currentUser.name || 'Pengunjung Tamu')
   const [selectedCampus, setSelectedCampus] = useState<Campus>(campus)
-  const [userAvatar, setUserAvatar] = useState(() => {
-    return localStorage.getItem('am_user_avatar') || currentUser.avatar
+  const [userAvatar, setUserAvatar] = useState<string>(() => {
+    return localStorage.getItem('am_user_avatar') || currentUser.avatar || ''
   })
   const [currentAvatar, setCurrentAvatar] = useState(userAvatar)
   const [successPopupMessage, setSuccessPopupMessage] = useState<string | null>(null)
@@ -146,12 +151,14 @@ export default function App() {
     const fetchUnreadChats = async () => {
       try {
         const identifier = currentUser.email;
-        // URL Dinamis menggunakan window.location.hostname
         const res = await fetch(`http://${window.location.hostname}:5000/api/chats/${identifier}`);
+        if (!res.ok) return;
         const data = await res.json();
-        if (data.success && data.chats) {
-          const unread = data.chats.filter((c: any) => c.receiverId === identifier && c.senderId !== identifier).length;
-          setChatUnread(unread > 0 ? unread : 0);
+        if (data.success && Array.isArray(data.chats)) {
+          const unread = data.chats.filter((c: { receiverId: string; isRead?: boolean }) =>
+            c.receiverId === identifier && c.isRead === false
+          ).length;
+          setChatUnread(Math.max(0, unread));
         }
       } catch (err) {
         console.error("Gagal mengambil status unread chat:", err);
@@ -168,7 +175,7 @@ export default function App() {
     setRole(userRoles[0]);
     setUser(userData);
     setCampus(c);
-    
+
     localStorage.setItem('am_user_session', JSON.stringify(userData));
     localStorage.setItem('am_user_campus', c);
     if (userData.avatar) {
@@ -195,6 +202,26 @@ export default function App() {
       icon: '🚪'
     });
   }
+
+  const handleSetActiveTab = (tab: AppTab) => {
+    const guestRestricted: AppTab[] = ['seller', 'driver', 'admin', 'cart', 'chat', 'tracker'];
+    if (isGuest && guestRestricted.includes(tab)) {
+      setShowLoginModal(true);
+      return;
+    }
+    if (tab === 'tracker' && !hasActiveOrder) {
+      setModalMessage({
+        title: isGuest ? 'Silakan Login Dulu 🔒' : 'Belum Ada Pesanan 🛵',
+        desc: isGuest
+          ? 'Fitur Lacak / Order Pick-Up hanya dapat diakses setelah kamu login dan memiliki pesanan aktif.'
+          : 'Belum ada pesanan aktif. Lakukan checkout pesanan terlebih dahulu untuk membuka fitur ini.',
+        icon: '📍'
+      });
+      return;
+    }
+    setActiveTab(tab);
+    setIsMobileSidebarOpen(false);
+  };
 
   function handleRoleChange(r: UserRole) {
     if (isGuest) {
@@ -226,17 +253,16 @@ export default function App() {
   }
 
   async function handleOpenChat(sellerId: string, sellerName: string, productName: string) {
-    if (isGuest) {
+    if (isGuest || !currentUser?.email) {
       setShowLoginModal(true);
       return;
     }
 
-    const buyerEmail = currentUser.email || 'miyya@gmail.com';
-    const buyerName = currentUser.nama || currentUser.name || 'Miyatyy';
+    const buyerEmail = currentUser.email;
+    const buyerName = currentUser.nama || currentUser.name || 'Pengguna';
     const initialMessage = `Halo Kak ${sellerName}, saya ingin bertanya mengenai produk "${productName}" apakah stoknya tersedia?`;
 
     try {
-      // URL Dinamis menggunakan window.location.hostname
       await fetch(`http://${window.location.hostname}:5000/api/chats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -268,36 +294,19 @@ export default function App() {
     }
   };
 
-  if (activeTab === ('login_page' as any)) {
+  if (activeTab === 'login_page') {
     return <Login onLogin={(r, g, c, ud) => { handleLogin(r, g, c, ud); setActiveTab('home'); }} />
   }
 
   return (
     <div className={`am-root theme-${theme}`} style={{ display: 'flex', minHeight: '100vh', background: 'var(--am-bg)', position: 'relative' }}>
       <style>{customModalStyles}</style>
-      
+
       <Sidebar
         theme={theme}
         role={role}
         activeTab={activeTab}
-        setActiveTab={(tab) => {
-          if (isGuest && (tab === 'seller' || tab === 'driver' || tab === 'admin' || tab === 'cart' || tab === 'chat' || tab === 'tracker')) {
-            setShowLoginModal(true);
-            return;
-          }
-          if (tab === 'tracker' && !hasActiveOrder) {
-            setModalMessage({
-              title: isGuest ? 'Silakan Login Dulu 🔒' : 'Belum Ada Pesanan 🛵',
-              desc: isGuest 
-                ? 'Fitur Lacak / Order Pick-Up hanya dapat diakses setelah kamu login dan memiliki pesanan aktif.' 
-                : 'Belum ada pesanan aktif. Lakukan checkout pesanan terlebih dahulu untuk membuka fitur ini.',
-              icon: '📍'
-            });
-            return;
-          }
-          setActiveTab(tab);
-          setIsMobileSidebarOpen(false);
-        }}
+        setActiveTab={handleSetActiveTab}
         userName={currentUser.nama || currentUser.name || 'Pengunjung Tamu'}
         userEmail={currentUser.email}
         userAvatar={isGuest ? '' : userAvatar}
@@ -332,23 +341,7 @@ export default function App() {
               setShowProfileModal(true);
             }
           }}
-          setActiveTab={(tab) => {
-            if (isGuest && (tab === 'cart' || tab === 'chat' || tab === 'tracker' || tab === 'seller' || tab === 'driver')) {
-              setShowLoginModal(true);
-              return;
-            }
-            if (tab === 'tracker' && !hasActiveOrder) {
-              setModalMessage({
-                title: isGuest ? 'Silakan Login Dulu 🔒' : 'Belum Ada Pesanan 🛵',
-                desc: isGuest 
-                  ? 'Fitur Lacak / Order Pick-Up hanya dapat diakses setelah kamu login dan memiliki pesanan aktif.' 
-                  : 'Belum ada pesanan aktif. Lakukan checkout pesanan terlebih dahulu untuk membuka fitur ini.',
-                icon: '📍'
-              });
-              return;
-            }
-            setActiveTab(tab);
-          }}
+          setActiveTab={handleSetActiveTab}
           role={role}
           setRole={handleRoleChange}
           userName={currentUser.nama || currentUser.name || 'Pengunjung'}
@@ -407,9 +400,9 @@ export default function App() {
           )}
           {activeTab === 'tracker' && (
             hasActiveOrder ? (
-              <CourierTracker 
-                theme={theme} 
-                campus={campus} 
+              <CourierTracker
+                theme={theme}
+                campus={campus}
                 userName={currentUser.nama || currentUser.name || 'Pengunjung'}
                 userEmail={currentUser.email}
               />
@@ -418,8 +411,8 @@ export default function App() {
                 <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
                 <h3 style={{ color: 'var(--am-text)', margin: '0 0 8px' }}>Fitur Terkunci</h3>
                 <p style={{ fontSize: 13 }}>
-                  {isGuest 
-                    ? 'Silakan login terlebih dahulu dan lakukan checkout pesanan untuk melihat status pesanan.' 
+                  {isGuest
+                    ? 'Silakan login terlebih dahulu dan lakukan checkout pesanan untuk melihat status pesanan.'
                     : 'Lakukan checkout pesanan terlebih dahulu untuk membuka fitur ini.'}
                 </p>
               </div>
@@ -439,7 +432,7 @@ export default function App() {
               <ChatPage theme={theme} campus={campus} />
             )
           )}
-          
+
           {activeTab === 'seller' && (
             <SellerDashboard
               theme={theme}
@@ -456,259 +449,81 @@ export default function App() {
               driverName={currentUser.nama || currentUser.name || 'Driver Antasari'}
             />
           )}
+
           {activeTab === 'admin' && (
-            <AdminPanel theme={theme} />
+            <AdminPanel
+              theme={theme}
+              currentUserId={currentUser.email}
+              currentUserName={currentUser.nama || currentUser.name}
+              isUserPro={currentUser.isPro}
+            />
           )}
-          {activeTab === ('super_admin' as any) && (
+          {activeTab === 'super_admin' && (
             <SuperAdminPanel theme={theme} />
+          )}
+
+          {/* 💡 TAB VENDING SIMULATOR */}
+          {activeTab === 'vending_simulator' && (
+            <VendingSimulator theme={theme} />
           )}
         </main>
       </div>
 
       {showProModal && (
-        <ProModal 
-          user={currentUser} 
-          onClose={() => setShowProModal(false)} 
+        <ProModal
+          user={currentUser}
+          onClose={() => setShowProModal(false)}
         />
       )}
 
       {showProfileModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
-        }}>
-          <div className="am-card modal-appear" style={{ width: '100%', maxWidth: 440, padding: 24, borderRadius: 20, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <h3 className="am-heading" style={{ margin: 0, fontSize: 18, color: 'var(--am-text)' }}>⚙️ Pengaturan Profil</h3>
-              <button onClick={() => setShowProfileModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--am-text-muted)' }}>×</button>
-            </div>
+        <ProfileModal
+          email={currentUser.email}
+          currentName={currentName}
+          setCurrentName={setCurrentName}
+          currentAvatar={currentAvatar}
+          setCurrentAvatar={setCurrentAvatar}
+          selectedCampus={selectedCampus}
+          setSelectedCampus={setSelectedCampus}
+          onClose={() => setShowProfileModal(false)}
+          onImageChange={handleImageChange}
+          presetAvatars={PRESET_AVATARS}
+          onSave={() => {
+            setCampus(selectedCampus);
+            setUserAvatar(currentAvatar || '');
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 14, border: '1px solid var(--am-border)', textAlign: 'center' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 'bold', color: '#334155' }}>Ganti Avatar Kartun / Foto:</span>
-                  <label style={{ fontSize: 10, color: '#0077B6', cursor: 'pointer', fontWeight: 700, background: '#E0F2FE', padding: '3px 8px', borderRadius: 6 }}>
-                    📁 Upload Galeri
-                    <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
-                  </label>
-                </div>
+            localStorage.setItem('am_user_avatar', currentAvatar || '');
+            localStorage.setItem('am_user_campus', selectedCampus);
+            localStorage.setItem('am_user_name', currentName);
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                  <img 
-                    src={currentAvatar} 
-                    alt="Pratinjau Foto" 
-                    style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', background: '#e2e8f0', border: '3px solid var(--am-primary)' }} 
-                  />
-                </div>
+            if (user) {
+              const updatedUser = { ...user, nama: currentName, avatar: currentAvatar };
+              setUser(updatedUser);
+              localStorage.setItem('am_user_session', JSON.stringify(updatedUser));
+            }
 
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', marginBottom: 6, textAlign: 'left' }}>Atau Pilih dari 10 Karakter Kartun Senyum Manis:</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, maxHeight: 100, overflowY: 'auto', padding: 2, background: '#ffffff', borderRadius: 10, border: '1px solid #CBD5E1' }}>
-                  {PRESET_AVATARS.map(avatar => (
-                    <div 
-                      key={avatar.id}
-                      onClick={() => setCurrentAvatar(avatar.url)}
-                      title={avatar.name}
-                      style={{
-                        position: 'relative', cursor: 'pointer', borderRadius: '50%', overflow: 'hidden',
-                        background: '#f8fafc', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        border: currentAvatar === avatar.url ? '3px solid #00B4D8' : '2px solid #CBD5E1',
-                        boxShadow: currentAvatar === avatar.url ? '0 0 8px rgba(0, 180, 216, 0.4)' : 'none',
-                        transition: 'all 0.2s', transform: currentAvatar === avatar.url ? 'scale(1.08)' : 'scale(1)'
-                      }}
-                    >
-                      <img src={avatar.url} alt={avatar.name} style={{ width: '85%', height: '85%', objectFit: 'contain' }} />
-                      {avatar.type === 'pro' && (
-                        <span style={{ position: 'absolute', bottom: 0, width: '100%', background: '#F59E0B', color: 'white', fontSize: 5, fontWeight: 800, textAlign: 'center' }}>PRO</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--am-text-muted)', display: 'block', marginBottom: 4 }}>Nama Lengkap</label>
-                <input 
-                  className="am-input" 
-                  value={currentName} 
-                  onChange={(e) => setCurrentName(e.target.value)} 
-                  style={{ width: '100%', padding: '10px 12px', fontSize: 13, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', color: 'var(--am-text)' }} 
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--am-text-muted)', display: 'block', marginBottom: 4 }}>Email Akun</label>
-                <input 
-                  className="am-input" 
-                  value={currentUser.email || 'miya@gmail.com'} 
-                  disabled 
-                  style={{ width: '100%', padding: '10px 12px', fontSize: 13, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', color: 'var(--am-text-muted)', cursor: 'not-allowed' }} 
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--am-text-muted)', display: 'block', marginBottom: 4 }}>
-                  Kampus Aktif (Lokasi Belanja)
-                </label>
-                <select 
-                  className="am-input"
-                  value={selectedCampus}
-                  onChange={(e) => setSelectedCampus(e.target.value as Campus)}
-                  style={{ width: '100%', padding: '10px 12px', fontSize: 13, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', color: 'var(--am-text)', cursor: 'pointer' }}
-                >
-                  <option value="banjarmasin">📍 Banjarmasin (BJM)</option>
-                  <option value="banjarbaru">📍 Banjarbaru (BJB)</option>
-                </select>
-              </div>
-
-              <button 
-                className="am-btn-primary" 
-                style={{ width: '100%', padding: '12px 0', marginTop: 6, fontSize: 14, fontWeight: 'bold', borderRadius: 10 }}
-                onClick={() => {
-                  setCampus(selectedCampus);
-                  setUserAvatar(currentAvatar); 
-                  
-                  localStorage.setItem('am_user_avatar', currentAvatar);
-                  localStorage.setItem('am_user_campus', selectedCampus);
-                  localStorage.setItem('am_user_name', currentName);
-
-                  if (user) {
-                    const updatedUser = { ...user, nama: currentName, avatar: currentAvatar };
-                    setUser(updatedUser);
-                    localStorage.setItem('am_user_session', JSON.stringify(updatedUser));
-                  }
-
-                  setShowProfileModal(false);
-                  setSuccessPopupMessage("Profil, foto avatar, dan lokasi kampus berhasil diperbarui secara permanen!");
-                }}
-              >
-                Simpan Perubahan
-              </button>
-            </div>
-          </div>
-        </div>
+            setShowProfileModal(false);
+            setSuccessPopupMessage("Profil, foto avatar, dan lokasi kampus berhasil diperbarui secara permanen!");
+          }}
+        />
       )}
 
       {successPopupMessage && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 99999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-          backdropFilter: 'blur(5px)'
-        }}>
-          <div className="success-modal-appear am-card" style={{
-            width: '100%', maxWidth: 360, padding: 28, borderRadius: 24,
-            background: 'var(--am-surface)', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-          }}>
-            <div className="check-icon-anim" style={{
-              width: 64, height: 64, margin: '0 auto 14px', background: 'rgba(74, 197, 108, 0.15)',
-              borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 32, color: '#4AC56C'
-            }}>
-              ✅
-            </div>
-
-            <h3 className="am-heading" style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--am-text)' }}>
-              Berhasil Disimpan! 🎉
-            </h3>
-            <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
-              {successPopupMessage}
-            </p>
-
-            <button
-              className="am-btn-primary"
-              onClick={() => setSuccessPopupMessage(null)}
-              style={{
-                width: '100%', padding: '12px 0', borderRadius: 12, border: 'none',
-                background: 'var(--am-primary)', color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer'
-              }}
-            >
-              Oke, Mengerti 👍
-            </button>
-          </div>
-        </div>
+        <SuccessPopup message={successPopupMessage} onClose={() => setSuccessPopupMessage(null)} />
       )}
 
       {modalMessage && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 99999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-          backdropFilter: 'blur(5px)'
-        }}>
-          <div className="modal-appear am-card" style={{
-            width: '100%', maxWidth: 380, padding: 30, borderRadius: 24,
-            background: 'var(--am-surface)', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-          }}>
-            <div className="cute-bounce-icon" style={{ fontSize: 52, marginBottom: 12 }}>
-              {modalMessage.icon}
-            </div>
-
-            <h3 className="am-heading" style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700, color: 'var(--am-text)' }}>
-              {modalMessage.title}
-            </h3>
-            <p style={{ fontSize: 13, color: 'var(--am-text-muted)', lineHeight: 1.5, marginBottom: 24 }}>
-              {modalMessage.desc}
-            </p>
-
-            <button
-              className="am-btn-primary"
-              onClick={() => setModalMessage(null)}
-              style={{
-                width: '100%', padding: '12px 0', borderRadius: 12, border: 'none',
-                background: 'var(--am-primary)', color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer'
-              }}
-            >
-              Baik, Mengerti 👍
-            </button>
-          </div>
-        </div>
+        <InfoModal data={modalMessage} onClose={() => setModalMessage(null)} />
       )}
 
       {showLoginModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-          backdropFile: 'blur(5px)'
-        }}>
-          <div className="modal-appear am-card" style={{
-            width: '100%', maxWidth: 380, padding: 30, borderRadius: 24,
-            background: 'var(--am-surface)', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-          }}>
-            <div className="cute-bounce-icon" style={{ fontSize: 52, marginBottom: 12 }}>
-              🧸✨
-            </div>
-
-            <h3 className="am-heading" style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700, color: 'var(--am-text)' }}>
-              Ups, Mau Masuk Menu Ini? 🛍️
-            </h3>
-            <p style={{ fontSize: 13, color: 'var(--am-text-muted)', lineHeight: 1.5, marginBottom: 24 }}>
-              Kamu harus <strong>Login</strong> atau <strong>Daftar</strong> terlebih dahulu untuk mengakses Keranjang, Pesan, dan fitur belanja lainnya di Antasari Mart.
-            </p>
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={() => setShowLoginModal(false)}
-                style={{
-                  flex: 1, padding: '12px 0', borderRadius: 12, border: '1.5px solid var(--am-border)',
-                  background: 'var(--am-bg2)', color: 'var(--am-text)', fontWeight: 600, fontSize: 13, cursor: 'pointer'
-                }}
-              >
-                Nanti Saja
-              </button>
-              <button
-                className="am-btn-primary"
-                onClick={() => {
-                  setShowLoginModal(false);
-                  setActiveTab('login_page' as any);
-                }}
-                style={{
-                  flex: 1, padding: '12px 0', borderRadius: 12, border: 'none',
-                  background: 'var(--am-primary)', color: 'white', fontWeight: 700, fontSize: 13, cursor: 'pointer'
-                }}
-              >
-                Masuk / Daftar 🚀
-              </button>
-            </div>
-          </div>
-        </div>
+        <LoginPromptModal
+          onDismiss={() => setShowLoginModal(false)}
+          onGoToLogin={() => {
+            setShowLoginModal(false);
+            setActiveTab('login_page');
+          }}
+        />
       )}
 
     </div>

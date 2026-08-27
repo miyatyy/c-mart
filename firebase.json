@@ -1,0 +1,16 @@
+{
+  "hosting": {
+    "public": "dist",  // Pastikan ini mengarah ke folder dist hasil build
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html" // INI SANGAT PENTING UNTUK REACT ROUTER!
+      }
+    ]
+  }
+}

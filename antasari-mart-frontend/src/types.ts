@@ -1,7 +1,19 @@
 export type Campus = 'banjarmasin' | 'banjarbaru'
 export type UserRole = 'buyer' | 'seller' | 'driver' | 'admin' | 'admin_reguler' | 'admin_pro' | 'super_admin'
 export type ThemeMode = 'aesthetic' | 'modern'
-export type AppTab = 'home' | 'cart' | 'checkout' | 'tracker' | 'seller' | 'admin' | 'chat' | 'driver' | 'super_admin'
+export type AppTab = 'home' | 'cart' | 'checkout' | 'tracker' | 'seller' | 'admin' | 'chat' | 'driver' | 'super_admin' | 'login_page' | 'vending_simulator'
+
+export interface SessionUser {
+  id?: string
+  nama?: string
+  name?: string
+  email: string
+  role: UserRole
+  roles?: UserRole[]
+  avatar?: string
+  isPro?: boolean
+  [key: string]: unknown
+}
 export type PaymentMethod = 'qris' | 'dana' | 'gopay' | 'cod'
 export type DeliveryMethod = 'courier' | 'pickup'
 export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'searching_driver' | 'driver_found' | 'picked_up' | 'on_the_way' | 'delivered' | 'cancelled'

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Swal from 'sweetalert2'
 import type { ThemeMode } from '../types'
 import { MOCK_TENANTS, MOCK_PRODUCTS, MOCK_ORDERS, formatRupiah } from '../data'
@@ -25,7 +25,10 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
   const [tab, setTab] = useState<AdminTab>('overview')
   const [tenants, setTenants] = useState(MOCK_TENANTS)
   const [products, setProducts] = useState(MOCK_PRODUCTS)
-  const [exportStatus, setExportStatus] = useState<null | 'exporting' | 'done'>(null)
+  const [_exportStatus, setExportStatus] = useState<null | 'exporting' | 'done'>(null)
+
+  // 💡 State untuk Chat Admin
+  const [adminChats, setAdminChats] = useState<any[]>([])
 
   // 💡 State untuk CRUD Laporan Manual
   const [reportsList, setReportsList] = useState<ManualReport[]>([
@@ -50,6 +53,25 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
   const totalRevenue = MOCK_ORDERS.filter(o => o.status === 'delivered').reduce((s, o) => s + o.total, 0)
   const totalProducts = products.length
   const activeTenants = tenants.filter(t => t.isActive).length
+
+  // 💡 Auto-Refresh Fetch Chat Admin secara Real-Time (Setiap 2 Detik)
+  useEffect(() => {
+    const fetchAdminChats = async () => {
+      try {
+        const res = await fetch(`http://${window.location.hostname}:5000/api/chats/${currentUserId}`)
+        const data = await res.json()
+        if (data.success && data.chats) {
+          setAdminChats(data.chats)
+        }
+      } catch (err) {
+        console.error("Gagal memuat pesan admin:", err)
+      }
+    }
+
+    fetchAdminChats()
+    const interval = setInterval(fetchAdminChats, 2000)
+    return () => clearInterval(interval)
+  }, [currentUserId])
 
   function handleToggleTenant(id: string) {
     setTenants(prev => prev.map(t => t.id === id ? { ...t, isActive: !t.isActive } : t))
@@ -84,7 +106,6 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
     try {
       const adminUser = JSON.parse(localStorage.getItem('am_current_user') || `{"email": "${currentUserId}", "nama": "${currentUserName}"}`)
       
-      // ✅ URL DINAMIS: Menggunakan window.location.hostname agar tidak ketergantungan IP
       await fetch(`http://${window.location.hostname}:5000/api/chats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -106,20 +127,24 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
     Swal.fire({ icon: 'info', title: 'Produk Ditolak', text: 'Pesan alasan telah dikirim ke chat penjual.', confirmButtonColor: '#00B4D8' })
   }
 
-  function handleExport(format: string) {
+  function handleExport(_format: string) {
     setExportStatus('exporting')
     setTimeout(() => {
       setExportStatus('done')
-      Swal.fire({
-        toast: true, position: 'top-end', icon: 'success',
-        title: `Laporan ${format} berhasil diunduh! 📥`,
-        showConfirmButton: false, timer: 2000, timerProgressBar: true
-      })
-      setTimeout(() => setExportStatus(null), 1500)
-    }, 1200)
+      const printContent = document.getElementById('printable-report-area')?.innerHTML
+      if (!printContent) {
+        Swal.fire({ icon: 'error', title: 'Gagal', text: 'Area laporan tidak ditemukan.' })
+        setExportStatus(null)
+        return
+      }
+      const originalBody = document.body.innerHTML
+      document.body.innerHTML = `<div style="padding: 40px; font-family: Arial, sans-serif;">${printContent}</div>`
+      window.print()
+      document.body.innerHTML = originalBody
+      window.location.reload()
+    }, 500)
   }
 
-  // 💡 FUNGSI CRUD: Simpan atau Tambah Laporan Manual
   const handleSaveReport = (e: React.FormEvent) => {
     e.preventDefault()
     if (!formTitle || !formPeriod) {
@@ -187,13 +212,13 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
   const handlePrintReport = (rep: ManualReport) => {
     setSelectedReportToPrint(rep)
     setTimeout(() => {
-      const printContent = document.getElementById('printable-single-report')?.innerHTML;
-      if (!printContent) return;
-      const originalBody = document.body.innerHTML;
-      document.body.innerHTML = `<div style="padding: 40px; font-family: Arial, sans-serif;">${printContent}</div>`;
-      window.print();
-      document.body.innerHTML = originalBody;
-      window.location.reload();
+      const printContent = document.getElementById('printable-single-report')?.innerHTML
+      if (!printContent) return
+      const originalBody = document.body.innerHTML
+      document.body.innerHTML = `<div style="padding: 40px; font-family: Arial, sans-serif;">${printContent}</div>`
+      window.print()
+      document.body.innerHTML = originalBody
+      window.location.reload()
     }, 100)
   }
 
@@ -240,10 +265,10 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
             key={t.key}
             onClick={() => {
               if (t.key === 'manual_report' && !isUserPro && currentUserId !== 'miyya@gmail.com') {
-                Swal.fire({ icon: 'warning', title: 'Fitur Khusus PRO 💎', text: 'Upgrade akun Anda ke PRO untuk membuat laporan manual.' });
-                return;
+                Swal.fire({ icon: 'warning', title: 'Fitur Khusus PRO 💎', text: 'Upgrade akun Anda ke PRO untuk membuat laporan manual.' })
+                return
               }
-              setTab(t.key as AdminTab);
+              setTab(t.key as AdminTab)
             }}
             style={{
               flexShrink: 0, padding: '7px 14px', border: '1.5px solid var(--am-border)', borderRadius: 999,
@@ -379,7 +404,7 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
                   {isEditing ? '💾 Simpan Perubahan' : '➕ Tambah Laporan'}
                 </button>
                 {isEditing && (
-                  <button type="button" onClick={() => { setIsEditing(false); setEditId(null); setFormTitle(''); setFormPeriod(''); setFormContent(''); setFormNominal(''); }} style={{ padding: '12px 16px', background: '#64748B', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
+                  <button type="button" onClick={() => { setIsEditing(false); setEditId(null); setFormTitle(''); setFormPeriod(''); setFormContent(''); setFormNominal('') }} style={{ padding: '12px 16px', background: '#64748B', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
                     Batal
                   </button>
                 )}
@@ -428,12 +453,31 @@ export default function AdminPanel({ theme: _theme, currentUserId = 'admin_koper
         </div>
       )}
 
+      {/* 💬 TAB PESAN PEMBELI / CHAT ADMIN */}
       {tab === 'chat' && (
         <div style={{ padding: '0 16px' }}>
-          <div className="am-card" style={{ padding: 24, textAlign: 'center', borderRadius: 16 }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>💬</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--am-text)' }}>Pusat Pesan & Chat Admin</div>
-            <p style={{ fontSize: 12, color: 'var(--am-text-muted)', marginTop: 4 }}>Gunakan menu Pesan / Chat di sidebar utama.</p>
+          <div className="am-card" style={{ padding: 20, borderRadius: 16, background: 'var(--am-surface)' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--am-text)', marginBottom: 14 }}>💬 Pusat Pesan Masuk & Chat Koperasi</div>
+            
+            {adminChats.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 30, color: 'var(--am-text-muted)' }}>
+                Belum ada riwayat pesan masuk untuk Koperasi/Admin ini.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {adminChats.map(c => (
+                  <div key={c.id} style={{ padding: 14, background: 'var(--am-bg2)', borderRadius: 12, border: '1px solid var(--am-border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-primary)' }}>
+                        {c.senderName} <span style={{ fontSize: 10, color: 'var(--am-text-muted)' }}>({c.senderRole})</span>
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--am-text-muted)' }}>{c.time}</span>
+                    </div>
+                    <p style={{ fontSize: 13, color: 'var(--am-text)', margin: 0 }}>{c.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

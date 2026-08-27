@@ -1,5 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { formatRupiah } from '../data';
+
+declare global {
+  interface Window {
+    snap: any;
+  }
+}
 
 interface ProModalProps {
   user: any;
@@ -7,8 +13,28 @@ interface ProModalProps {
 }
 
 export default function ProModal({ user, onClose }: ProModalProps) {
-  const [selectedRole, setSelectedRole] = useState<'buyer' | 'seller' | 'driver' | 'admin'>(user?.role || 'buyer');
+  // Normalisasi role ke lowercase agar aman dari format huruf besar ('BUYER' -> 'buyer')
+  const rawRole = user?.role?.toLowerCase() || 'buyer';
+  const initialRole = ['buyer', 'seller', 'driver', 'admin'].includes(rawRole) ? rawRole : 'buyer';
+  
+  const [selectedRole, setSelectedRole] = useState<'buyer' | 'seller' | 'driver' | 'admin'>(initialRole);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const snapScriptUrl = 'https://app.sandbox.midtrans.com/snap/snap.js';
+    const clientKey = 'Mid-client-8jHsm2sYfBK8gz1A';
+
+    const script = document.createElement('script');
+    script.src = snapScriptUrl;
+    script.setAttribute('data-client-key', clientKey);
+    document.body.appendChild(script);
+
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
 
   const roleBenefits = {
     buyer: {
@@ -57,12 +83,12 @@ export default function ProModal({ user, onClose }: ProModalProps) {
     }
   };
 
-  const currentPlan = roleBenefits[selectedRole];
+  // Fallback aman jika role tidak ditemukan
+  const currentPlan = roleBenefits[selectedRole] || roleBenefits.buyer;
 
   const handleSubscribe = async () => {
     setLoading(true);
     try {
-      // ✅ URL DINAMIS: Menggunakan window.location.hostname agar tidak ketergantungan IP manual
       const backendUrl = `http://${window.location.hostname}:5000/api/checkout`;
       const response = await fetch(backendUrl, {
         method: 'POST',
@@ -78,10 +104,29 @@ export default function ProModal({ user, onClose }: ProModalProps) {
       });
       const data = await response.json();
 
-      if (data.success && data.redirect_url) {
-        window.location.href = data.redirect_url;
+      if (data.success && data.token) {
+        window.snap.pay(data.token, {
+          onSuccess: function (_result: any) {
+            localStorage.setItem('am_user_pro', 'true');
+            alert("Pembayaran PRO Berhasil! Fitur PRO Anda aktif.");
+            setLoading(false);
+            onClose();
+            window.location.reload();
+          },
+          onPending: function (_result: any) {
+            alert("Menunggu pembayaran Anda.");
+            setLoading(false);
+          },
+          onError: function (_result: any) {
+            alert("Pembayaran gagal.");
+            setLoading(false);
+          },
+          onClose: function () {
+            setLoading(false);
+          }
+        });
       } else {
-        alert("Gagal memproses pembayaran langganan.");
+        alert("Gagal memproses pembayaran langganan: " + (data.message || ''));
         setLoading(false);
       }
     } catch (error) {
