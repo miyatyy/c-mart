@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import Swal from 'sweetalert2';
 import type { Campus, UserRole } from '../types';
+import { loginApi, registerApi, sendOtpApi, verifyOtpApi } from '../lib/api';
 
 const PRESET_AVATARS = [
   { id: 1, name: 'Maya (Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4' },
@@ -23,10 +24,10 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
   const [nama, setNama] = useState('');
   const [nim, setNim] = useState('');
   
-  // 🔒 Multi-Role State (Default: Pembeli). Maksimal 3 pilihan
+  // Multi-Role State (Default: Pembeli). Maksimal 3 pilihan
   const [selectedRoles, setSelectedRoles] = useState<string[]>(['buyer']); 
   
-  // 🔑 State untuk OTP
+  // State untuk OTP
   const [otpCode, setOtpCode] = useState('');
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [isOtpVerified, setIsOtpVerified] = useState(false);
@@ -104,13 +105,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
 
     setSendingOtp(true);
     try {
-      const backendHost = `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendHost}/api/otp/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-      const data = await res.json();
+      const data = await sendOtpApi(email);
 
       if (data.success) {
         setIsOtpSent(true);
@@ -123,7 +118,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
       } else {
         Swal.fire({ icon: 'error', title: 'Gagal Kirim OTP', text: data.message, confirmButtonColor: '#EF4444' });
       }
-    } catch (err) {
+    } catch (_err) {
       Swal.fire({ icon: 'error', title: 'Koneksi Terganggu', text: 'Gagal terhubung ke server pengirim OTP.', confirmButtonColor: '#EF4444' });
     } finally {
       setSendingOtp(false);
@@ -139,13 +134,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
 
     setVerifyingOtp(true);
     try {
-      const backendHost = `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendHost}/api/otp/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp: otpCode })
-      });
-      const data = await res.json();
+      const data = await verifyOtpApi(email, otpCode);
 
       if (data.success) {
         setIsOtpVerified(true);
@@ -153,7 +142,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
       } else {
         Swal.fire({ icon: 'error', title: 'Verifikasi Gagal', text: data.message, confirmButtonColor: '#EF4444' });
       }
-    } catch (err) {
+    } catch (_err) {
       Swal.fire({ icon: 'error', title: 'Kesalahan Server', text: 'Gagal memverifikasi OTP.', confirmButtonColor: '#EF4444' });
     } finally {
       setVerifyingOtp(false);
@@ -206,28 +195,20 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
     }
 
     setLoading(true);
-    const backendHost = `http://${window.location.hostname}:5000`;
-    const targetUrl = isRegister ? `${backendHost}/api/register` : `${backendHost}/api/login`;
     
     try {
-      const response = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email, 
-          password, 
-          nama, 
-          nim, 
+      if (isRegister) {
+        const data = await registerApi({
+          email,
+          password,
+          nama,
+          nim,
           roles: selectedRoles,
           role: selectedRoles[0] || 'buyer',
-          avatar: selectedAvatar 
-        })
-      });
+          avatar: selectedAvatar
+        });
 
-      const data = await response.json();
-
-      if (data.success) {
-        if (isRegister) {
+        if (data.success) {
           Swal.fire({
             icon: 'success',
             title: 'Pendaftaran Berhasil! 🎉',
@@ -241,28 +222,42 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
           setIsOtpVerified(false);
           setOtpCode('');
         } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Gagal Mendaftar',
+            text: data.message || "Terjadi kesalahan pada data yang dimasukkan!",
+            confirmButtonColor: '#EF4444'
+          });
+          resetCaptcha();
+        }
+      } else {
+        const data = await loginApi(email, password);
+
+        if (data.success && data.user) {
           if (data.user.avatar) {
             localStorage.setItem('am_user_avatar', data.user.avatar);
           }
-          const primaryRole = Array.isArray(data.user.roles) ? data.user.roles[0] : (data.user.role || 'buyer');
+          localStorage.setItem('am_user_session', JSON.stringify(data.user));
+          localStorage.setItem('am_current_user', JSON.stringify(data.user));
+          
+          const primaryRole = Array.isArray(data.user.roles) ? (data.user.roles[0] as UserRole) : ((data.user.role || 'buyer') as UserRole);
           onLogin(primaryRole, 'female', 'banjarmasin', data.user);
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Gagal Masuk',
+            text: data.message || "Email atau password salah!",
+            confirmButtonColor: '#EF4444'
+          });
+          resetCaptcha();
         }
-      } else {
-        Swal.fire({
-          icon: 'error',
-          title: 'Gagal Masuk',
-          text: data.message || "Terjadi kesalahan pada data yang dimasukkan!",
-          confirmButtonColor: '#EF4444'
-        });
-        resetCaptcha();
       }
 
-    } catch (error) {
-      console.error("Error Fetch:", error);
+    } catch (error: any) {
       Swal.fire({
         icon: 'error',
-        title: 'Koneksi Terganggu',
-        text: 'Terjadi kesalahan pada server atau jaringan.',
+        title: 'Kesalahan Sistem',
+        text: error.message || 'Tidak dapat terhubung ke server.',
         confirmButtonColor: '#EF4444'
       });
       resetCaptcha();
@@ -271,330 +266,419 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
     }
   };
 
-  const inputStyle = { width: '100%', padding: '12px', margin: '6px 0', borderRadius: '8px', border: '1px solid #CBD5E1', color: '#333', background: '#F8FAFC' };
-
   return (
-    <div style={{ 
-      minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', 
-      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: 20,
-      position: 'relative', overflow: 'hidden', fontFamily: 'var(--am-font-body)'
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg, #03045E 0%, #0077B6 50%, #00B4D8 100%)',
+      padding: '20px',
+      fontFamily: 'var(--am-font-body, system-ui, sans-serif)'
     }}>
       <style>{animationStyles}</style>
 
-      <div className="am-card" style={{ 
-        background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(12px)', 
-        padding: 28, borderRadius: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.1)', 
-        width: '100%', maxWidth: 460, zIndex: 1, textAlign: 'center', maxHeight: '95vh', overflowY: 'auto' 
+      <div style={{
+        background: '#ffffff',
+        borderRadius: '24px',
+        padding: '36px 28px',
+        width: '100%',
+        maxWidth: '460px',
+        boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
+        position: 'relative'
       }}>
-        
-        <div className="cartoon-icon" style={{ fontSize: 44, marginBottom: 2 }}>
-          {isRegister ? '💐✨' : '🌷🛒'}
+        {/* Header Logo & Title */}
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <div className="cartoon-icon" style={{ fontSize: '48px', display: 'inline-block', marginBottom: '8px' }}>
+            🌸
+          </div>
+          <h1 style={{ margin: '0 0 6px', fontSize: '24px', fontWeight: 800, color: '#03045E' }}>
+            {isRegister ? 'Daftar Akun Baru' : 'Masuk Antasari Mart'}
+          </h1>
+          <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+            {isRegister ? 'Lengkapi profil untuk bergabung dengan kampus mart' : 'Gunakan akun terdaftar Anda untuk melanjutkan'}
+          </p>
         </div>
 
-        <h2 style={{ color: '#00B4D8', textAlign: 'center', margin: '0 0 2px', fontSize: 20, fontWeight: 700 }}>
-          {isRegister ? "Buat Akun Baru" : "Login Antasari Mart"}
-        </h2>
-        <p style={{ fontSize: 12, color: '#64748B', marginBottom: 12 }}>
-          {isRegister ? "Isi data, verifikasi OTP email, & pilih peran akun" : "Selamat datang kembali, silakan masuk"}
-        </p>
-        
-        <form onSubmit={handleSubmit} style={{ textAlign: 'left' }}>
-          
+        {/* Tab Toggle Login / Register */}
+        <div style={{
+          display: 'flex',
+          background: '#f1f5f9',
+          borderRadius: '12px',
+          padding: '4px',
+          marginBottom: '20px'
+        }}>
+          <button
+            type="button"
+            onClick={() => { setIsRegister(false); resetCaptcha(); }}
+            style={{
+              flex: 1,
+              padding: '10px',
+              border: 'none',
+              borderRadius: '10px',
+              fontWeight: 700,
+              fontSize: '13px',
+              cursor: 'pointer',
+              background: !isRegister ? '#ffffff' : 'transparent',
+              color: !isRegister ? '#03045E' : '#64748b',
+              boxShadow: !isRegister ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.2s'
+            }}
+          >
+            🔑 Masuk
+          </button>
+          <button
+            type="button"
+            onClick={() => { setIsRegister(true); resetCaptcha(); }}
+            style={{
+              flex: 1,
+              padding: '10px',
+              border: 'none',
+              borderRadius: '10px',
+              fontWeight: 700,
+              fontSize: '13px',
+              cursor: 'pointer',
+              background: isRegister ? '#ffffff' : 'transparent',
+              color: isRegister ? '#03045E' : '#64748b',
+              boxShadow: isRegister ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.2s'
+            }}
+          >
+            ✨ Daftar
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {isRegister && (
             <>
-              <div style={{ marginBottom: 12, background: '#F1F5F9', padding: 12, borderRadius: 14, border: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <label style={{ fontSize: 11, fontWeight: 'bold', color: '#334155' }}>
-                    Pilih Avatar Kartun / Foto:
-                  </label>
-                  <label style={{ fontSize: 10, color: '#0077B6', cursor: 'pointer', fontWeight: 700, background: '#E0F2FE', padding: '3px 8px', borderRadius: 6 }}>
-                    📁 Upload Galeri
-                    <input type="file" accept="image/*" onChange={handleDeviceImageUpload} style={{ display: 'none' }} />
-                  </label>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, background: '#ffffff', padding: 8, borderRadius: 10, border: '1px solid #CBD5E1' }}>
-                  <img 
-                    src={selectedAvatar} 
-                    alt="Active Avatar" 
-                    style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', background: '#e2e8f0', border: '2px solid #00B4D8' }} 
-                  />
-                  <div style={{ fontSize: 11, color: '#334155', fontWeight: 600 }}>
-                    Avatar Terpilih Siap Digunakan ✨
-                  </div>
-                </div>
-
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', marginBottom: 6 }}>Pilih Karakter Kartun:</div>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, maxHeight: 110, overflowY: 'auto', padding: 2 }}>
-                  {PRESET_AVATARS.map(avatar => (
-                    <div 
-                      key={avatar.id}
-                      onClick={() => setSelectedAvatar(avatar.url)}
-                      title={avatar.name}
-                      style={{
-                        position: 'relative', cursor: 'pointer', borderRadius: '50%', overflow: 'hidden',
-                        background: '#ffffff', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        border: selectedAvatar === avatar.url ? '3px solid #00B4D8' : '2px solid #CBD5E1',
-                        boxShadow: selectedAvatar === avatar.url ? '0 0 10px rgba(0, 180, 216, 0.4)' : 'none',
-                        transition: 'all 0.2s', transform: selectedAvatar === avatar.url ? 'scale(1.08)' : 'scale(1)'
-                      }}
-                    >
-                      <img src={avatar.url} alt={avatar.name} style={{ width: '85%', height: '85%', objectFit: 'contain' }} />
-                      {avatar.type === 'pro' && (
-                        <span style={{ position: 'absolute', bottom: 0, width: '100%', background: '#F59E0B', color: 'white', fontSize: 6, fontWeight: 800, textAlign: 'center' }}>PRO</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                  Nama Lengkap
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Nurmiyaty"
+                  value={nama}
+                  onChange={e => setNama(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '13px',
+                    boxSizing: 'border-box',
+                    outline: 'none'
+                  }}
+                />
               </div>
 
               <div>
-                <label style={{ fontSize: 11, fontWeight: 'bold', color: '#64748B' }}>Nama Lengkap</label>
-                <input placeholder="Nama kamu" value={nama} onChange={(e) => setNama(e.target.value)} style={inputStyle} required />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 'bold', color: '#64748B' }}>NIM / ID Pengguna</label>
-                <input placeholder="NIM atau ID" value={nim} onChange={(e) => setNim(e.target.value)} style={inputStyle} required />
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                  NIM (Opsional Mahasiswa)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 2101010101"
+                  value={nim}
+                  onChange={e => setNim(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '13px',
+                    boxSizing: 'border-box',
+                    outline: 'none'
+                  }}
+                />
               </div>
             </>
           )}
 
           <div>
-            <label style={{ fontSize: 11, fontWeight: 'bold', color: '#64748B' }}>Email</label>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input 
-                placeholder="email@uin-antasari.ac.id" 
-                type="email" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
-                style={{ ...inputStyle, flex: 1, margin: 0 }} 
-                required 
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+              Alamat Email
+            </label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="email"
+                required
+                placeholder="email@uin-antasari.ac.id"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '13px',
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
               />
               {isRegister && (
-                <button 
-                  type="button" 
-                  onClick={handleSendOtp} 
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
                   disabled={sendingOtp || isOtpVerified}
                   style={{
-                    padding: '12px 12px', fontSize: 11, fontWeight: 700, borderRadius: 8, border: 'none',
-                    background: isOtpVerified ? '#16A34A' : '#00B4D8', color: 'white', cursor: (sendingOtp || isOtpVerified) ? 'default' : 'pointer', whiteSpace: 'nowrap'
+                    padding: '0 14px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: isOtpVerified ? '#10B981' : '#0077B6',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '11px',
+                    cursor: (sendingOtp || isOtpVerified) ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  {isOtpVerified ? '✅ Terkirim' : sendingOtp ? 'Sending...' : 'Kirim OTP 📧'}
+                  {isOtpVerified ? '✅ Terverifikasi' : sendingOtp ? 'Mengirim...' : 'Kirim OTP'}
                 </button>
               )}
             </div>
           </div>
 
-          {/* 🔒 KOLOM TERPISAH KHUSUS KODE OTP (Tampil permanen saat registrasi) */}
-          {isRegister && (
-            <div style={{ marginTop: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label style={{ fontSize: 11, fontWeight: 'bold', color: '#64748B' }}>Kode OTP Email</label>
-                {isOtpVerified ? (
-                  <span style={{ fontSize: 10, color: '#16A34A', fontWeight: 800 }}>✅ Sudah Diverifikasi</span>
-                ) : (
-                  <span style={{ fontSize: 10, color: '#D97706', fontWeight: 700 }}>⚠️ Belum Diverifikasi</span>
-                )}
-              </div>
-              
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
-                <input 
-                  placeholder="Masukkan 6 Digit OTP" 
-                  value={otpCode} 
-                  disabled={isOtpVerified}
-                  onChange={(e) => setOtpCode(e.target.value)} 
-                  style={{ 
-                    ...inputStyle, 
-                    flex: 1, 
-                    margin: 0, 
-                    letterSpacing: 2, 
+          {isRegister && isOtpSent && !isOtpVerified && (
+            <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#03045E', marginBottom: '6px' }}>
+                🔑 Masukkan Kode OTP 6 Digit:
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  maxLength={6}
+                  placeholder="Contoh: 123456"
+                  value={otpCode}
+                  onChange={e => setOtpCode(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '16px',
+                    letterSpacing: '4px',
+                    textAlign: 'center',
                     fontWeight: 'bold',
-                    background: isOtpVerified ? '#F0FDF4' : '#F8FAFC',
-                    borderColor: isOtpVerified ? '#86EFAC' : '#CBD5E1'
-                  }} 
+                    outline: 'none'
+                  }}
                 />
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={handleVerifyOtp}
-                  disabled={isOtpVerified || verifyingOtp}
-                  style={{ 
-                    padding: '12px 14px', 
-                    background: isOtpVerified ? '#16A34A' : '#0284c7', 
-                    color: 'white', 
-                    border: 'none', 
-                    borderRadius: 8, 
-                    fontWeight: 700, 
-                    cursor: (isOtpVerified || verifyingOtp) ? 'default' : 'pointer', 
-                    fontSize: 11,
-                    whiteSpace: 'nowrap'
+                  disabled={verifyingOtp}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#00B4D8',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '12px',
+                    cursor: 'pointer'
                   }}
                 >
-                  {isOtpVerified ? 'Terverifikasi ✓' : verifyingOtp ? 'Cek...' : 'Verifikasi OTP'}
+                  {verifyingOtp ? 'Memeriksa...' : 'Verifikasi'}
                 </button>
               </div>
-              <small style={{ fontSize: 10, color: '#64748B', display: 'block', marginTop: 2 }}>
-                * Tekan "Kirim OTP", cek kotak masuk/spam email, lalu masukkan 6 digit kodenya.
-              </small>
             </div>
           )}
-          
-          <div style={{ marginTop: 8 }}>
-            <label style={{ fontSize: 11, fontWeight: 'bold', color: '#64748B' }}>Password</label>
-            <div style={{ position: 'relative', width: '100%' }}>
-              <input 
-                type={showPassword ? "text" : "password"} 
-                placeholder="••••••••" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                style={{ ...inputStyle, paddingRight: 40, margin: '4px 0 0 0' }} 
-                required 
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+              Password
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                placeholder="Minimal 6 karakter"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 40px 10px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '13px',
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
               />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
+                onClick={() => setShowPassword(p => !p)}
                 style={{
-                  position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#666'
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: '#64748b'
                 }}
               >
-                {showPassword ? "👁️‍🗨️" : "👁️"}
+                {showPassword ? '🙈' : '👁️'}
               </button>
             </div>
-            {isRegister && (
-              <small style={{ display: 'block', fontSize: 10, color: '#64748B', marginTop: 3, lineHeight: '1.3' }}>
-                * Min. 8 karakter, ada huruf besar, kecil, angka, & simbol.
-              </small>
-            )}
           </div>
-          
-          {/* 🔒 PILIHAN MULTI-ROLE (MAKSIMAL 3 ROLE) */}
+
           {isRegister && (
-            <div style={{ marginTop: 10, background: '#F8FAFC', padding: 10, borderRadius: 12, border: '1px solid #CBD5E1' }}>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 'bold', color: '#334155' }}>
-                Pilih Peran Akun Kamu (Maksimal 3):
-              </label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer', color: '#1e293b' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={selectedRoles.includes('buyer')} 
-                    onChange={() => handleRoleCheckbox('buyer')} 
-                  />
-                  🛍️ Pembeli (Belanja Produk & Jasa)
+            <>
+              {/* Pilihan Multi-Role */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Pilih Peran Akun (Maks 3):
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer', color: '#1e293b' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={selectedRoles.includes('seller')} 
-                    onChange={() => handleRoleCheckbox('seller')} 
-                  />
-                  🏪 Penjual (Buka Lapak Dagangan)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer', color: '#1e293b' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={selectedRoles.includes('driver')} 
-                    onChange={() => handleRoleCheckbox('driver')} 
-                  />
-                  🛵 Driver / Kurir Kampus (Antar Pesanan)
-                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                  {[
+                    { key: 'buyer', label: '🛍️ Pembeli' },
+                    { key: 'seller', label: '🏪 Penjual' },
+                    { key: 'driver', label: '🛵 Driver' }
+                  ].map(r => {
+                    const isChecked = selectedRoles.includes(r.key);
+                    return (
+                      <div
+                        key={r.key}
+                        onClick={() => handleRoleCheckbox(r.key)}
+                        style={{
+                          padding: '8px 6px',
+                          borderRadius: '10px',
+                          border: `1.5px solid ${isChecked ? '#0077B6' : '#cbd5e1'}`,
+                          background: isChecked ? '#e0f2fe' : '#ffffff',
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: isChecked ? '#03045E' : '#64748b',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        {r.label}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+
+              {/* Avatar Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Pilih Avatar Profil:
+                </label>
+                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '6px' }}>
+                  {PRESET_AVATARS.map(av => (
+                    <img
+                      key={av.id}
+                      src={av.url}
+                      alt={av.name}
+                      onClick={() => setSelectedAvatar(av.url)}
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        cursor: 'pointer',
+                        border: selectedAvatar === av.url ? '3px solid #0077B6' : '2px solid transparent',
+                        transform: selectedAvatar === av.url ? 'scale(1.1)' : 'scale(1)',
+                        transition: 'all 0.2s',
+                        background: '#f1f5f9'
+                      }}
+                    />
+                  ))}
+                </div>
+                <div style={{ marginTop: '4px', fontSize: '11px', color: '#64748b' }}>
+                  Atau upload foto sendiri:{' '}
+                  <input type="file" accept="image/*" onChange={handleDeviceImageUpload} style={{ fontSize: '11px' }} />
+                </div>
+              </div>
+            </>
           )}
 
-          {/* KOTAK SLIDER PUZZLE */}
-          <div style={{ marginTop: 10, background: '#F8FAFC', padding: 12, borderRadius: 14, border: '1px solid #E2E8F0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 'bold', color: '#334155' }}>
-                Verifikasi Geser Buket Bunga 💐
-              </label>
-              {isVerified && <span style={{ fontSize: 10, color: '#16A34A', fontWeight: 800 }}>✔ Terverifikasi</span>}
+          {/* Slider Puzzle Captcha Buket Bunga */}
+          <div style={{ marginTop: '6px', background: '#f8fafc', padding: '12px', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>
+                🧩 Geser puzzle buket bunga ke tempat yang pas:
+              </span>
+              {isVerified && <span style={{ fontSize: '11px', color: '#10B981', fontWeight: 700 }}>✅ Pas!</span>}
             </div>
 
-            <div style={{ 
-              position: 'relative', width: '100%', height: 110, borderRadius: 10, overflow: 'hidden', 
-              backgroundImage: 'url("https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=500&auto=format&fit=crop&q=60")', 
-              backgroundSize: 'cover', backgroundPosition: 'center', marginBottom: 8,
-              boxShadow: 'inset 0 0 20px rgba(0,0,0,0.2)'
-            }}>
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.15)' }} />
-
-              <div style={{ 
-                position: 'absolute', bottom: 6, left: 10, background: 'rgba(255,255,255,0.85)', padding: '2px 8px', 
-                borderRadius: 4, fontSize: 10, fontWeight: 700, color: '#334155', zIndex: 1 
-              }}>
-                🌸 Pasangkan Potongan Buket
-              </div>
-              
-              <div style={{
-                position: 'absolute', left: targetPos, top: 30, width: 45, height: 50,
-                background: 'rgba(0,0,0,0.6)', border: '2px dashed rgba(255,255,255,0.9)', borderRadius: 6, zIndex: 2
-              }} />
-
-              <div style={{
-                position: 'absolute', left: sliderPos, top: 30, width: 45, height: 50,
-                backgroundImage: 'url("https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=500&auto=format&fit=crop&q=60")',
-                backgroundSize: '380px 110px', backgroundPosition: `-${targetPos}px -30px`,
-                borderRadius: 6, boxShadow: '0 4px 15px rgba(0,0,0,0.4)', zIndex: 3,
-                border: isVerified ? '2px solid #16A34A' : '2px solid #ffffff',
-                transition: isDragging ? 'none' : 'left 0.2s ease'
-              }} />
-            </div>
-
-            <div 
+            <div
               ref={trackRef}
               onMouseMove={onDrag}
-              onTouchMove={onDrag}
               onMouseUp={stopDrag}
+              onMouseLeave={stopDrag}
+              onTouchMove={onDrag}
               onTouchEnd={stopDrag}
-              style={{ 
-                position: 'relative', height: 40, background: '#E2E8F0', borderRadius: 999, 
-                display: 'flex', alignItems: 'center', padding: '0 4px', userSelect: 'none' 
+              style={{
+                position: 'relative',
+                height: '110px',
+                borderRadius: '10px',
+                overflow: 'hidden',
+                background: 'url(https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=500&fit=crop&auto=format) center/cover',
+                userSelect: 'none',
+                cursor: isVerified ? 'default' : 'pointer'
               }}
             >
-              <div style={{ position: 'absolute', width: '100%', textAlign: 'center', fontSize: 11, color: '#64748B', fontWeight: 600, pointerEvents: 'none' }}>
-                {isVerified ? "Verifikasi Berhasil ✨" : "Geser puzzle ke kanan dengan pas ➔"}
-              </div>
+              {/* Target Outline */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${targetPos}px`,
+                  top: '25px',
+                  width: '45px',
+                  height: '45px',
+                  borderRadius: '8px',
+                  border: '2px dashed #ffffff',
+                  background: 'rgba(0,0,0,0.3)',
+                  boxShadow: 'inset 0 0 10px rgba(0,0,0,0.5)'
+                }}
+              />
 
-              <div 
+              {/* Draggable Piece */}
+              <div
                 onMouseDown={startDrag}
                 onTouchStart={startDrag}
                 style={{
-                  position: 'absolute', left: sliderPos, width: 44, height: 32, background: isVerified ? '#16A34A' : '#00B4D8',
-                  borderRadius: 999, cursor: isVerified ? 'default' : 'grab', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: 'white', fontWeight: 800, boxShadow: '0 2px 6px rgba(0,180,216,0.4)', transition: isDragging ? 'none' : 'left 0.2s ease', zIndex: 4
+                  position: 'absolute',
+                  left: `${sliderPos}px`,
+                  top: '25px',
+                  width: '45px',
+                  height: '45px',
+                  borderRadius: '8px',
+                  border: isVerified ? '2px solid #10B981' : '2px solid #ffffff',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                  background: 'url(https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=500&fit=crop&auto=format) center/cover',
+                  backgroundPosition: `-${targetPos}px -25px`,
+                  cursor: isVerified ? 'default' : isDragging ? 'grabbing' : 'grab'
                 }}
-              >
-                {isVerified ? '✓' : '💐'}
-              </div>
+              />
             </div>
           </div>
-          
-          <button 
-            type="submit" 
-            disabled={loading || !isVerified || (isRegister && !isOtpVerified)}
-            style={{ 
-              width: '100%', padding: '12px 0', marginTop: 14, 
-              background: (loading || !isVerified || (isRegister && !isOtpVerified)) ? '#CBD5E1' : '#00B4D8', color: 'white', 
-              border: 'none', borderRadius: 10, cursor: (loading || !isVerified || (isRegister && !isOtpVerified)) ? 'not-allowed' : 'pointer', fontWeight: 700,
-              fontSize: 14, transition: 'background 0.2s' 
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              marginTop: '10px',
+              padding: '12px',
+              borderRadius: '12px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)',
+              color: '#ffffff',
+              fontSize: '14px',
+              fontWeight: 800,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 12px rgba(0, 180, 216, 0.3)',
+              transition: 'transform 0.1s'
             }}
           >
-            {loading ? "Memproses..." : (isRegister ? "Daftar Sekarang" : "Masuk")}
+            {loading ? 'Memproses...' : isRegister ? 'Daftar Sekarang 🚀' : 'Masuk ke Akun 🚀'}
           </button>
         </form>
-
-        <button 
-          onClick={() => { setIsRegister(!isRegister); resetCaptcha(); }} 
-          style={{ 
-            width: '100%', marginTop: 10, background: 'none', border: 'none', 
-            color: '#0077b6', cursor: 'pointer', fontWeight: 600, fontSize: 12 
-          }}
-        >
-          {isRegister ? "Sudah punya akun? Login di sini" : "Belum punya akun? Daftar di sini"}
-        </button>
       </div>
     </div>
   );

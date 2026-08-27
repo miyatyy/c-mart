@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Swal from 'sweetalert2';
 import type { ThemeMode } from '../types';
+import { claimVendingApi } from '../lib/api';
 
 interface VendingSimulatorProps {
   theme: ThemeMode;
@@ -19,20 +20,14 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
     setDispenseData(null);
 
     try {
-      const backendUrl = `http://${window.location.hostname}:5000/api/vending/claim`;
-      const response = await fetch(backendUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: inputToken.trim() })
-      });
-      const data = await response.json();
+      const data = await claimVendingApi(inputToken.trim());
 
-      if (data.success) {
+      if (data.success && data.dispense) {
         setDispenseData(data.dispense);
         Swal.fire({
           icon: 'success',
           title: 'Berhasil! 🎉',
-          text: `Mesin mengeluarkan barang untuk ${data.dispense.buyerName} dari Slot ${data.dispense.slotNumber}`,
+          text: `Mesin mengeluarkan barang untuk ${data.dispense.buyerName} dari Slot #${data.dispense.slotNumber}`,
           confirmButtonColor: '#16A34A'
         });
       } else {
@@ -43,9 +38,9 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
           confirmButtonColor: '#EF4444'
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      Swal.fire({ icon: 'error', title: 'Kesalahan Jaringan', text: 'Gagal terhubung ke server backend.' });
+      Swal.fire({ icon: 'error', title: 'Kesalahan Jaringan', text: 'Gagal terhubung ke server backend: ' + error.message });
     } finally {
       setLoading(false);
     }
@@ -62,29 +57,47 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
 
         <form onSubmit={handleSimulateClaim} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
-            className="am-input"
-            placeholder="Contoh: VEND-582910"
+            type="text"
+            placeholder="Contoh: VEND-123456"
             value={inputToken}
             onChange={e => setInputToken(e.target.value)}
-            style={{ width: '100%', padding: '12px', fontSize: 14, borderRadius: 10, textAlign: 'center', fontWeight: 700 }}
-            required
+            style={{
+              padding: '12px 16px',
+              borderRadius: 12,
+              border: '1px solid var(--am-border)',
+              fontSize: 16,
+              textAlign: 'center',
+              fontWeight: 'bold',
+              letterSpacing: 2,
+              outline: 'none',
+              background: 'var(--am-bg)',
+              color: 'var(--am-text)'
+            }}
           />
           <button
             type="submit"
-            className="am-btn-primary"
             disabled={loading}
-            style={{ width: '100%', padding: '12px 0', fontSize: 14, fontWeight: 700, borderRadius: 10, cursor: 'pointer' }}
+            style={{
+              padding: '12px',
+              borderRadius: 12,
+              border: 'none',
+              background: 'var(--am-primary)',
+              color: 'white',
+              fontSize: 14,
+              fontWeight: 800,
+              cursor: loading ? 'not-allowed' : 'pointer'
+            }}
           >
-            {loading ? 'Memproses Mesin...' : '🚀 Simulasi Ambil Barang'}
+            {loading ? 'Memeriksa Token...' : 'Keluarkan Barang dari Mesin 🚀'}
           </button>
         </form>
 
         {dispenseData && (
-          <div style={{ marginTop: 20, padding: 16, background: '#DCFCE7', borderRadius: 12, border: '1px solid #86EFAC', textAlign: 'left' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Dispense Berhasil!</div>
-            <div style={{ fontSize: 12, color: '#14532D' }}>Order ID: <strong>{dispenseData.orderId}</strong></div>
-            <div style={{ fontSize: 12, color: '#14532D' }}>Nama Pembeli: <strong>{dispenseData.buyerName}</strong></div>
-            <div style={{ fontSize: 12, color: '#14532D' }}>Slot Terbuka: <strong style={{ fontSize: 14, color: '#16A34A' }}>Slot #{dispenseData.slotNumber}</strong></div>
+          <div style={{ marginTop: 20, padding: 16, borderRadius: 14, background: '#DCFCE7', border: '1px solid #86EFAC', textAlign: 'left' }}>
+            <div style={{ fontWeight: 800, color: '#16A34A', marginBottom: 4 }}>✅ Dispense Log:</div>
+            <div style={{ fontSize: 12, color: '#166534' }}>Order ID: {dispenseData.orderId}</div>
+            <div style={{ fontSize: 12, color: '#166534' }}>Slot Mesin: #{dispenseData.slotNumber}</div>
+            <div style={{ fontSize: 12, color: '#166534' }}>Penerima: {dispenseData.buyerName}</div>
           </div>
         )}
       </div>

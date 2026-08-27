@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
-import type { CartItem, DeliveryMethod, PaymentMethod, ThemeMode, Campus } from '../types'
-import { formatRupiah } from '../data'
-import { QRCodeSVG } from 'qrcode.react'
+import { useState, useEffect } from 'react';
+import type { CartItem, DeliveryMethod, PaymentMethod, ThemeMode, Campus } from '../types';
+import { formatRupiah } from '../data';
+import { QRCodeSVG } from 'qrcode.react';
+import { checkoutApi, MIDTRANS_CLIENT_KEY } from '../lib/api';
 
 declare global {
   interface Window {
@@ -10,28 +11,29 @@ declare global {
 }
 
 interface CheckoutProps {
-  theme: ThemeMode
-  campus: Campus
-  items: CartItem[]
-  onConfirmOrder: (method: DeliveryMethod, payment: PaymentMethod, location: string) => void
-  onBack: () => void
+  theme: ThemeMode;
+  campus: Campus;
+  items: CartItem[];
+  onConfirmOrder: (method: DeliveryMethod, payment: PaymentMethod, location: string) => void;
+  onBack: () => void;
 }
 
 export default function Checkout({ theme: _theme, campus, items, onConfirmOrder, onBack }: CheckoutProps) {
-  const isOnlyGanciInCart = items.every(i => 
+  const isOnlyGanciInCart = items.length > 0 && items.every(i => 
     (i.product as any).sellerId === 'seller_1' || 
     i.product.name.toLowerCase().includes('ganci')
   );
 
-  const [delivery, setDelivery] = useState<DeliveryMethod | 'vending'>(isOnlyGanciInCart ? 'vending' : 'pickup')
-  const [payment, setPayment] = useState<PaymentMethod>('cod')
+  const [delivery, setDelivery] = useState<DeliveryMethod | 'vending'>(isOnlyGanciInCart ? 'vending' : 'pickup');
+  const [payment, setPayment] = useState<PaymentMethod>('cod');
   
-  const [selectedDropdownLocation, setSelectedDropdownLocation] = useState('')
-  const [customLocationText, setCustomLocationText] = useState('')
-  const [isCustomLocation, setIsCustomLocation] = useState(false)
+  const [selectedDropdownLocation, setSelectedDropdownLocation] = useState('');
+  const [customLocationText, setCustomLocationText] = useState('');
+  const [isCustomLocation, setIsCustomLocation] = useState(false);
 
-  const [step, setStep] = useState<'form' | 'searching_driver' | 'success' | 'vending_qr' | 'vending_dispensing' | 'vending_done' | 'receipt_pickup'>('form')
-  const [countdown, setCountdown] = useState(10)
+  const [step, setStep] = useState<'form' | 'searching_driver' | 'success' | 'vending_qr' | 'vending_dispensing' | 'vending_done' | 'receipt_pickup'>('form');
+  const [countdown, setCountdown] = useState(10);
+  const [loadingPayment, setLoadingPayment] = useState(false);
 
   const [vendingData, setVendingResult] = useState<{
     vendingToken: string;
@@ -45,13 +47,13 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     total: number;
   } | null>(null);
 
-  const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0)
-  const deliveryFee = delivery === 'courier' ? 5000 : 0
-  const total = subtotal + deliveryFee
+  const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
+  const deliveryFee = delivery === 'courier' ? 5000 : 0;
+  const total = subtotal + deliveryFee;
 
   const LOCATIONS = campus === 'banjarmasin'
     ? ['Gedung Syariah Lt. 1', 'Gedung Syariah Lt. 2', 'Gedung Dakwah Lt. 3', 'Gedung Tarbiyah', 'Kantin Belakang Tarbiyah', 'Perpustakaan Pusat', 'Masjid Kampus', 'Gedung Rektorat', 'Area Parkir Utama']
-    : ['Gedung A Banjarbaru', 'Gedung B Banjarbaru', 'Kantin Kampus 2', 'Masjid Kampus 2', 'Perpustakaan Kampus 2']
+    : ['Gedung A Banjarbaru', 'Gedung B Banjarbaru', 'Kantin Kampus 2', 'Masjid Kampus 2', 'Perpustakaan Kampus 2'];
 
   const finalLocation = delivery === 'pickup' 
     ? 'Ambil Sendiri di Tenant / Warung Koperasi' 
@@ -61,15 +63,15 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
 
   useEffect(() => {
     const snapScriptUrl = 'https://app.sandbox.midtrans.com/snap/snap.js';
-    const clientKey = 'Mid-client-8jHsm2sYfBK8gz1A';
-
     const script = document.createElement('script');
     script.src = snapScriptUrl;
-    script.setAttribute('data-client-key', clientKey);
+    script.setAttribute('data-client-key', MIDTRANS_CLIENT_KEY);
     document.body.appendChild(script);
 
     return () => {
-      document.body.removeChild(script);
+      try {
+        document.body.removeChild(script);
+      } catch (_e) {}
     };
   }, []);
 
@@ -121,26 +123,21 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   }
 
   async function handleMidtransPayment() {
+    setLoadingPayment(true);
     try {
-      const backendUrl = `http://${window.location.hostname}:5000/api/checkout`;
-      const response = await fetch(backendUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: `ANTASARI-${Date.now()}`,
-          grossAmount: total,
-          customerDetails: {
-            name: "Mahasiswa UIN Antasari",
-            email: "mahasiswa@uin-antasari.ac.id"
-          },
-          items: items,
-          deliveryMethod: delivery
-        })
+      const activeUser = JSON.parse(localStorage.getItem('am_user_session') || '{}');
+      const data = await checkoutApi({
+        orderId: `ANTASARI-${Date.now()}`,
+        grossAmount: total,
+        customerDetails: {
+          name: activeUser.nama || activeUser.name || "Mahasiswa UIN Antasari",
+          email: activeUser.email || "mahasiswa@uin-antasari.ac.id"
+        },
+        items: items,
+        deliveryMethod: delivery
       });
 
-      const data = await response.json();
-
-      if (data.success && data.token) {
+      if (data.success && data.token && window.snap) {
         window.snap.pay(data.token, {
           onSuccess: function (result: any) {
             showVendingQR(data, result.order_id);
@@ -158,414 +155,351 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
       } else {
         alert("Gagal terhubung ke Midtrans: " + (data.message || ''));
       }
-    } catch (error) {
-      console.error("Error koneksi checkout:", error);
-      alert("Terjadi kesalahan koneksi ke server.");
+    } catch (error: any) {
+      console.error(error);
+      alert("Terjadi kesalahan server saat checkout.");
+    } finally {
+      setLoadingPayment(false);
     }
   }
 
-  async function processOrderWithoutMidtrans(deliveryMethod: DeliveryMethod | 'vending') {
-    const generatedOrderId = `ANTASARI-${Date.now()}`;
+  async function handleRegularOrder() {
+    setLoadingPayment(true);
     try {
-      const backendUrl = `http://${window.location.hostname}:5000/api/checkout`;
-      await fetch(backendUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: generatedOrderId,
-          grossAmount: total,
-          items: items,
-          deliveryMethod: deliveryMethod
-        })
+      const activeUser = JSON.parse(localStorage.getItem('am_user_session') || '{}');
+      const data = await checkoutApi({
+        orderId: `ANTASARI-${Date.now()}`,
+        grossAmount: total,
+        customerDetails: {
+          name: activeUser.nama || activeUser.name || "Mahasiswa UIN Antasari",
+          email: activeUser.email || "mahasiswa@uin-antasari.ac.id"
+        },
+        items: items,
+        deliveryMethod: delivery
       });
-    } catch (error) {
-      console.error("Gagal mengurangi stok produk:", error);
-    }
 
-    if (deliveryMethod === 'vending') {
-      const vendingObj = {
-        vendingToken: `VEND-${Math.floor(100000 + Math.random() * 900000)}`,
-        slotNumber: 1,
-        orderId: generatedOrderId
-      };
-      setVendingResult(vendingObj);
-      localStorage.setItem('am_active_vending_qr', JSON.stringify(vendingObj));
-      setCountdown(10);
-      setStep('vending_qr');
-    } else if (deliveryMethod === 'pickup') {
-      setReceiptData({
-        orderId: generatedOrderId,
-        queueNumber: `A-${Math.floor(10 + Math.random() * 89)}`,
+      if (data.success) {
+        if (delivery === 'vending') {
+          showVendingQR(data);
+        } else {
+          processOrderSuccess(delivery as DeliveryMethod);
+        }
+      } else {
+        alert(data.message || 'Gagal memproses pesanan.');
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert("Terjadi kesalahan koneksi saat memproses pesanan.");
+    } finally {
+      setLoadingPayment(false);
+    }
+  }
+
+  function processOrderSuccess(selectedDelivery: DeliveryMethod) {
+    if (selectedDelivery === 'pickup') {
+      const newReceipt = {
+        orderId: `ANTASARI-${Date.now()}`,
+        queueNumber: `A-${Math.floor(10 + Math.random() * 90)}`,
         total: total
-      });
+      };
+      setReceiptData(newReceipt);
       setStep('receipt_pickup');
     } else {
-      processOrderSuccess(deliveryMethod);
-    }
-  }
-
-  function processOrderSuccess(deliveryMethod: DeliveryMethod | 'vending') {
-    if (deliveryMethod === 'courier') {
       setStep('searching_driver');
       setTimeout(() => {
         setStep('success');
-        onConfirmOrder('courier', payment, finalLocation);
-      }, 5000);
-    } else {
-      setStep('success');
-      onConfirmOrder('pickup', payment, finalLocation);
+      }, 3000);
     }
   }
 
-  function handleStartProcess() {
-    if (delivery === 'courier' && !finalLocation) {
-      alert("Mohon pilih atau ketik lokasi pengantaran terlebih dahulu!");
-      return;
-    }
-
-    if (payment === 'qris') {
-      handleMidtransPayment();
-    } else {
-      processOrderWithoutMidtrans(delivery);
-    }
-  }
-
-  if (step === 'receipt_pickup' && receiptData) {
+  if (items.length === 0 && step === 'form') {
     return (
-      <div className="am-slide-up" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '30px 20px', gap: 16, maxWidth: 440, margin: '0 auto' }}>
-        <div className="am-card" style={{ padding: 24, width: '100%', borderRadius: 20, background: '#FFFFFF', border: '2px dashed #00B4D8', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', color: '#334155' }}>
-          
-          <div style={{ textAlign: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: 12, marginBottom: 16 }}>
-            <div style={{ fontSize: 28, marginBottom: 4 }}>🛒 Struk Antrian Warung</div>
-            <h3 style={{ margin: 0, fontSize: 18, color: '#0F172A', fontWeight: 800 }}>ANTASARI MART</h3>
-            <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748B' }}>Koperasi & Kantin Mahasiswa UIN Antasari</p>
-          </div>
-
-          <div style={{ textAlign: 'center', background: '#F0F9FF', padding: 14, borderRadius: 12, border: '1px solid #BAE6FD', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#0369A1', textTransform: 'uppercase' }}>Nomor Antrian Ambil:</div>
-            <div style={{ fontSize: 38, fontWeight: 900, color: '#0284C7', letterSpacing: 1 }}>{receiptData.queueNumber}</div>
-            <div style={{ fontSize: 10, color: '#0284C7' }}>Tunjukkan struk ini ke kasir/penjual warung saat mengambil barang</div>
-          </div>
-
-          <div style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#64748B' }}>No. Transaksi:</span>
-              <span style={{ fontWeight: 600 }}>{receiptData.orderId}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#64748B' }}>Metode Bayar:</span>
-              <span style={{ fontWeight: 600, color: '#16A34A' }}>{payment === 'cod' ? 'Tunai di Warung (COD)' : payment.toUpperCase()}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#64748B' }}>Lokasi Ambil:</span>
-              <span style={{ fontWeight: 600 }}>Koperasi / Tenant Kampus</span>
-            </div>
-          </div>
-
-          <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 12, marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>Rincian Barang:</div>
-            {items.map(i => (
-              <div key={i.product.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4, color: '#475569' }}>
-                <span>{i.product.name} x{i.quantity}</span>
-                <span style={{ fontWeight: 600 }}>{formatRupiah(i.product.price * i.quantity)}</span>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ borderTop: '2px solid #0F172A', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 14, fontWeight: 800 }}>Total Bayar Tunai:</span>
-            <span style={{ fontSize: 18, fontWeight: 900, color: '#00B4D8' }}>{formatRupiah(receiptData.total)}</span>
-          </div>
-
-        </div>
-
-        <button 
-          className="am-btn-primary"
-          onClick={() => {
-            localStorage.removeItem('am_active_vending_qr');
-            onConfirmOrder('pickup', payment, finalLocation);
-          }}
-          style={{ width: '100%', padding: '14px 0', borderRadius: 12, fontSize: 15, background: '#00B4D8', fontWeight: 700 }}
-        >
-          Selesai & Kembali ke Beranda 🏠
+      <div style={{ padding: '60px 16px', textAlign: 'center', color: 'var(--am-text-muted)' }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>🛒</div>
+        <h3 style={{ color: 'var(--am-text)' }}>Keranjang Belanja Kosong</h3>
+        <p style={{ fontSize: 13, marginBottom: 20 }}>Pilih produk terlebih dahulu sebelum melakukan checkout.</p>
+        <button onClick={onBack} className="am-btn-primary" style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
+          Kembali Belanja
         </button>
-      </div>
-    );
-  }
-
-  if (step === 'vending_qr' && vendingData) {
-    return (
-      <div className="am-slide-up" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '36px 24px', gap: 16, maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
-        <div style={{ width: 70, height: 70, background: 'rgba(0, 180, 216, 0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>📱</div>
-        <h2 className="am-heading" style={{ margin: 0, fontSize: 22, color: 'var(--am-text)' }}>Scan QR di Mesin Vending</h2>
-        
-        <div className="am-card" style={{ padding: 24, width: '100%', borderRadius: 16, background: 'var(--am-surface)', boxShadow: '0 8px 24px rgba(0,0,0,0.06)' }}>
-          <div style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 12 }}>
-            Arahkan QR Code ke scanner <strong>Mesin Vending Antasari Mart</strong> dalam:
-          </div>
-
-          <div style={{ fontSize: 28, fontWeight: 800, color: '#00B4D8', marginBottom: 16, background: 'rgba(0,180,216,0.1)', padding: '6px 16px', borderRadius: 999, display: 'inline-block' }}>
-            ⏱️ 00:{countdown < 10 ? `0${countdown}` : countdown}
-          </div>
-
-          <div>
-            <div style={{ background: '#FFFFFF', padding: 16, borderRadius: 12, display: 'inline-block', border: '2px solid #00B4D8' }}>
-              <QRCodeSVG value={vendingData.vendingToken} size={210} level="H" />
-            </div>
-          </div>
-
-          <div style={{ marginTop: 16, padding: '12px', background: 'var(--am-bg2)', borderRadius: 10, color: 'var(--am-text)', fontWeight: 600, fontSize: 13 }}>
-            Kode Token: <code style={{ color: '#00B4D8' }}>{vendingData.vendingToken}</code> <br />
-            Posisi Vending: Rel Slot No. {vendingData.slotNumber}
-          </div>
-        </div>
-
-        <button 
-          className="am-btn-primary" 
-          onClick={() => { 
-            localStorage.removeItem('am_active_vending_qr');
-            setStep('vending_dispensing'); 
-            setTimeout(() => setStep('vending_done'), 2500); 
-          }}
-          style={{ width: '100%', padding: '14px 0', fontSize: 14, borderRadius: 12, background: '#25D366' }}
-        >
-          ⚡ Simulasi Langsung Scan Berhasil
-        </button>
-      </div>
-    );
-  }
-
-  if (step === 'vending_dispensing') {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 24px', gap: 20, textAlign: 'center' }}>
-        <style>{`
-          @keyframes dropItem {
-            0% { transform: translateY(-40px) rotate(0deg); opacity: 0; }
-            50% { transform: translateY(10px) rotate(15deg); opacity: 1; }
-            75% { transform: translateY(-5px) rotate(-10deg); }
-            100% { transform: translateY(0) rotate(0deg); }
-          }
-          .vending-drop-anim {
-            animation: dropItem 1.2s ease-in-out infinite;
-          }
-        `}</style>
-
-        <div style={{ fontSize: 72 }} className="vending-drop-anim">
-          🤖📦
-        </div>
-
-        <h2 className="am-heading" style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--am-text)' }}>
-          QR Bekerja! Mesin Sedang Menjatuhkan Pesananmu...
-        </h2>
-        <p style={{ margin: 0, color: 'var(--am-text-muted)', fontSize: 13, maxWidth: 320 }}>
-          Klek... Klak... Motor rel Vending Machine sedang berputar! ⚙️
-        </p>
-      </div>
-    );
-  }
-
-  if (step === 'vending_done') {
-    return (
-      <div className="am-slide-up" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px', gap: 20, maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
-        <style>{`
-          @keyframes bounceCute {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-15px); }
-          }
-          .cute-bounce {
-            animation: bounceCute 1.5s infinite;
-          }
-        `}</style>
-
-        <div className="cute-bounce" style={{ fontSize: 80, margin: '10px 0' }}>
-          🎁🧸✨
-        </div>
-
-        <h2 className="am-heading" style={{ margin: 0, fontSize: 24, color: '#2E7D32', fontWeight: 800 }}>
-          Silakan Ambil Barang Anda!
-        </h2>
-
-        <div className="am-card" style={{ padding: 20, width: '100%', borderRadius: 16, background: '#E8F5E9', border: '2px solid #81C784' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#1B5E20', marginBottom: 8 }}>
-            Pesanan Ganci Kawat Bulu Berhasil Keluar! 🌸
-          </div>
-          <div style={{ fontSize: 13, color: '#2E7D32' }}>
-            Barang sudah berada di laci/kotak pengambilan bagian bawah Mesin Vending. Terima kasih sudah berbelanja di Antasari Mart!
-          </div>
-        </div>
-
-        <button 
-          className="am-btn-primary" 
-          onClick={() => {
-            localStorage.removeItem('am_active_vending_qr');
-            onConfirmOrder('pickup', payment, finalLocation);
-          }}
-          style={{ width: '100%', padding: '15px 0', fontSize: 16, borderRadius: 12, background: 'var(--am-primary)' }}
-        >
-          Selesai & Kembali ke Beranda 🏠
-        </button>
-      </div>
-    );
-  }
-
-  if (step === 'searching_driver') {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 24px', gap: 20, textAlign: 'center' }}>
-        <div style={{ fontSize: 48 }}>🛵💨</div>
-        <h2 className="am-heading" style={{ margin: '10px 0 0', fontSize: 20, fontWeight: 700, color: 'var(--am-text)' }}>
-          Sedang Mencari Driver Terdekat...
-        </h2>
-      </div>
-    );
-  }
-
-  if (step === 'success') {
-    return (
-      <div className="am-slide-up" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '36px 24px', gap: 16, maxWidth: 480, margin: '0 auto' }}>
-        <div style={{ fontSize: 36 }}>✅</div>
-        <h2 className="am-heading" style={{ margin: 0, fontSize: 22, color: 'var(--am-text)' }}>Pesanan Berhasil Dibuat!</h2>
-        <button className="am-btn-primary" onClick={onBack} style={{ width: '100%', padding: '14px 0', borderRadius: 12 }}>Kembali ke Beranda 🏠</button>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '16px 16px 100px', maxWidth: 600, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-        <button onClick={onBack} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, color: 'var(--am-text)' }}>←</button>
-        <h2 className="am-heading" style={{ margin: 0, fontSize: 20, color: 'var(--am-text)' }}>Checkout Pesanan</h2>
-      </div>
-
-      <div className="am-card" style={{ padding: 16, marginBottom: 16, borderRadius: 16 }}>
-        <h3 className="am-heading" style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--am-text)' }}>📦 Metode Pengambilan</h3>
-        
-        {!isOnlyGanciInCart && (
-          <div style={{ fontSize: 12, color: '#D97706', backgroundColor: '#FEF3C7', padding: '8px 12px', borderRadius: 8, marginBottom: 10 }}>
-            ⚠️ Pilihan <strong>Vending Machine</strong> hanya tersedia khusus untuk produk <strong>Ganci Myammiy Craft (Rp 25.000)</strong>.
-          </div>
-        )}
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-          {[
-            { key: 'vending', label: 'Vending Machine', sub: 'Khusus Ganci', icon: '🤖', disabled: !isOnlyGanciInCart },
-            { key: 'courier', label: 'Kurir Kampus', sub: `+${formatRupiah(5000)}`, icon: '🛵', disabled: false },
-            { key: 'pickup', label: 'Ambil Sendiri', sub: 'Gratis Struk', icon: '🚶', disabled: false },
-          ].map(d => (
-            <button
-              key={d.key}
-              disabled={d.disabled}
-              onClick={() => setDelivery(d.key as any)}
-              style={{
-                padding: '12px 6px', borderRadius: 12, cursor: d.disabled ? 'not-allowed' : 'pointer',
-                opacity: d.disabled ? 0.4 : 1,
-                border: `2px solid ${delivery === d.key ? 'var(--am-primary)' : 'var(--am-border)'}`,
-                background: delivery === d.key ? 'rgba(0,180,216,0.08)' : 'var(--am-surface)',
-                textAlign: 'center', transition: 'all 0.2s', fontFamily: 'var(--am-font-body)',
-              }}
-            >
-              <div style={{ fontSize: 22, marginBottom: 4 }}>{d.icon}</div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--am-text)', lineHeight: 1.2 }}>{d.label}</div>
-              <div style={{ fontSize: 10, color: delivery === d.key ? 'var(--am-primary)' : 'var(--am-text-muted)', marginTop: 2 }}>{d.sub}</div>
+    <div style={{ padding: '24px 16px 80px', maxWidth: 800, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
+      {step === 'form' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={onBack} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--am-text)' }}>
+              ←
             </button>
-          ))}
-        </div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--am-text)' }}>Checkout Pembayaran</h2>
+          </div>
 
-        {delivery === 'courier' && (
-          <div style={{ marginTop: 14 }} className="am-slide-up">
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--am-text-muted)', display: 'block', marginBottom: 6 }}>
-              📍 Lokasi Antar (Gedung/Ruang Spesifik)
-            </label>
-            
-            <select
-              className="am-input"
-              value={isCustomLocation ? 'custom_option' : selectedDropdownLocation}
-              onChange={e => {
-                if (e.target.value === 'custom_option') {
-                  setIsCustomLocation(true);
-                  setSelectedDropdownLocation('');
+          {/* Rincian Produk */}
+          <div className="am-card" style={{ padding: 20, borderRadius: 20, background: 'var(--am-surface)' }}>
+            <h3 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700, color: 'var(--am-text)' }}>Rincian Pesanan</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {items.map(item => (
+                <div key={item.product.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: 'var(--am-text)' }}>{item.product.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>{item.quantity} x {formatRupiah(item.product.price)}</div>
+                  </div>
+                  <div style={{ fontWeight: 700, color: 'var(--am-primary)' }}>
+                    {formatRupiah(item.product.price * item.quantity)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Metode Pengambilan */}
+          <div className="am-card" style={{ padding: 20, borderRadius: 20, background: 'var(--am-surface)' }}>
+            <h3 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700, color: 'var(--am-text)' }}>Metode Pengambilan</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+              {[
+                { id: 'vending', title: '🤖 Vending Machine', desc: 'Ambil instan via QR Scanner' },
+                { id: 'pickup', title: '🚶 Pick-Up Mandiri', desc: 'Ambil di tenant/koperasi' },
+                { id: 'courier', title: '🛵 Kurir Antasari (+Rp5.000)', desc: 'Diantar langsung ke lokasimu' }
+              ].map(opt => (
+                <div
+                  key={opt.id}
+                  onClick={() => setDelivery(opt.id as any)}
+                  style={{
+                    padding: 14,
+                    borderRadius: 14,
+                    border: `2px solid ${delivery === opt.id ? 'var(--am-primary)' : 'var(--am-border)'}`,
+                    background: delivery === opt.id ? 'rgba(0, 180, 216, 0.08)' : 'var(--am-surface)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--am-text)', marginBottom: 2 }}>{opt.title}</div>
+                  <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>{opt.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Lokasi Pengantaran jika Courier */}
+          {delivery === 'courier' && (
+            <div className="am-card" style={{ padding: 20, borderRadius: 20, background: 'var(--am-surface)' }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: 'var(--am-text)' }}>Titik Antar di Kampus</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <select
+                  value={selectedDropdownLocation}
+                  onChange={e => {
+                    setSelectedDropdownLocation(e.target.value);
+                    setIsCustomLocation(false);
+                  }}
+                  style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', fontSize: 13 }}
+                >
+                  <option value="">-- Pilih Titik Gedung Kampus --</option>
+                  {LOCATIONS.map(loc => (
+                    <option key={loc} value={loc}>{loc}</option>
+                  ))}
+                </select>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Atau tulis patokan detail:</label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Depan Gazebo samping Kantin..."
+                    value={customLocationText}
+                    onChange={e => {
+                      setCustomLocationText(e.target.value);
+                      setIsCustomLocation(true);
+                    }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', fontSize: 13, marginTop: 4, boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Metode Pembayaran */}
+          <div className="am-card" style={{ padding: 20, borderRadius: 20, background: 'var(--am-surface)' }}>
+            <h3 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700, color: 'var(--am-text)' }}>Metode Pembayaran</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+              {[
+                { id: 'qris', label: '💳 Midtrans / QRIS / E-Wallet' },
+                { id: 'cod', label: '💵 Bayar Tunai (COD / Kasir)' }
+              ].map(pm => (
+                <div
+                  key={pm.id}
+                  onClick={() => setPayment(pm.id as any)}
+                  style={{
+                    padding: 12,
+                    borderRadius: 12,
+                    border: `2px solid ${payment === pm.id ? 'var(--am-primary)' : 'var(--am-border)'}`,
+                    background: payment === pm.id ? 'rgba(0, 180, 216, 0.08)' : 'var(--am-surface)',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    textAlign: 'center',
+                    color: 'var(--am-text)'
+                  }}
+                >
+                  {pm.label}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Ringkasan Total & Tombol Konfirmasi */}
+          <div className="am-card" style={{ padding: 20, borderRadius: 20, background: 'var(--am-surface)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13, color: 'var(--am-text-muted)' }}>
+              <span>Subtotal Produk</span>
+              <span>{formatRupiah(subtotal)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontSize: 13, color: 'var(--am-text-muted)' }}>
+              <span>Biaya Pengantaran</span>
+              <span>{formatRupiah(deliveryFee)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, fontSize: 16, fontWeight: 900, color: 'var(--am-primary)', borderTop: '1px solid var(--am-border)', paddingTop: 12 }}>
+              <span>Total Pembayaran</span>
+              <span>{formatRupiah(total)}</span>
+            </div>
+
+            <button
+              onClick={() => {
+                if (payment === 'qris') {
+                  handleMidtransPayment();
                 } else {
-                  setIsCustomLocation(false);
-                  setSelectedDropdownLocation(e.target.value);
+                  handleRegularOrder();
                 }
               }}
-              style={{ width: '100%', padding: '10px 12px', fontSize: 13, marginBottom: isCustomLocation ? 8 : 0, borderRadius: 8 }}
-            >
-              <option value="">-- Pilih lokasi kampus --</option>
-              {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
-              <option value="custom_option">✏️ Ketik Lokasi Spesifik Sendiri (Lainnya)...</option>
-            </select>
-
-            {isCustomLocation && (
-              <textarea
-                className="am-input"
-                placeholder="Contoh: Ruang Dosen Fakultas Syariah Lt. 2 / Depan Gedung Student Center"
-                value={customLocationText}
-                onChange={e => setCustomLocationText(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', fontSize: 13, resize: 'vertical', minHeight: 65, marginTop: 4, borderRadius: 8 }}
-              />
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="am-card" style={{ padding: 16, marginBottom: 16, borderRadius: 16 }}>
-        <h3 className="am-heading" style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--am-text)' }}>💳 Metode Pembayaran</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {[
-            { key: 'qris', label: 'QRIS / Midtrans', icon: '📱' },
-            { key: 'dana', label: 'DANA', icon: '💙' },
-            { key: 'gopay', label: 'GoPay', icon: '💚' },
-            { key: 'cod', label: 'Bayar Tunai (COD)', icon: '💵' },
-          ].map(p => (
-            <button
-              key={p.key}
-              onClick={() => setPayment(p.key as PaymentMethod)}
+              disabled={loadingPayment}
               style={{
-                padding: '10px 8px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                border: `2px solid ${payment === p.key ? 'var(--am-primary)' : 'var(--am-border)'}`,
-                background: payment === p.key ? 'rgba(0,180,216,0.08)' : 'var(--am-surface)',
-                display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--am-font-body)',
-                transition: 'all 0.2s',
+                width: '100%',
+                padding: '14px',
+                borderRadius: 14,
+                border: 'none',
+                background: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)',
+                color: 'white',
+                fontSize: 15,
+                fontWeight: 800,
+                cursor: loadingPayment ? 'not-allowed' : 'pointer',
+                boxShadow: '0 4px 14px rgba(0, 180, 216, 0.3)'
               }}
             >
-              <span style={{ fontSize: 20 }}>{p.icon}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--am-text)' }}>{p.label}</span>
+              {loadingPayment ? 'Memproses Pesanan...' : payment === 'qris' ? 'Bayar via Midtrans Snap 💳' : 'Konfirmasi Pesanan Sekarang 🚀'}
             </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="am-card" style={{ padding: 16, marginBottom: 20, borderRadius: 16 }}>
-        <h3 className="am-heading" style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--am-text)' }}>🧾 Ringkasan Pesanan</h3>
-        {items.map(i => (
-          <div key={i.product.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 6 }}>
-            <span>{i.product.name} ×{i.quantity}</span>
-            <span style={{ fontWeight: 600, color: 'var(--am-text)' }}>{formatRupiah(i.product.price * i.quantity)}</span>
           </div>
-        ))}
-        <hr className="am-divider" style={{ margin: '8px 0' }} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 4 }}>
-          <span>Ongkos kirim</span>
-          <span>{delivery === 'courier' ? formatRupiah(deliveryFee) : 'Gratis'}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700 }}>
-          <span style={{ color: 'var(--am-text)' }}>Total</span>
-          <span style={{ color: 'var(--am-primary)' }}>{formatRupiah(total)}</span>
-        </div>
-      </div>
+      )}
 
-      <button
-        className="am-btn-primary"
-        style={{ width: '100%', padding: '15px 0', fontSize: 16, opacity: (delivery === 'courier' && !finalLocation) ? 0.6 : 1, borderRadius: 12 }}
-        disabled={delivery === 'courier' && !finalLocation}
-        onClick={handleStartProcess}
-      >
-        {payment === 'qris' 
-          ? '📱 Bayar dengan Midtrans & Dapatkan QR' 
-          : (delivery === 'vending' 
-              ? '🤖 Ambil di Vending Machine' 
-              : (delivery === 'pickup' ? '📄 Cetak Struk Antrian Warung' : '🛵 Pesan & Cari Driver'))}
-      </button>
+      {/* Tampilan Vending QR */}
+      {step === 'vending_qr' && vendingData && (
+        <div className="am-card" style={{ padding: 30, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>🤖✨</div>
+          <h2 style={{ margin: '0 0 6px', fontSize: 22, color: 'var(--am-text)' }}>QR Klaim Vending Machine</h2>
+          <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 20 }}>
+            Scan kode QR di layar mesin vending kampus atau masukkan kode token untuk mengeluarkan barang.
+          </p>
+
+          <div style={{ display: 'inline-block', padding: 16, background: 'white', borderRadius: 16, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', marginBottom: 16 }}>
+            <QRCodeSVG value={vendingData.vendingToken} size={200} />
+          </div>
+
+          <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: 2, color: 'var(--am-primary)', marginBottom: 12 }}>
+            TOKEN: {vendingData.vendingToken}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#16A34A', marginBottom: 20 }}>
+            Slot Mesin: #{vendingData.slotNumber}
+          </div>
+
+          <div style={{ fontSize: 12, color: '#DC2626', fontWeight: 700, marginBottom: 20 }}>
+            ⏳ Menghubungkan ke Mesin Vending dalam {countdown} detik...
+          </div>
+
+          <button
+            onClick={() => {
+              setStep('vending_dispensing');
+              setTimeout(() => setStep('vending_done'), 2000);
+            }}
+            style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 700, cursor: 'pointer' }}
+          >
+            Simulasikan Pengambilan Mesin Sekarang 📦
+          </button>
+        </div>
+      )}
+
+      {step === 'vending_dispensing' && (
+        <div className="am-card" style={{ padding: 40, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
+          <div style={{ fontSize: 54, marginBottom: 12 }}>⚙️📦</div>
+          <h3 style={{ margin: '0 0 8px', color: 'var(--am-text)' }}>Mesin Sedang Mengeluarkan Barang...</h3>
+          <p style={{ fontSize: 13, color: 'var(--am-text-muted)' }}>Mohon tunggu, gantungan kunci / barang Anda sedang diturunkan ke boks pengambilan.</p>
+        </div>
+      )}
+
+      {step === 'vending_done' && (
+        <div className="am-card" style={{ padding: 30, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
+          <div style={{ fontSize: 54, marginBottom: 12 }}>🎉✅</div>
+          <h2 style={{ margin: '0 0 8px', color: '#16A34A' }}>Barang Berhasil Diambil!</h2>
+          <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 24 }}>
+            Terima kasih telah berbelanja menggunakan Antasari Smart Vending Machine.
+          </p>
+          <button
+            onClick={() => onConfirmOrder('pickup', payment, finalLocation)}
+            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, cursor: 'pointer' }}
+          >
+            Selesai & Kembali ke Beranda 🏠
+          </button>
+        </div>
+      )}
+
+      {/* Tampilan Struk Pick-Up */}
+      {step === 'receipt_pickup' && receiptData && (
+        <div className="am-card" style={{ padding: 30, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>🧾✨</div>
+          <h2 style={{ margin: '0 0 6px', fontSize: 20, color: 'var(--am-text)' }}>Nomor Antrean Pesanan</h2>
+          <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 20 }}>
+            Tunjukkan nomor antrean ini ke kasir/tenant saat mengambil pesanan.
+          </p>
+
+          <div style={{ background: 'var(--am-bg2)', padding: '20px', borderRadius: 16, marginBottom: 24 }}>
+            <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--am-primary)', letterSpacing: 2 }}>
+              {receiptData.queueNumber}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--am-text-muted)', marginTop: 4 }}>
+              Order ID: {receiptData.orderId}
+            </div>
+          </div>
+
+          <button
+            onClick={() => onConfirmOrder('pickup', payment, finalLocation)}
+            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, cursor: 'pointer' }}
+          >
+            Kembali ke Beranda 🏠
+          </button>
+        </div>
+      )}
+
+      {/* Mencari Driver */}
+      {step === 'searching_driver' && (
+        <div className="am-card" style={{ padding: 40, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
+          <div style={{ fontSize: 54, marginBottom: 12 }}>🛵🔍</div>
+          <h3 style={{ margin: '0 0 8px', color: 'var(--am-text)' }}>Mencari Driver Antasari Terdekat...</h3>
+          <p style={{ fontSize: 13, color: 'var(--am-text-muted)' }}>Sistem sedang menyambungkan pesananmu dengan kurir mahasiswa yang bertugas.</p>
+        </div>
+      )}
+
+      {step === 'success' && (
+        <div className="am-card" style={{ padding: 30, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
+          <div style={{ fontSize: 54, marginBottom: 12 }}>🛵🎉</div>
+          <h2 style={{ margin: '0 0 8px', color: '#16A34A' }}>Driver Berhasil Ditemukan!</h2>
+          <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 24 }}>
+            Kurir sedang menuju lokasi penjual untuk mengambil pesananmu.
+          </p>
+          <button
+            onClick={() => onConfirmOrder('courier', payment, finalLocation)}
+            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, cursor: 'pointer' }}
+          >
+            Lihat Status Pengantaran 📍
+          </button>
+        </div>
+      )}
     </div>
-  )
+  );
 }

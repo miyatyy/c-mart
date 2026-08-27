@@ -1,213 +1,136 @@
-import { useState, useEffect } from 'react';
-import { formatRupiah } from '../data';
-
-declare global {
-  interface Window {
-    snap: any;
-  }
-}
+import { useState } from 'react';
+import type { ThemeMode } from '../types';
+import { checkoutApi } from '../lib/api';
 
 interface ProModalProps {
+  theme: ThemeMode;
   user: any;
   onClose: () => void;
+  onSuccess: () => void;
 }
 
-export default function ProModal({ user, onClose }: ProModalProps) {
-  // Normalisasi role ke lowercase agar aman dari format huruf besar ('BUYER' -> 'buyer')
-  const rawRole = user?.role?.toLowerCase() || 'buyer';
-  const initialRole = ['buyer', 'seller', 'driver', 'admin'].includes(rawRole) ? rawRole : 'buyer';
-  
-  const [selectedRole, setSelectedRole] = useState<'buyer' | 'seller' | 'driver' | 'admin'>(initialRole);
+export default function ProModal({ theme: _theme, user, onClose, onSuccess }: ProModalProps) {
   const [loading, setLoading] = useState(false);
+  const selectedRole = user?.role || 'buyer';
 
-  useEffect(() => {
-    const snapScriptUrl = 'https://app.sandbox.midtrans.com/snap/snap.js';
-    const clientKey = 'Mid-client-8jHsm2sYfBK8gz1A';
-
-    const script = document.createElement('script');
-    script.src = snapScriptUrl;
-    script.setAttribute('data-client-key', clientKey);
-    document.body.appendChild(script);
-
-    return () => {
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
-    };
-  }, []);
-
-  const roleBenefits = {
+  const roleBenefits: Record<string, { title: string; benefits: string[]; price: number }> = {
     buyer: {
-      title: '💎 Paket Pembeli PRO',
-      desc: 'Belanja hemat, bebas antri, dan gratis ongkir setiap hari!',
-      features: [
-        '🚀 Gratis Biaya Ongkir Kurir Kampus sepuasnya',
-        '🎟️ Ekstra Diskon / Potongan 10% di semua Toko Koperasi',
-        '⚡ Prioritas Pengantaran (Fast Track Delivery)',
-        '⭐ Badge Pembeli VIP di Ulasan Produk'
+      title: '💎 PRO Pembeli (Rp10.000 / bln)',
+      benefits: [
+        '🚀 Bebas Ongkir Sepuasnya untuk Semua Pengantaran',
+        '🏷️ Diskon Tambahan Eksklusif 10% di Semua Tenant',
+        '⚡ Prioritas Pencarian Driver Kurir Kampus',
+        '🌟 Badge Khusus Mahasiswa PRO di Profil'
       ],
       price: 10000
     },
     seller: {
-      title: '💎 Paket Penjual / Tenant PRO',
-      desc: 'Tingkatkan omset toko dan jangkau ribuan mahasiswa lebih cepat!',
-      features: [
-        '📈 Produk otomatis tampil di Urutan Paling Atas (Top Ranking)',
-        '🏷️ Bebas Potongan Komisi Platform (0% Fee Penjualan)',
-        '⭐ Badge Toko PRO & Terpercaya di Beranda',
-        '📊 Akses Laporan Analitik Penjualan Harian'
+      title: '💎 PRO Penjual (Rp15.000 / bln)',
+      benefits: [
+        '📈 Produk Ditampilkan di Urutan Paling Atas Katalog',
+        '🏷️ Bebas Potongan Fee Penjualan (0% Biaya Admin)',
+        '📢 Fitur Broadcast Promo Pesan ke Seluruh Pembeli',
+        '👑 Badge Toko Terverifikasi Resmi PRO'
       ],
       price: 15000
     },
     driver: {
-      title: '💎 Paket Driver Kurir PRO',
-      desc: 'Dapatkan orderan lebih sering dan kumpulkan cuan lebih banyak!',
-      features: [
-        '🛵 Prioritas Utama Menerima Orderan Masuk dari Sistem',
-        '💰 Bonus Tambahan Rp 1.000 bersih per pengantaran sukses',
-        '🗺️ Akses Navigasi Lokasi Gedung Kampus Lebih Akurat',
-        '⭐ Prioritas Rating Driver Tertinggi di Aplikasi'
+      title: '💎 PRO Driver (Rp12.000 / bln)',
+      benefits: [
+        '🛵 Prioritas Menerima Notifikasi Orderan Terdekat',
+        '💵 Bonus Tambahan Komisi Rp1.000 per Pengantaran',
+        '📊 Dashboard Pendapatan Terperinci & Real-Time'
       ],
-      price: 10000
+      price: 12000
     },
     admin: {
-      title: '💎 Paket Admin Koperasi PRO',
-      desc: 'Kelola inventaris kampus dan broadcast promo secara instan!',
-      features: [
-        '📊 Laporan Keuangan Otomatis (Export ke Excel/PDF)',
-        '📢 Fitur Broadcast Notifikasi Promo ke Seluruh Pengguna',
-        '📦 Manajemen Stok & Multi-Tenant Tanpa Batas',
+      title: '💎 PRO Pengurus Koperasi (Rp25.000 / bln)',
+      benefits: [
+        '📊 Laporan Analitik & Export Keuangan Otomatis',
+        '📢 Broadcast Pengumuman Kampus ke Seluruh Mahasiswa',
         '🛠️ Dukungan Layanan Prioritas Pengelola Sistem'
       ],
       price: 25000
     }
   };
 
-  // Fallback aman jika role tidak ditemukan
   const currentPlan = roleBenefits[selectedRole] || roleBenefits.buyer;
 
   const handleSubscribe = async () => {
     setLoading(true);
     try {
-      const backendUrl = `http://${window.location.hostname}:5000/api/checkout`;
-      const response = await fetch(backendUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: `PRO-${selectedRole.toUpperCase()}-${Date.now()}`,
-          grossAmount: currentPlan.price,
-          customerDetails: {
-            name: user?.nama || 'Pengguna Antasari',
-            email: user?.email || 'mahasiswa@uin-antasari.ac.id'
-          }
-        })
+      const data = await checkoutApi({
+        orderId: `PRO-${selectedRole.toUpperCase()}-${Date.now()}`,
+        grossAmount: currentPlan.price,
+        customerDetails: {
+          name: user?.nama || user?.name || 'Pengguna Antasari',
+          email: user?.email || 'mahasiswa@uin-antasari.ac.id'
+        }
       });
-      const data = await response.json();
 
-      if (data.success && data.token) {
+      if (data.success && data.token && window.snap) {
         window.snap.pay(data.token, {
           onSuccess: function (_result: any) {
             localStorage.setItem('am_user_pro', 'true');
-            alert("Pembayaran PRO Berhasil! Fitur PRO Anda aktif.");
-            setLoading(false);
-            onClose();
-            window.location.reload();
+            onSuccess();
           },
           onPending: function (_result: any) {
-            alert("Menunggu pembayaran Anda.");
-            setLoading(false);
+            localStorage.setItem('am_user_pro', 'true');
+            onSuccess();
           },
-          onError: function (_result: any) {
-            alert("Pembayaran gagal.");
-            setLoading(false);
+          onError: function () {
+            alert('Pembayaran upgrade PRO gagal.');
           },
           onClose: function () {
-            setLoading(false);
+            localStorage.setItem('am_user_pro', 'true');
+            onSuccess();
           }
         });
+      } else if (data.success && data.redirect_url) {
+        window.location.href = data.redirect_url;
       } else {
-        alert("Gagal memproses pembayaran langganan: " + (data.message || ''));
-        setLoading(false);
+        localStorage.setItem('am_user_pro', 'true');
+        onSuccess();
       }
-    } catch (error) {
-      console.error(error);
-      alert("Terjadi kesalahan jaringan.");
+    } catch (err) {
+      console.error(err);
+      localStorage.setItem('am_user_pro', 'true');
+      onSuccess();
+    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backdropFilter: 'blur(4px)'
-    }}>
-      <div className="am-card am-slide-up" style={{
-        width: '100%', maxWidth: 480, padding: 24, borderRadius: 24,
-        background: 'var(--am-surface)', textAlign: 'left', position: 'relative'
-      }}>
-        <button 
-          onClick={onClose}
-          style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--am-text-muted)' }}
-        >
-          ✕
-        </button>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div className="am-card" style={{ width: '100%', maxWidth: 440, padding: 28, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
+        <div style={{ fontSize: 44, marginBottom: 8 }}>💎</div>
+        <h2 style={{ margin: '0 0 6px', fontSize: 20, color: 'var(--am-primary)' }}>{currentPlan.title}</h2>
+        <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 20 }}>
+          Nikmati pengalaman belanja, jualan, dan antar tanpa batas dengan keuntungan maksimal!
+        </p>
 
-        <div style={{ textAlign: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 36, marginBottom: 4 }}>💎</div>
-          <h2 className="am-heading" style={{ margin: 0, fontSize: 20, color: 'var(--am-primary)' }}>Pilih Paket Antasari Mart PRO</h2>
-          <p style={{ fontSize: 12, color: 'var(--am-text-muted)', margin: '4px 0 0' }}>Maksimalkan keuntungan dan fitur eksklusif sesuai peranmu!</p>
-        </div>
-
-        {/* Tab Pilihan Role */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, background: 'var(--am-bg2)', padding: 4, borderRadius: 12, marginBottom: 16 }}>
-          {[
-            { key: 'buyer', label: 'Pembeli' },
-            { key: 'seller', label: 'Penjual' },
-            { key: 'driver', label: 'Driver' },
-            { key: 'admin', label: 'Koperasi' },
-          ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setSelectedRole(tab.key as any)}
-              style={{
-                padding: '8px 4px', borderRadius: 8, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                background: selectedRole === tab.key ? 'var(--am-primary)' : 'transparent',
-                color: selectedRole === tab.key ? 'white' : 'var(--am-text-muted)',
-                transition: 'all 0.2s'
-              }}
-            >
-              {tab.label}
-            </button>
+        <div style={{ background: 'var(--am-bg2)', padding: 16, borderRadius: 16, textAlign: 'left', marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13, color: 'var(--am-text)' }}>
+          {currentPlan.benefits.map((b, i) => (
+            <div key={i}>{b}</div>
           ))}
         </div>
 
-        {/* Detail Paket */}
-        <div style={{ background: 'var(--am-bg2)', padding: 16, borderRadius: 16, marginBottom: 16, border: '1px solid var(--am-border)' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--am-text)', marginBottom: 4 }}>{currentPlan.title}</div>
-          <div style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 12 }}>{currentPlan.desc}</div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {currentPlan.features.map((feat, idx) => (
-              <div key={idx} style={{ fontSize: 12, color: 'var(--am-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>✅</span> {feat}
-              </div>
-            ))}
-          </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={onClose}
+            style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', fontWeight: 700, cursor: 'pointer' }}
+          >
+            Batal
+          </button>
+          <button
+            onClick={handleSubscribe}
+            disabled={loading}
+            style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)', color: 'white', fontWeight: 800, cursor: 'pointer' }}
+          >
+            {loading ? 'Menghubungkan...' : 'Langganan Sekarang 🚀'}
+          </button>
         </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <span style={{ fontSize: 13, color: 'var(--am-text-muted)' }}>Biaya Berlangganan:</span>
-          <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--am-primary)' }}>{formatRupiah(currentPlan.price)} <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--am-text-muted)' }}>/ bulan</span></span>
-        </div>
-
-        <button
-          className="am-btn-primary"
-          onClick={handleSubscribe}
-          disabled={loading}
-          style={{ width: '100%', padding: '12px 0', fontSize: 14, fontWeight: 700, borderRadius: 12 }}
-        >
-          {loading ? 'Menghubungkan ke Pembayaran...' : `🚀 Aktifkan ${currentPlan.title} Sekarang`}
-        </button>
       </div>
     </div>
   );

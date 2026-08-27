@@ -1,21 +1,22 @@
-import { useState, useEffect } from 'react'
-import type { AppTab, Campus, CartItem, DeliveryMethod, PaymentMethod, SessionUser, ThemeMode, UserRole } from './types'
-import type { Product } from './types'
-import TopBar from './components/TopBar'
-import Sidebar from './components/Sidebar'
-import ProductList from './components/ProductList'
-import Cart from './components/Cart'
-import Checkout from './components/Checkout'
-import CourierTracker from './components/CourierTracker'
-import SellerDashboard from './components/SellerDashboard'
-import AdminPanel from './components/AdminPanel'
-import DriverDashboard from './components/DriverDashboard'
-import Login from './components/Login'
-import ChatPage from './components/ChatPage'
-import ProModal from './components/ProModal'
-import { ProfileModal, SuccessPopup, InfoModal, LoginPromptModal } from './components/AppModals'
-import SuperAdminPanel from './components/SuperAdminPanel'
-import VendingSimulator from './components/VendingSimulator'
+import { useState, useEffect } from 'react';
+import type { AppTab, Campus, CartItem, DeliveryMethod, PaymentMethod, SessionUser, ThemeMode, UserRole } from './types';
+import type { Product } from './types';
+import TopBar from './components/TopBar';
+import Sidebar from './components/Sidebar';
+import ProductList from './components/ProductList';
+import Cart from './components/Cart';
+import Checkout from './components/Checkout';
+import CourierTracker from './components/CourierTracker';
+import SellerDashboard from './components/SellerDashboard';
+import AdminPanel from './components/AdminPanel';
+import DriverDashboard from './components/DriverDashboard';
+import Login from './components/Login';
+import ChatPage from './components/ChatPage';
+import ProModal from './components/ProModal';
+import { ProfileModal, SuccessPopup, InfoModal, LoginPromptModal } from './components/AppModals';
+import SuperAdminPanel from './components/SuperAdminPanel';
+import VendingSimulator from './components/VendingSimulator';
+import { getChatsApi, sendChatApi } from './lib/api';
 
 const PRESET_AVATARS = [
   { id: 1, name: 'Maya (Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4' },
@@ -30,63 +31,63 @@ const PRESET_AVATARS = [
   { id: 10, name: 'Ken (Pro Stylish)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585' },
 ];
 
-const VALID_CAMPUSES: Campus[] = ['banjarmasin', 'banjarbaru']
+const VALID_CAMPUSES: Campus[] = ['banjarmasin', 'banjarbaru'];
 
 export default function App() {
-  const [_loggedIn, setLoggedIn] = useState(true)
-  const [role, setRole] = useState<UserRole>('buyer')
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
+  const [_loggedIn, setLoggedIn] = useState(true);
+  const [role, setRole] = useState<UserRole>('buyer');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const [campus, setCampus] = useState<Campus>(() => {
-    const saved = localStorage.getItem('am_user_campus')
-    return saved && (VALID_CAMPUSES as string[]).includes(saved) ? (saved as Campus) : 'banjarmasin'
-  })
+    const saved = localStorage.getItem('am_user_campus');
+    return saved && (VALID_CAMPUSES as string[]).includes(saved) ? (saved as Campus) : 'banjarmasin';
+  });
 
-  const [theme, setTheme] = useState<ThemeMode>('aesthetic')
-  const [activeTab, setActiveTab] = useState<AppTab>('home')
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [chatUnread, setChatUnread] = useState(0)
+  const [theme, setTheme] = useState<ThemeMode>('aesthetic');
+  const [activeTab, setActiveTab] = useState<AppTab>('home');
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [chatUnread, setChatUnread] = useState(0);
 
   const [user, setUser] = useState<SessionUser | null>(() => {
-    const savedUser = localStorage.getItem('am_user_session')
+    const savedUser = localStorage.getItem('am_user_session');
     if (savedUser) {
       try {
-        return JSON.parse(savedUser)
+        return JSON.parse(savedUser);
       } catch (e) {
-        console.error("Gagal parse user session:", e)
-        return null
+        console.error("Gagal parse user session:", e);
+        return null;
       }
     }
-    return null
-  })
+    return null;
+  });
 
-  const isGuest = !user
+  const isGuest = !user;
 
   const [hasActiveOrder, setHasActiveOrder] = useState(() => {
-    return !isGuest && localStorage.getItem('am_active_order') === 'true'
-  })
+    return !isGuest && localStorage.getItem('am_active_order') === 'true';
+  });
 
   const currentUser = user || {
     id: 'guest',
     nama: 'Pengunjung Tamu',
     email: 'tamu@antasari.mart',
-    role: 'buyer',
-    roles: ['buyer'],
+    role: 'buyer' as UserRole,
+    roles: ['buyer' as UserRole],
     avatar: ''
-  }
+  };
 
-  const [modalMessage, setModalMessage] = useState<{ title: string; desc: string; icon: string } | null>(null)
-  const [showLoginModal, setShowLoginModal] = useState(false)
-  const [showProModal, setShowProModal] = useState(false)
+  const [modalMessage, setModalMessage] = useState<{ title: string; desc: string; icon: string } | null>(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showProModal, setShowProModal] = useState(false);
 
-  const [showProfileModal, setShowProfileModal] = useState(false)
-  const [currentName, setCurrentName] = useState(currentUser.nama || currentUser.name || 'Pengunjung Tamu')
-  const [selectedCampus, setSelectedCampus] = useState<Campus>(campus)
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [currentName, setCurrentName] = useState(currentUser.nama || currentUser.name || 'Pengunjung Tamu');
+  const [selectedCampus, setSelectedCampus] = useState<Campus>(campus);
   const [userAvatar, setUserAvatar] = useState<string>(() => {
-    return localStorage.getItem('am_user_avatar') || currentUser.avatar || ''
-  })
-  const [currentAvatar, setCurrentAvatar] = useState(userAvatar)
-  const [successPopupMessage, setSuccessPopupMessage] = useState<string | null>(null)
+    return localStorage.getItem('am_user_avatar') || currentUser.avatar || '';
+  });
+  const [currentAvatar, setCurrentAvatar] = useState(userAvatar);
+  const [successPopupMessage, setSuccessPopupMessage] = useState<string | null>(null);
 
   const customModalStyles = `
     @keyframes floatCute {
@@ -120,27 +121,27 @@ export default function App() {
     .check-icon-anim {
       animation: checkAnim 0.4s ease-in-out 0.1s both;
     }
-  `
+  `;
 
   useEffect(() => {
-    const saved = localStorage.getItem('am_tab') as AppTab | null
-    if (saved) setActiveTab(saved)
-  }, [])
+    const saved = localStorage.getItem('am_tab') as AppTab | null;
+    if (saved) setActiveTab(saved);
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('am_tab', activeTab)
-  }, [activeTab])
+    localStorage.setItem('am_tab', activeTab);
+  }, [activeTab]);
 
   useEffect(() => {
-    localStorage.setItem('am_user_campus', campus)
-  }, [campus])
+    localStorage.setItem('am_user_campus', campus);
+  }, [campus]);
 
   useEffect(() => {
     if (user) {
       const userRoles = Array.isArray(user.roles) ? user.roles : [user.role || 'buyer'];
       setRole(userRoles[0] as UserRole);
     }
-  }, [user])
+  }, [user]);
 
   useEffect(() => {
     if (isGuest || !currentUser?.email) {
@@ -151,11 +152,9 @@ export default function App() {
     const fetchUnreadChats = async () => {
       try {
         const identifier = currentUser.email;
-        const res = await fetch(`http://${window.location.hostname}:5000/api/chats/${identifier}`);
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await getChatsApi(identifier);
         if (data.success && Array.isArray(data.chats)) {
-          const unread = data.chats.filter((c: { receiverId: string; isRead?: boolean }) =>
+          const unread = data.chats.filter((c: any) =>
             c.receiverId === identifier && c.isRead === false
           ).length;
           setChatUnread(Math.max(0, unread));
@@ -177,6 +176,7 @@ export default function App() {
     setCampus(c);
 
     localStorage.setItem('am_user_session', JSON.stringify(userData));
+    localStorage.setItem('am_current_user', JSON.stringify(userData));
     localStorage.setItem('am_user_campus', c);
     if (userData.avatar) {
       setUserAvatar(userData.avatar);
@@ -189,6 +189,7 @@ export default function App() {
     setUser(null);
     setRole('buyer');
     localStorage.removeItem('am_user_session');
+    localStorage.removeItem('am_current_user');
     localStorage.removeItem('am_user_avatar');
     localStorage.removeItem('am_user_name');
     localStorage.removeItem('am_active_order');
@@ -239,9 +240,9 @@ export default function App() {
       return;
     }
     setCart(prev => {
-      const existing = prev.find(i => i.product.id === product.id)
-      if (existing) return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + qty } : i)
-      return [...prev, { product, quantity: qty }]
+      const existing = prev.find(i => i.product.id === product.id);
+      if (existing) return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + qty } : i);
+      return [...prev, { product, quantity: qty }];
     });
   }
 
@@ -263,18 +264,14 @@ export default function App() {
     const initialMessage = `Halo Kak ${sellerName}, saya ingin bertanya mengenai produk "${productName}" apakah stoknya tersedia?`;
 
     try {
-      await fetch(`http://${window.location.hostname}:5000/api/chats`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fromId: buyerEmail,
-          fromName: buyerName,
-          fromRole: currentUser.role || 'buyer',
-          toId: sellerId,
-          toName: sellerName,
-          toRole: 'seller',
-          text: initialMessage
-        })
+      await sendChatApi({
+        fromId: buyerEmail,
+        fromName: buyerName,
+        fromRole: currentUser.role || 'buyer',
+        toId: sellerId,
+        toName: sellerName,
+        toRole: 'seller',
+        text: initialMessage
       });
     } catch (error) {
       console.error("Gagal membuat/mengirim chat room:", error);
@@ -295,7 +292,7 @@ export default function App() {
   };
 
   if (activeTab === 'login_page') {
-    return <Login onLogin={(r, g, c, ud) => { handleLogin(r, g, c, ud); setActiveTab('home'); }} />
+    return <Login onLogin={(r, g, c, ud) => { handleLogin(r, g, c, ud); setActiveTab('home'); }} />;
   }
 
   return (
@@ -453,79 +450,94 @@ export default function App() {
           {activeTab === 'admin' && (
             <AdminPanel
               theme={theme}
-              currentUserId={currentUser.email}
-              currentUserName={currentUser.nama || currentUser.name}
-              isUserPro={currentUser.isPro}
+              campus={campus}
+              currentUserId={currentUser.email || 'admin@koperasi.com'}
+              currentUserName={currentUser.nama || currentUser.name || 'Pengurus Koperasi'}
             />
           )}
+
           {activeTab === 'super_admin' && (
-            <SuperAdminPanel theme={theme} />
+            <SuperAdminPanel
+              theme={theme}
+            />
           )}
 
-          {/* 💡 TAB VENDING SIMULATOR */}
           {activeTab === 'vending_simulator' && (
-            <VendingSimulator theme={theme} />
+            <VendingSimulator
+              theme={theme}
+            />
           )}
         </main>
       </div>
 
-      {showProModal && (
-        <ProModal
-          user={currentUser}
-          onClose={() => setShowProModal(false)}
-        />
-      )}
-
-      {showProfileModal && (
-        <ProfileModal
-          email={currentUser.email}
-          currentName={currentName}
-          setCurrentName={setCurrentName}
-          currentAvatar={currentAvatar}
-          setCurrentAvatar={setCurrentAvatar}
-          selectedCampus={selectedCampus}
-          setSelectedCampus={setSelectedCampus}
-          onClose={() => setShowProfileModal(false)}
-          onImageChange={handleImageChange}
-          presetAvatars={PRESET_AVATARS}
-          onSave={() => {
-            setCampus(selectedCampus);
-            setUserAvatar(currentAvatar || '');
-
-            localStorage.setItem('am_user_avatar', currentAvatar || '');
-            localStorage.setItem('am_user_campus', selectedCampus);
-            localStorage.setItem('am_user_name', currentName);
-
-            if (user) {
-              const updatedUser = { ...user, nama: currentName, avatar: currentAvatar };
-              setUser(updatedUser);
-              localStorage.setItem('am_user_session', JSON.stringify(updatedUser));
-            }
-
-            setShowProfileModal(false);
-            setSuccessPopupMessage("Profil, foto avatar, dan lokasi kampus berhasil diperbarui secara permanen!");
-          }}
-        />
-      )}
-
-      {successPopupMessage && (
-        <SuccessPopup message={successPopupMessage} onClose={() => setSuccessPopupMessage(null)} />
-      )}
-
+      {/* Modals */}
       {modalMessage && (
-        <InfoModal data={modalMessage} onClose={() => setModalMessage(null)} />
+        <InfoModal
+          title={modalMessage.title}
+          desc={modalMessage.desc}
+          icon={modalMessage.icon}
+          onClose={() => setModalMessage(null)}
+        />
       )}
 
       {showLoginModal && (
         <LoginPromptModal
-          onDismiss={() => setShowLoginModal(false)}
-          onGoToLogin={() => {
+          onClose={() => setShowLoginModal(false)}
+          onLogin={() => {
             setShowLoginModal(false);
             setActiveTab('login_page');
           }}
         />
       )}
 
+      {showProModal && (
+        <ProModal
+          theme={theme}
+          user={currentUser}
+          onClose={() => setShowProModal(false)}
+          onSuccess={() => {
+            setShowProModal(false);
+            setSuccessPopupMessage('Selamat! Akun Anda kini telah resmi di-upgrade ke Antasari Mart PRO 💎');
+          }}
+        />
+      )}
+
+      {showProfileModal && (
+        <ProfileModal
+          theme={theme}
+          user={currentUser}
+          currentName={currentName}
+          setCurrentName={setCurrentName}
+          selectedCampus={selectedCampus}
+          setSelectedCampus={setSelectedCampus}
+          currentAvatar={currentAvatar}
+          setCurrentAvatar={setCurrentAvatar}
+          presetAvatars={PRESET_AVATARS}
+          onImageChange={handleImageChange}
+          onSave={() => {
+            setCampus(selectedCampus);
+            setUserAvatar(currentAvatar);
+            localStorage.setItem('am_user_avatar', currentAvatar);
+            localStorage.setItem('am_user_name', currentName);
+            if (user) {
+              const updated = { ...user, nama: currentName, name: currentName, avatar: currentAvatar };
+              setUser(updated);
+              localStorage.setItem('am_user_session', JSON.stringify(updated));
+              localStorage.setItem('am_current_user', JSON.stringify(updated));
+            }
+            setShowProfileModal(false);
+            setSuccessPopupMessage('Profil & Avatar Anda berhasil diperbarui! ✨');
+          }}
+          onClose={() => setShowProfileModal(false)}
+        />
+      )}
+
+      {successPopupMessage && (
+        <SuccessPopup
+          message={successPopupMessage}
+          onClose={() => setSuccessPopupMessage(null)}
+        />
+      )}
     </div>
-  )
+  );
 }

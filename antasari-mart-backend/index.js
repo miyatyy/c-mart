@@ -7,19 +7,40 @@ const upload = require('./uploadMiddleware');
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
-
-// 🔒 TAHAP 3: Import Library Keamanan Tambahan
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
+// 🔒 TAHAP 1: VALIDASI KETAT ENVIRONMENT VARIABLES SAAT STARTUP
+const requiredEnvs = [
+  'PORT',
+  'DB_NAME',
+  'DB_USER',
+  'DB_PASS',
+  'DB_HOST',
+  'MIDTRANS_SERVER_KEY',
+  'MIDTRANS_CLIENT_KEY',
+  'EMAIL_SERVICE_USER',
+  'EMAIL_SERVICE_PASS',
+  'SUPER_ADMIN_EMAIL',
+  'SUPER_ADMIN_PASSWORD'
+];
+
+const missingEnvs = requiredEnvs.filter(envName => !process.env[envName] || process.env[envName].trim() === '');
+if (missingEnvs.length > 0) {
+  console.error('\n❌ [FATAL CONFIGURATION ERROR] Variabel environment wajib berikut belum diisi pada file .env:');
+  missingEnvs.forEach(env => console.error(`   - ${env}`));
+  console.error('\nServer dihentikan demi keamanan. Pastikan semua variabel terisi di .env.\n');
+  process.exit(1);
+}
+
 const app = express();
 
-// 🔒 TAHAP 3: Pasang Helmet untuk Sembunyikan Identitas Server & Mencegah XSS
+// 🔒 Pasang Helmet untuk Sembunyikan Identitas Server & Mencegah XSS
 app.use(helmet({
   crossOriginResourcePolicy: false // Agar gambar Cloudinary tetap dapat di-load oleh Frontend
 }));
 
-// 🔒 TAHAP 3: Pasang Rate Limiter Khusus Endpoint Login (Maksimal 10 percobaan per 15 menit)
+// 🔒 Rate Limiter Khusus Endpoint Login (Maksimal 10 percobaan per 15 menit)
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
   max: 10,
@@ -41,32 +62,41 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// --- 1. KONEKSI POSTGRESQL ---
-const DB_NAME = process.env.DB_NAME || 'Antasari_Mart';
-const DB_USER = process.env.DB_USER || 'postgres';
-const DB_PASS = process.env.DB_PASS || '140203';
-const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_NAME = process.env.DB_NAME;
+const DB_USER = process.env.DB_USER;
+const DB_PASS = process.env.DB_PASS;
+const DB_HOST = process.env.DB_HOST;
+const DB_PORT = process.env.DB_PORT || 5432;
+
+const isRemoteDb = DB_HOST && !['localhost', '127.0.0.1'].includes(DB_HOST.toLowerCase());
 
 const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
   host: DB_HOST,
+  port: parseInt(DB_PORT),
   dialect: 'postgres',
-  logging: false  
+  logging: false,
+  dialectOptions: isRemoteDb ? {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false
+    }
+  } : {}
 });
 
-// 📧 Transporter Email Nodemailer
+// 📧 Transporter Email Nodemailer (Strict Env)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_SERVICE_USER || 'emailkamu@gmail.com',
-    pass: process.env.EMAIL_SERVICE_PASS || 'xxxx xxxx xxxx xxxx'
+    user: process.env.EMAIL_SERVICE_USER,
+    pass: process.env.EMAIL_SERVICE_PASS
   }
 });
 
-// --- 2. INISIALISASI MIDTRANS SNAP ---
+// --- 2. INISIALISASI MIDTRANS SNAP (Strict Env) ---
 const snap = new midtransClient.Snap({
   isProduction: false,
-  serverKey: process.env.MIDTRANS_SERVER_KEY || 'Mid-server-ByzS9GccjkoE9ME18xKE1GNu',
-  clientKey: process.env.MIDTRANS_CLIENT_KEY || 'Mid-client-8jHsm2sYfBK8gz1A'
+  serverKey: process.env.MIDTRANS_SERVER_KEY,
+  clientKey: process.env.MIDTRANS_CLIENT_KEY
 });
 
 // --- 3. DEFINISI TABEL (MODEL) ---
@@ -142,7 +172,6 @@ const Voucher = sequelize.define('Voucher', {
   isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
 });
 
-// 💬 TABEL CHAT / PESAN BERBASIS STRING
 const Chat = sequelize.define('Chat', {
   roomId: { type: DataTypes.STRING, allowNull: false }, 
   senderId: { type: DataTypes.STRING, allowNull: false }, 
@@ -163,29 +192,30 @@ function buildRoomId(emailA, emailB) {
 async function initDB() {
   try {
     await sequelize.authenticate();
-    console.log('Koneksi PostgreSQL berhasil!');
+    console.log('✅ Koneksi PostgreSQL berhasil!');
 
     await sequelize.sync({ alter: true }); 
-    console.log('Database & Tabel berhasil disinkronkan!');
+    console.log('✅ Database & Tabel berhasil disinkronkan!');
 
-    const superAdminCheck = await User.findOne({ where: { email: 'miyya@gmail.com' } });
+    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
+    const superAdminCheck = await User.findOne({ where: { email: superAdminEmail } });
     if (!superAdminCheck) {
       const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('123', salt);
+      const hashedPassword = await bcrypt.hash(process.env.SUPER_ADMIN_PASSWORD, salt);
 
       await User.create({
-        email: 'miyya@gmail.com',
+        email: superAdminEmail,
         password: hashedPassword,
-        nama: 'Nurmiyaty (Super Admin)',
+        nama: process.env.SUPER_ADMIN_NAME || 'Nurmiyaty (Super Admin)',
         roles: ['super_admin', 'buyer', 'seller', 'driver', 'admin'],
         role: 'super_admin',
         isPro: true,
         avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4'
       });
-      console.log('Akun Super Admin (miyya@gmail.com) berhasil diinisialisasi!');
+      console.log(`👑 Akun Super Admin (${superAdminEmail}) berhasil diinisialisasi!`);
     }
   } catch (error) {
-    console.error('Gagal terhubung ke PostgreSQL:', error);
+    console.error('❌ Gagal terhubung ke PostgreSQL:', error);
   }
 }
 
@@ -259,12 +289,12 @@ app.post('/api/otp/verify', async (req, res) => {
   }
 });
 
-// UPLOAD FOTO
+// UPLOAD FOTO KE CLOUDINARY
 app.post('/api/upload', (req, res) => {
   upload.single('foto')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ success: false, message: '⚠️ Ukuran foto terlalu besar! Maksimal 200 KB.' });
+        return res.status(400).json({ success: false, message: '⚠️ Ukuran foto terlalu besar! Maksimal 2 MB.' });
       }
       return res.status(400).json({ success: false, message: err.message });
     } else if (err) {
@@ -283,16 +313,17 @@ app.post('/api/login', loginLimiter, async (req, res) => {
     const { email, password } = req.body;
     const clientIp = req.ip || req.connection.remoteAddress;
 
+    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
     let user = await User.findOne({ where: { email } });
 
-    if (email === 'miyya@gmail.com') {
+    if (email === superAdminEmail) {
       if (!user) {
         const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password || '123', salt);
+        const hashedPassword = await bcrypt.hash(password || process.env.SUPER_ADMIN_PASSWORD, salt);
         user = await User.create({
-          email: 'miyya@gmail.com',
+          email: superAdminEmail,
           password: hashedPassword,
-          nama: 'Nurmiyaty (Super Admin)',
+          nama: process.env.SUPER_ADMIN_NAME || 'Nurmiyaty (Super Admin)',
           roles: ['super_admin', 'buyer', 'seller', 'driver', 'admin'],
           role: 'super_admin',
           isPro: true,
@@ -344,10 +375,10 @@ app.post('/api/register', async (req, res) => {
     if (!rawRoles && role) rawRoles = [role];
     if (!Array.isArray(rawRoles)) rawRoles = ['buyer'];
 
-    let assignedRoles = rawRoles.filter(r => ['buyer', 'seller', 'driver'].includes(r));
+    let assignedRoles = rawRoles.filter(r => ['buyer', 'seller', 'driver', 'admin'].includes(r));
     if (assignedRoles.length === 0) assignedRoles = ['buyer'];
 
-    if (email === 'miyya@gmail.com') {
+    if (email === process.env.SUPER_ADMIN_EMAIL) {
       assignedRoles = ['super_admin', 'buyer', 'seller', 'driver', 'admin'];
     }
 
@@ -378,6 +409,7 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
+// ACTIVITY LOGS
 app.get('/api/activity-logs', async (req, res) => {
   try {
     const logs = await ActivityLog.findAll({ order: [['createdAt', 'DESC']], limit: 100 });
@@ -395,7 +427,7 @@ app.get('/api/products', async (req, res) => {
     if (sellerId && sellerId !== 'undefined' && sellerId !== 'null' && sellerId.trim() !== '') {
       whereClause.sellerId = sellerId;
     }
-    const products = await Product.findAll({ where: whereClause });
+    const products = await Product.findAll({ where: whereClause, order: [['createdAt', 'DESC']] });
     res.json({ success: true, products });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -404,11 +436,18 @@ app.get('/api/products', async (req, res) => {
 
 app.post('/api/products', async (req, res) => {
   try {
-    const { nama_produk, deskripsi, harga, stok, kategori, foto, kampus, sellerId, sellerName, slotNumber } = req.body;
+    const { nama_produk, name, deskripsi, description, harga, price, stok, stock, kategori, category, foto, image, kampus, sellerId, sellerName, slotNumber } = req.body;
     const newProduct = await Product.create({ 
-      nama_produk, deskripsi, harga, stok: stok || 0, kategori, 
-      foto: foto || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format',
-      kampus: kampus || 'banjarmasin', sellerId: sellerId || 'seller_1', sellerName: sellerName || 'Penjual', slotNumber: slotNumber || 1
+      nama_produk: nama_produk || name, 
+      deskripsi: deskripsi !== undefined ? deskripsi : description, 
+      harga: harga !== undefined ? parseInt(harga) : parseInt(price || 0), 
+      stok: stok !== undefined ? parseInt(stok) : parseInt(stock || 0), 
+      kategori: kategori || category, 
+      foto: foto || image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format',
+      kampus: kampus || 'banjarmasin', 
+      sellerId: sellerId || 'seller_1', 
+      sellerName: sellerName || 'Penjual', 
+      slotNumber: slotNumber !== undefined ? parseInt(slotNumber) : 1
     });
     res.json({ success: true, message: "Produk berhasil ditambahkan!", product: newProduct });
   } catch (error) {
@@ -416,6 +455,55 @@ app.post('/api/products', async (req, res) => {
   }
 });
 
+// UPDATE PRODUK
+app.put('/api/products/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nama_produk, name, deskripsi, description, harga, price, stok, stock, kategori, category, foto, image, slotNumber, userRole, userEmail } = req.body;
+
+    const isSuperAdmin = (userRole === 'super_admin') || (userEmail === process.env.SUPER_ADMIN_EMAIL);
+    const product = await Product.findByPk(id);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Produk tidak ditemukan!' });
+    }
+
+    const isOwner = userEmail && product.sellerId === userEmail;
+    if (!isSuperAdmin && !isOwner) {
+      return res.status(403).json({ success: false, message: 'Akses ditolak! Anda tidak memiliki izin mengedit produk ini.' });
+    }
+
+    await product.update({
+      nama_produk: nama_produk || name || product.nama_produk,
+      deskripsi: deskripsi !== undefined ? deskripsi : (description !== undefined ? description : product.deskripsi),
+      harga: harga !== undefined ? parseInt(harga) : (price !== undefined ? parseInt(price) : product.harga),
+      stok: stok !== undefined ? parseInt(stok) : (stock !== undefined ? parseInt(stock) : product.stok),
+      kategori: kategori || category || product.kategori,
+      foto: foto || image || product.foto,
+      slotNumber: slotNumber !== undefined ? parseInt(slotNumber) : product.slotNumber
+    });
+
+    res.json({ success: true, message: 'Data produk berhasil diperbarui!', product });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// HAPUS PRODUK
+app.delete('/api/products/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const product = await Product.findByPk(id);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Produk tidak ditemukan!' });
+    }
+    await product.destroy();
+    res.json({ success: true, message: 'Produk berhasil dihapus!' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// KONTAK USERS
 app.get('/api/users/contacts/:email', async (req, res) => {
   try {
     const { email } = req.params;
@@ -429,7 +517,7 @@ app.get('/api/users/contacts/:email', async (req, res) => {
   }
 });
 
-// --- 💬 ENDPOINT CHAT / PESAN (TERHUBUNG KE DATABASE) ---
+// CHAT / PESAN
 app.get('/api/chats/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params;
@@ -453,6 +541,9 @@ app.get('/api/chats/:identifier', async (req, res) => {
 app.post('/api/chats', async (req, res) => {
   try {
     const { fromId, fromName, fromRole, toId, toName, toRole, text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, message: 'Isi pesan tidak boleh kosong!' });
+    }
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const newChat = await Chat.create({
@@ -477,6 +568,29 @@ app.delete('/api/chats/:id', async (req, res) => {
     const { id } = req.params;
     await Chat.destroy({ where: { id } });
     res.json({ success: true, message: "Pesan dihapus." });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// VOUCHERS
+app.get('/api/vouchers', async (req, res) => {
+  try {
+    const { sellerId } = req.query;
+    let whereClause = {};
+    if (sellerId) whereClause.sellerId = sellerId;
+    const vouchers = await Voucher.findAll({ where: whereClause });
+    res.json({ success: true, vouchers });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/vouchers', async (req, res) => {
+  try {
+    const { sellerId, code, discountPercent } = req.body;
+    const voucher = await Voucher.create({ sellerId, code, discountPercent, isActive: true });
+    res.json({ success: true, message: 'Voucher berhasil dibuat!', voucher });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -576,38 +690,7 @@ app.post('/api/vending/claim', async (req, res) => {
   }
 });
 
-// UPDATE PRODUK
-app.put('/api/products/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { nama_produk, name, deskripsi, description, harga, price, stok, stock, kategori, category, foto, image, slotNumber, userRole, userEmail } = req.body;
-
-    const isSuperAdmin = (userRole === 'super_admin') || (userEmail === 'miyya@gmail.com');
-    if (!isSuperAdmin) {
-      return res.status(403).json({ success: false, message: 'Akses ditolak! Hanya Super Admin yang diizinkan.' });
-    }
-
-    const product = await Product.findByPk(id);
-    if (!product) {
-      return res.status(404).json({ success: false, message: 'Produk tidak ditemukan!' });
-    }
-
-    await product.update({
-      nama_produk: nama_produk || name || product.nama_produk,
-      deskripsi: deskripsi !== undefined ? deskripsi : (description !== undefined ? description : product.deskripsi),
-      harga: harga !== undefined ? parseInt(harga) : (price !== undefined ? parseInt(price) : product.harga),
-      stok: stok !== undefined ? parseInt(stok) : (stock !== undefined ? parseInt(stock) : product.stok),
-      kategori: kategori || category || product.kategori,
-      foto: foto || image || product.foto,
-      slotNumber: slotNumber !== undefined ? parseInt(slotNumber) : product.slotNumber
-    });
-
-    res.json({ success: true, message: 'Data produk berhasil diperbarui!', product });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-app.listen(5000, '0.0.0.0', () => {
-  console.log('Server running on port 5000');
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server Antasari Mart running on port ${PORT}`);
 });

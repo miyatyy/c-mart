@@ -1,39 +1,26 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
-import Swal from 'sweetalert2'
-import type { ThemeMode, Campus } from '../types'
+import { useState, useEffect, useRef, useMemo } from 'react';
+import Swal from 'sweetalert2';
+import type { ThemeMode, Campus } from '../types';
+import { getChatsApi, sendChatApi, getContactsApi, type BackendChatMessage } from '../lib/api';
 
 interface ChatPageProps {
-  theme: ThemeMode
-  campus: Campus
-}
-
-interface ChatMessage {
-  id: number
-  roomId: string
-  senderId: string
-  senderName: string
-  senderRole: string
-  receiverId: string
-  receiverName: string
-  receiverRole: string
-  text: string
-  time: string
-  createdAt: string
+  theme: ThemeMode;
+  campus: Campus;
 }
 
 interface Contact {
-  id: number
-  nama: string
-  email: string
-  role: string
+  id: number;
+  nama: string;
+  email: string;
+  role: string;
 }
 
 interface RoomInfo {
-  roomId: string
-  otherId: string
-  otherName: string
-  otherRole: string
-  messages: ChatMessage[]
+  roomId: string;
+  otherId: string;
+  otherName: string;
+  otherRole: string;
+  messages: BackendChatMessage[];
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -41,569 +28,323 @@ const ROLE_LABEL: Record<string, string> = {
   seller: 'Penjual',
   driver: 'Driver',
   admin: 'Admin',
-}
+  super_admin: 'Super Admin'
+};
 
 const ROLE_EMOJI: Record<string, string> = {
   buyer: '🛍️',
   seller: '🏪',
   driver: '🛵',
   admin: '🛡️',
-}
+  super_admin: '👑'
+};
 
 function buildRoomId(a: string, b: string) {
-  return [a, b].map(s => s.toLowerCase()).sort().join('__')
+  return [a, b].map(s => s.toLowerCase()).sort().join('__');
 }
 
 export default function ChatPage({ theme: _theme }: ChatPageProps) {
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const [chats, setChats] = useState<ChatMessage[]>([])
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(null)
-  const [pendingContact, setPendingContact] = useState<Contact | null>(null)
-  const [messageInput, setMessageInput] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [showContactPicker, setShowContactPicker] = useState(false)
-  const [contactSearch, setContactSearch] = useState('')
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [chats, setChats] = useState<BackendChatMessage[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [pendingContact, setPendingContact] = useState<Contact | null>(null);
+  const [messageInput, setMessageInput] = useState('');
+  const [_loading, setLoading] = useState(true);
+  const [showContactPicker, setShowContactPicker] = useState(false);
+  const [contactSearch, setContactSearch] = useState('');
+  const [filterRole, _setFilterRole] = useState<string>('all');
 
-  // 💡 State untuk Filter Kategori Obrolan
-  const [filterRole, setFilterRole] = useState<string>('all')
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const prevChatsLengthRef = useRef<number>(0);
 
-  const chatScrollRef = useRef<HTMLDivElement>(null)
-  
-  const apiBase = `http://${window.location.hostname}:5000`
-  const prevChatsLengthRef = useRef<number>(0)
+  const fetchChats = async (identifier: string, isPolling = false) => {
+    try {
+      const data = await getChatsApi(identifier);
+      if (data.success && Array.isArray(data.chats)) {
+        if (isPolling && data.chats.length > prevChatsLengthRef.current) {
+          const newMsg = data.chats[data.chats.length - 1];
+          if (newMsg.senderId !== identifier && 'Notification' in window && Notification.permission === 'granted') {
+            new Notification(`Pesan Baru dari ${newMsg.senderName}`, {
+              body: newMsg.text,
+              icon: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile'
+            });
+          }
+        }
+        prevChatsLengthRef.current = data.chats.length;
+        setChats(data.chats);
+      }
+    } catch (e) {
+      console.error("Gagal mengambil data chat:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchContacts = async (identifier: string) => {
+    try {
+      const data = await getContactsApi(identifier);
+      if (data.success && Array.isArray(data.contacts)) {
+        setContacts(data.contacts);
+      }
+    } catch (e) {
+      console.error("Gagal mengambil daftar kontak:", e);
+    }
+  };
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('am_current_user') || '{"email": "miyya@gmail.com", "nama": "Miyatul", "role": "buyer"}')
-    setCurrentUser(user)
+    const user = JSON.parse(localStorage.getItem('am_user_session') || localStorage.getItem('am_current_user') || '{"email": "miyya@gmail.com", "nama": "Pengguna", "role": "buyer"}');
+    setCurrentUser(user);
 
-    const identifier = user.email
-    fetchChats(identifier)
-    fetchContacts(identifier)
+    const identifier = user.email;
+    fetchChats(identifier);
+    fetchContacts(identifier);
 
     if ('Notification' in window && Notification.permission !== 'granted') {
-      Notification.requestPermission()
+      Notification.requestPermission();
     }
 
     const interval = setInterval(() => {
-      fetchChats(identifier, true)
-    }, 2000)
+      fetchChats(identifier, true);
+    }, 2500);
 
-    return () => clearInterval(interval)
-  }, [])
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-  }, [chats, activeRoomId])
+  }, [chats, activeRoomId]);
 
-  async function fetchChats(identifier: string, isBackground = false) {
-    try {
-      const res = await fetch(`${apiBase}/api/chats/${identifier}`)
-      const data = await res.json()
-      if (data.success && data.chats) {
-        if (isBackground && data.chats.length > prevChatsLengthRef.current) {
-          const latestMsg = data.chats[data.chats.length - 1]
-          if (latestMsg.senderId !== identifier) {
-            triggerBrowserNotification(latestMsg.senderName, latestMsg.text)
-          }
-        }
-        prevChatsLengthRef.current = data.chats.length
-        setChats(data.chats)
+  const rooms = useMemo(() => {
+    if (!currentUser) return [];
+    const myId = currentUser.email;
+    const roomMap = new Map<string, RoomInfo>();
+
+    chats.forEach(c => {
+      const isSender = c.senderId.toLowerCase() === myId.toLowerCase();
+      const otherId = isSender ? c.receiverId : c.senderId;
+      const otherName = isSender ? c.receiverName : c.senderName;
+      const otherRole = isSender ? c.receiverRole : c.senderRole;
+      const rId = c.roomId || buildRoomId(myId, otherId);
+
+      if (!roomMap.has(rId)) {
+        roomMap.set(rId, {
+          roomId: rId,
+          otherId,
+          otherName: otherName || otherId,
+          otherRole: otherRole || 'buyer',
+          messages: []
+        });
       }
-      if (!isBackground) setLoading(false)
-    } catch (err) {
-      console.error('Gagal mengambil data chat:', err)
-      if (!isBackground) setLoading(false)
-    }
-  }
+      roomMap.get(rId)!.messages.push(c);
+    });
 
-  function triggerBrowserNotification(senderName: string, text: string) {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(`💬 Pesan Baru dari ${senderName}`, {
-        body: text,
-        icon: 'https://api.dicebear.com/7.x/adventurer/svg?seed=AntasariMart&backgroundColor=00b4d8'
-      })
-    }
-  }
+    return Array.from(roomMap.values());
+  }, [chats, currentUser]);
 
-  async function fetchContacts(identifier: string) {
-    try {
-      const res = await fetch(`${apiBase}/api/users/contacts/${identifier}`)
-      const data = await res.json()
-      if (data.success && data.contacts) {
-        setContacts(data.contacts)
-      }
-    } catch (err) {
-      console.error('Gagal mengambil daftar kontak:', err)
-    }
-  }
-
-  const chatRooms: RoomInfo[] = useMemo(() => {
-    if (!currentUser) return []
-    const me = currentUser.email
-    const map: Record<string, RoomInfo> = {}
-
-    chats.forEach(msg => {
-      const isMeSender = msg.senderId === me
-      const otherId = isMeSender ? msg.receiverId : msg.senderId
-      const otherName = isMeSender ? msg.receiverName : msg.senderName
-      const otherRole = isMeSender ? msg.receiverRole : msg.senderRole
-
-      if (!map[msg.roomId]) {
-        map[msg.roomId] = { roomId: msg.roomId, otherId, otherName, otherRole, messages: [] }
-      }
-      map[msg.roomId].messages.push(msg)
-    })
-
-    return Object.values(map).sort((a, b) => {
-      const lastA = a.messages[a.messages.length - 1]
-      const lastB = b.messages[b.messages.length - 1]
-      return new Date(lastA?.createdAt).getTime() - new Date(lastB?.createdAt).getTime()
-    })
-  }, [chats, currentUser])
-
-  // 💡 Filter Daftar Obrolan Berdasarkan Role / Kategori
-  const filteredRooms = useMemo(() => {
-    if (filterRole === 'all') return chatRooms
-    return chatRooms.filter(r => r.otherRole.toLowerCase() === filterRole.toLowerCase())
-  }, [chatRooms, filterRole])
-
-  const activeRoom: RoomInfo | null = useMemo(() => {
-    if (pendingContact) {
+  const activeRoom = useMemo(() => {
+    if (pendingContact && currentUser) {
+      const rId = buildRoomId(currentUser.email, pendingContact.email);
+      const existing = rooms.find(r => r.roomId === rId);
+      if (existing) return existing;
       return {
-        roomId: buildRoomId(currentUser?.email || '', pendingContact.email),
+        roomId: rId,
         otherId: pendingContact.email,
         otherName: pendingContact.nama,
         otherRole: pendingContact.role,
-        messages: [],
-      }
+        messages: []
+      };
     }
-    return chatRooms.find(r => r.roomId === activeRoomId) || null
-  }, [chatRooms, activeRoomId, pendingContact, currentUser])
+    return rooms.find(r => r.roomId === activeRoomId) || rooms[0] || null;
+  }, [rooms, activeRoomId, pendingContact, currentUser]);
 
-  function openRoom(room: RoomInfo) {
-    setPendingContact(null)
-    setActiveRoomId(room.roomId)
-  }
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageInput.trim() || !activeRoom || !currentUser) return;
 
-  function openContact(contact: Contact) {
-    const existing = chatRooms.find(r => r.otherId === contact.email)
-    if (existing) {
-      openRoom(existing)
-    } else {
-      setActiveRoomId(null)
-      setPendingContact(contact)
-    }
-    setShowContactPicker(false)
-    setContactSearch('')
-  }
-
-  async function handleSendMessage(e: React.FormEvent) {
-    e.preventDefault()
-    if (!messageInput.trim() || !activeRoom || !currentUser) return
-
-    const payload = {
-      fromId: currentUser.email,
-      fromName: currentUser.nama || currentUser.name || currentUser.email,
-      fromRole: currentUser.role || 'buyer',
-      toId: activeRoom.otherId,
-      toName: activeRoom.otherName,
-      toRole: activeRoom.otherRole,
-      text: messageInput.trim(),
-    }
+    const textToSend = messageInput.trim();
+    setMessageInput('');
 
     try {
-      const res = await fetch(`${apiBase}/api/chats`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-      if (data.success && data.chat) {
-        setMessageInput('')
-        setChats(prev => [...prev, data.chat])
-        prevChatsLengthRef.current = prevChatsLengthRef.current + 1
-        setPendingContact(null)
-        setActiveRoomId(data.chat.roomId)
+      const res = await sendChatApi({
+        fromId: currentUser.email,
+        fromName: currentUser.nama || currentUser.name || 'Pengguna',
+        fromRole: currentUser.role || 'buyer',
+        toId: activeRoom.otherId,
+        toName: activeRoom.otherName,
+        toRole: activeRoom.otherRole,
+        text: textToSend
+      });
+
+      if (res.success) {
+        if (pendingContact) setPendingContact(null);
+        setActiveRoomId(activeRoom.roomId);
+        fetchChats(currentUser.email);
       }
-    } catch (err) {
-      console.error('Gagal mengirim pesan:', err)
+    } catch (err: any) {
+      Swal.fire({ icon: 'error', title: 'Gagal Mengirim', text: 'Tidak dapat mengirim pesan: ' + err.message });
     }
-  }
-
-  async function handleDeleteMessage(chatId: number) {
-    const result = await Swal.fire({
-      title: 'Hapus Pesan?',
-      text: "Pesan yang dihapus tidak dapat dikembalikan lagi.",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#EF4444',
-      cancelButtonColor: '#64748B',
-      confirmButtonText: 'Ya, Hapus!',
-      cancelButtonText: 'Batal',
-      background: '#ffffff',
-      color: '#333333',
-    })
-
-    if (!result.isConfirmed) return
-
-    try {
-      const res = await fetch(`${apiBase}/api/chats/${chatId}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (data.success) {
-        setChats(prev => prev.filter(c => c.id !== chatId))
-        prevChatsLengthRef.current = Math.max(0, prevChatsLengthRef.current - 1)
-        
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'success',
-          title: 'Pesan berhasil dihapus',
-          showConfirmButton: false,
-          timer: 1500,
-          timerProgressBar: true
-        })
-      }
-    } catch (err) {
-      console.error('Gagal menghapus pesan:', err)
-    }
-  }
-
-  // 💡 Hapus Semua Percakapan di Ruang Aktif Ini
-  async function handleClearCurrentRoom() {
-    if (!activeRoom || activeRoom.messages.length === 0) return
-
-    const result = await Swal.fire({
-      title: 'Hapus Semua Percakapan?',
-      text: `Semua riwayat chat dengan ${activeRoom.otherName} akan dihapus permanen.`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#EF4444',
-      cancelButtonColor: '#64748B',
-      confirmButtonText: 'Ya, Hapus Semua!',
-      cancelButtonText: 'Batal'
-    })
-
-    if (!result.isConfirmed) return
-
-    try {
-      // Hapus satu per satu pesan dalam room aktif dari database
-      const msgIds = activeRoom.messages.map(m => m.id)
-      for (const id of msgIds) {
-        await fetch(`${apiBase}/api/chats/${id}`, { method: 'DELETE' })
-      }
-
-      setChats(prev => prev.filter(c => c.roomId !== activeRoom.roomId))
-      setActiveRoomId(null)
-      setPendingContact(null)
-
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'success',
-        title: 'Seluruh percakapan berhasil dihapus',
-        showConfirmButton: false,
-        timer: 1500,
-        timerProgressBar: true
-      })
-    } catch (err) {
-      console.error('Gagal menghapus seluruh percakapan:', err)
-    }
-  }
+  };
 
   const filteredContacts = contacts.filter(c =>
-    !contactSearch.trim() ||
-    c.nama.toLowerCase().includes(contactSearch.toLowerCase()) ||
-    c.email.toLowerCase().includes(contactSearch.toLowerCase()) ||
-    (ROLE_LABEL[c.role] || c.role).toLowerCase().includes(contactSearch.toLowerCase())
-  )
-
-  if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--am-text-muted)' }}>Memuat obrolan...</div>
-  }
-
-  const isChatActive = activeRoom !== null
+    (filterRole === 'all' || c.role === filterRole) &&
+    (c.nama.toLowerCase().includes(contactSearch.toLowerCase()) || c.email.toLowerCase().includes(contactSearch.toLowerCase()))
+  );
 
   return (
-    <div style={{ padding: '12px', maxWidth: 900, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--am-text)', margin: 0 }}>
-          💬 Ruang Obrolan
-        </h2>
-        <button
-          onClick={() => setShowContactPicker(true)}
-          className="am-btn-primary"
-          style={{ padding: '8px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}
-        >
-          + Obrolan Baru
-        </button>
-      </div>
-
-      <div className="chat-container-grid" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', background: 'var(--am-surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid var(--am-border)', minHeight: 480, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-
-        {/* Daftar Obrolan (Kiri) */}
-        <div className="chat-sidebar-pane" style={{ borderRight: '1px solid var(--am-border)', background: 'var(--am-bg2)', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: 12, borderBottom: '1px solid var(--am-border)' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--am-text-muted)', marginBottom: 6 }}>
-              PILAH OBROLAN BERDASARKAN ROLE:
-            </div>
-            {/* 💡 Tombol Filter / Pilah Obrolan */}
-            <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }} className="scroll-hide">
-              {[
-                { key: 'all', label: 'Semua' },
-                { key: 'seller', label: '🏪 Penjual' },
-                { key: 'buyer', label: '🛍️ Pembeli' },
-                { key: 'driver', label: '🛵 Driver' },
-                { key: 'admin', label: '🛡️ Admin' },
-              ].map(f => (
-                <button
-                  key={f.key}
-                  onClick={() => setFilterRole(f.key)}
-                  style={{
-                    padding: '4px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
-                    border: '1px solid var(--am-border)',
-                    background: filterRole === f.key ? 'var(--am-primary)' : 'var(--am-surface)',
-                    color: filterRole === f.key ? 'white' : 'var(--am-text-muted)',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
+    <div style={{ display: 'flex', height: 'calc(100vh - 70px)', background: 'var(--am-bg)', fontFamily: 'var(--am-font-body)' }}>
+      {/* Sidebar Daftar Chat / Kontak */}
+      <div style={{ width: 320, borderRight: '1px solid var(--am-border)', background: 'var(--am-surface)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '16px', borderBottom: '1px solid var(--am-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--am-text)' }}>💬 Obrolan Kampus</h3>
+            <button
+              onClick={() => setShowContactPicker(p => !p)}
+              style={{ padding: '6px 12px', borderRadius: 10, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+            >
+              + Chat Baru
+            </button>
           </div>
 
-          <div style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: 'var(--am-text-muted)', borderBottom: '1px solid var(--am-border)' }}>
-            DAFTAR OBROLAN ({filteredRooms.length})
-          </div>
-
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {filteredRooms.length === 0 && !pendingContact && (
-              <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--am-text-muted)', fontSize: 12 }}>
-                <div style={{ fontSize: 32, marginBottom: 6 }}>📭</div>
-                Tidak ada obrolan untuk kategori ini.
-              </div>
-            )}
-            {filteredRooms.map(room => {
-              const lastMsg = room.messages[room.messages.length - 1]
-              const isSelected = !pendingContact && room.roomId === activeRoom?.roomId
-              return (
-                <div
-                  key={room.roomId}
-                  onClick={() => openRoom(room)}
-                  style={{
-                    padding: '12px 14px', borderBottom: '1px solid var(--am-border)', cursor: 'pointer',
-                    background: isSelected ? 'rgba(0,180,216,0.1)' : 'transparent',
-                    transition: 'background 0.2s',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2, gap: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {ROLE_EMOJI[room.otherRole] || '👤'} {room.otherName}
-                    </span>
-                    <span style={{ fontSize: 10, color: 'var(--am-text-muted)', flexShrink: 0 }}>{lastMsg?.time}</span>
-                  </div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--am-primary)', marginBottom: 2 }}>
-                    {ROLE_LABEL[room.otherRole] || room.otherRole}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--am-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {lastMsg?.senderId === currentUser?.email ? 'Anda: ' : ''}{lastMsg?.text}
-                  </div>
-                </div>
-              )
-            })}
-            {pendingContact && (
-              <div style={{ padding: '12px 14px', background: 'rgba(0,180,216,0.1)', borderBottom: '1px solid var(--am-border)' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)' }}>
-                  {ROLE_EMOJI[pendingContact.role] || '👤'} {pendingContact.nama}
-                </div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--am-primary)' }}>
-                  {ROLE_LABEL[pendingContact.role] || pendingContact.role} · Obrolan baru
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Jendela Chat Aktif (Kanan) */}
-        <div className="chat-main-pane" style={{ display: 'flex', flexDirection: 'column', background: 'var(--am-surface)' }}>
-          {activeRoom ? (
-            <>
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--am-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button
-                    className="chat-back-btn"
-                    onClick={() => { setActiveRoomId(null); setPendingContact(null); }}
-                    style={{ display: 'none', background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', padding: '0 8px 0 0', color: 'var(--am-text)' }}
-                    title="Kembali ke Daftar Obrolan"
-                  >
-                    ←
-                  </button>
-                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--am-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14 }}>
-                    {ROLE_EMOJI[activeRoom.otherRole] || '👤'}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)' }}>
-                      {activeRoom.otherName}
-                    </div>
-                    <div style={{ fontSize: 10, color: '#16A34A' }}>
-                      ● {ROLE_LABEL[activeRoom.otherRole] || activeRoom.otherRole} · Real-Time
-                    </div>
-                  </div>
-                </div>
-
-                {/* 💡 Tombol Hapus Seluruh Obrolan di Ruangan Ini */}
-                {activeRoom.messages.length > 0 && (
-                  <button
-                    onClick={handleClearCurrentRoom}
-                    style={{ background: '#FEE2E2', color: '#DC2626', border: 'none', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                    title="Hapus semua riwayat chat di ruangan ini"
-                  >
-                    🗑️ Hapus Semua Chat
-                  </button>
-                )}
-              </div>
-
-              {/* Area Bubble Pesan */}
-              <div ref={chatScrollRef} style={{ flex: 1, padding: 14, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 380 }}>
-                {activeRoom.messages.length === 0 && (
-                  <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--am-text-muted)', fontSize: 12 }}>
-                    Belum ada pesan. Kirim pesan pertama ke {activeRoom.otherName} 👋
-                  </div>
-                )}
-                {activeRoom.messages.map((msg: ChatMessage) => {
-                  const isMe = msg.senderId === currentUser?.email
-
-                  return (
-                    <div key={msg.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '75%', position: 'relative' }}>
-                      <div style={{
-                        padding: '10px 14px', borderRadius: 14, fontSize: 13, lineHeight: 1.4,
-                        background: isMe ? 'var(--am-primary)' : 'var(--am-bg2)',
-                        color: isMe ? 'white' : 'var(--am-text)',
-                        boxShadow: '0 2px 5px rgba(0,0,0,0.03)',
-                      }}>
-                        {msg.text}
-                        <div style={{ fontSize: 9, textAlign: 'right', marginTop: 4, opacity: 0.8 }}>
-                          {msg.time}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteMessage(msg.id)}
-                        title="Hapus pesan"
-                        style={{
-                          position: 'absolute', top: 2, [isMe ? 'left' : 'right']: -22,
-                          background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, opacity: 0.6,
-                        }}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* Form Kirim Pesan */}
-              <form onSubmit={handleSendMessage} style={{ padding: '10px 14px', borderTop: '1px solid var(--am-border)', display: 'flex', gap: 8 }}>
-                <input
-                  type="text"
-                  className="am-input"
-                  placeholder={`Tulis pesan untuk ${activeRoom.otherName}...`}
-                  value={messageInput}
-                  onChange={e => setMessageInput(e.target.value)}
-                  style={{ flex: '1', padding: '10px 14px', fontSize: 13, borderRadius: 999 }}
-                />
-                <button
-                  type="submit"
-                  className="am-btn-primary"
-                  style={{ padding: '10px 18px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}
-                >
-                  Kirim 🚀
-                </button>
-              </form>
-            </>
-          ) : (
-            <div className="chat-empty-pane" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--am-text-muted)', gap: 8, padding: 20, textAlign: 'center' }}>
-              <div style={{ fontSize: 36 }}>💬</div>
-              <div style={{ fontSize: 13 }}>Pilih obrolan di sebelah kiri, atau mulai obrolan baru.</div>
-            </div>
+          {showContactPicker && (
+            <input
+              type="text"
+              placeholder="Cari nama kontak / role..."
+              value={contactSearch}
+              onChange={e => setContactSearch(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--am-border)', fontSize: 12, boxSizing: 'border-box' }}
+            />
           )}
         </div>
 
-      </div>
-
-      {/* CSS Responsif Mobile */}
-      <style>{`
-        @media (max-width: 768px) {
-          .chat-container-grid {
-            grid-template-columns: 1fr !important;
-            min-height: calc(100vh - 160px) !important;
-          }
-          ${isChatActive ? `
-            .chat-sidebar-pane { display: none !important; }
-            .chat-main-pane { display: flex !important; flex: 1 !important; }
-            .chat-back-btn { display: inline-flex !important; }
-          ` : `
-            .chat-sidebar-pane { display: block !important; width: 100% !important; }
-            .chat-main-pane { display: none !important; }
-          `}
-        }
-      `}</style>
-
-      {showContactPicker && (
-        <div
-          onClick={() => setShowContactPicker(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backdropFilter: 'blur(4px)' }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            className="am-card"
-            style={{ width: '100%', maxWidth: 420, maxHeight: '80vh', display: 'flex', flexDirection: 'column', background: 'var(--am-surface)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.25)' }}
-          >
-            <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--am-border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--am-text)' }}>Pilih Kontak</h3>
-                <button onClick={() => setShowContactPicker(false)} style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: 'var(--am-text-muted)' }}>✕</button>
-              </div>
-              <input
-                className="am-input"
-                placeholder="Cari nama, email, atau role..."
-                value={contactSearch}
-                onChange={e => setContactSearch(e.target.value)}
-                style={{ width: '100%', padding: '10px 14px', fontSize: 13, borderRadius: 10 }}
-                autoFocus
-              />
-            </div>
-            <div style={{ overflowY: 'auto', flex: 1 }}>
-              {filteredContacts.length === 0 && (
-                <div style={{ padding: 24, textAlign: 'center', color: 'var(--am-text-muted)', fontSize: 13 }}>
-                  Tidak ada kontak ditemukan.
-                </div>
-              )}
-              {filteredContacts.map(contact => (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {showContactPicker ? (
+            <div style={{ padding: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--am-text-muted)', padding: '6px 8px' }}>PILIH KONTAK TUJUAN:</div>
+              {filteredContacts.map(c => (
                 <div
-                  key={contact.email}
-                  onClick={() => openContact(contact)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', cursor: 'pointer', borderBottom: '1px solid var(--am-border)' }}
+                  key={c.id}
+                  onClick={() => {
+                    setPendingContact(c);
+                    setActiveRoomId(buildRoomId(currentUser.email, c.email));
+                    setShowContactPicker(false);
+                  }}
+                  style={{ padding: '10px', borderRadius: 10, cursor: 'pointer', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10, background: 'var(--am-bg2)' }}
                 >
-                  <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--am-bg2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-                    {ROLE_EMOJI[contact.role] || '👤'}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {contact.nama}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>
-                      {ROLE_LABEL[contact.role] || contact.role} · {contact.email}
-                    </div>
+                  <div style={{ fontSize: 20 }}>{ROLE_EMOJI[c.role] || '👤'}</div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--am-text)' }}>{c.nama}</div>
+                    <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>{ROLE_LABEL[c.role] || c.role} • {c.email}</div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          ) : rooms.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--am-text-muted)', fontSize: 13 }}>
+              Belum ada riwayat pesan.<br />Klik <strong>+ Chat Baru</strong> untuk memulai obrolan.
+            </div>
+          ) : (
+            rooms.map(r => {
+              const isActive = activeRoom?.roomId === r.roomId;
+              const lastMsg = r.messages[r.messages.length - 1];
+              return (
+                <div
+                  key={r.roomId}
+                  onClick={() => { setActiveRoomId(r.roomId); setPendingContact(null); }}
+                  style={{
+                    padding: '12px 14px',
+                    borderBottom: '1px solid var(--am-border)',
+                    cursor: 'pointer',
+                    background: isActive ? 'rgba(0, 180, 216, 0.1)' : 'transparent',
+                    borderLeft: isActive ? '4px solid var(--am-primary)' : '4px solid transparent'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--am-text)' }}>
+                      {ROLE_EMOJI[r.otherRole] || '👤'} {r.otherName}
+                    </span>
+                    <span style={{ fontSize: 10, color: 'var(--am-text-muted)' }}>{lastMsg?.time}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--am-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {lastMsg?.text || 'Mulai percakapan...'}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
-      )}
+      </div>
+
+      {/* Main Chat View */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--am-bg)' }}>
+        {activeRoom ? (
+          <>
+            {/* Header Chat */}
+            <div style={{ padding: '14px 20px', background: 'var(--am-surface)', borderBottom: '1px solid var(--am-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ fontSize: 24 }}>{ROLE_EMOJI[activeRoom.otherRole] || '👤'}</div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--am-text)' }}>{activeRoom.otherName}</h4>
+                <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>{ROLE_LABEL[activeRoom.otherRole] || activeRoom.otherRole} • {activeRoom.otherId}</div>
+              </div>
+            </div>
+
+            {/* Bubble Chat List */}
+            <div ref={chatScrollRef} style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {activeRoom.messages.length === 0 ? (
+                <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--am-text-muted)', fontSize: 13 }}>
+                  Kirim pesan pertama Anda ke <strong>{activeRoom.otherName}</strong>! 👋
+                </div>
+              ) : (
+                activeRoom.messages.map((m, idx) => {
+                  const isMine = m.senderId.toLowerCase() === currentUser.email.toLowerCase();
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        alignSelf: isMine ? 'flex-end' : 'flex-start',
+                        maxWidth: '70%',
+                        padding: '10px 14px',
+                        borderRadius: isMine ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
+                        background: isMine ? 'var(--am-primary)' : 'var(--am-surface)',
+                        color: isMine ? 'white' : 'var(--am-text)',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                        border: isMine ? 'none' : '1px solid var(--am-border)'
+                      }}
+                    >
+                      <div style={{ fontSize: 13, lineHeight: 1.4 }}>{m.text}</div>
+                      <div style={{ fontSize: 10, textAlign: 'right', marginTop: 4, opacity: 0.75 }}>{m.time}</div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Form Kirim Pesan */}
+            <form onSubmit={handleSendMessage} style={{ padding: '14px 20px', background: 'var(--am-surface)', borderTop: '1px solid var(--am-border)', display: 'flex', gap: 10 }}>
+              <input
+                type="text"
+                placeholder={`Tulis pesan untuk ${activeRoom.otherName}...`}
+                value={messageInput}
+                onChange={e => setMessageInput(e.target.value)}
+                style={{ flex: 1, padding: '12px 16px', borderRadius: 12, border: '1px solid var(--am-border)', fontSize: 13, outline: 'none', background: 'var(--am-bg)', color: 'var(--am-text)' }}
+              />
+              <button
+                type="submit"
+                style={{ padding: '0 20px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
+              >
+                Kirim 🚀
+              </button>
+            </form>
+          </>
+        ) : (
+          <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--am-text-muted)' }}>
+            <div style={{ fontSize: 48, marginBottom: 10 }}>💬</div>
+            <h3>Pilih obrolan dari daftar untuk mulai berbalas pesan</h3>
+          </div>
+        )}
+      </div>
     </div>
-  )
+  );
 }
