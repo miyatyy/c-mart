@@ -10,9 +10,8 @@ const nodemailer = require('nodemailer');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
-// 🔒 TAHAP 1: VALIDASI KETAT ENVIRONMENT VARIABLES SAAT STARTUP
+// 🔒 VALIDASI ENVIRONMENT VARIABLES
 const requiredEnvs = [
-  'PORT',
   'DB_NAME',
   'DB_USER',
   'DB_PASS',
@@ -27,10 +26,12 @@ const requiredEnvs = [
 
 const missingEnvs = requiredEnvs.filter(envName => !process.env[envName] || process.env[envName].trim() === '');
 if (missingEnvs.length > 0) {
-  console.error('\n❌ [FATAL CONFIGURATION ERROR] Variabel environment wajib berikut belum diisi pada file .env:');
+  console.error('\n⚠️ [CONFIGURATION WARNING] Variabel environment berikut belum terisi:');
   missingEnvs.forEach(env => console.error(`   - ${env}`));
-  console.error('\nServer dihentikan demi keamanan. Pastikan semua variabel terisi di .env.\n');
-  process.exit(1);
+  if (!process.env.VERCEL) {
+    console.error('\nServer lokal dihentikan. Pastikan semua variabel terisi di .env.\n');
+    process.exit(1);
+  }
 }
 
 const app = express();
@@ -189,42 +190,73 @@ function buildRoomId(emailA, emailB) {
 }
 
 // --- 4. INISIALISASI DATABASE ---
+let dbInitPromise = null;
 async function initDB() {
-  try {
-    await sequelize.authenticate();
-    console.log('✅ Koneksi PostgreSQL berhasil!');
+  if (dbInitPromise) return dbInitPromise;
+  dbInitPromise = (async () => {
+    try {
+      if (!process.env.DB_HOST || !process.env.DB_USER) {
+        console.warn('⚠️ Database credentials belum lengkap di environment.');
+        return;
+      }
+      await sequelize.authenticate();
+      console.log('✅ Koneksi PostgreSQL berhasil!');
 
-    await sequelize.sync({ alter: true }); 
-    console.log('✅ Database & Tabel berhasil disinkronkan!');
+      await sequelize.sync(); 
+      console.log('✅ Database & Tabel berhasil disinkronkan!');
 
-    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
-    const superAdminCheck = await User.findOne({ where: { email: superAdminEmail } });
-    if (!superAdminCheck) {
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(process.env.SUPER_ADMIN_PASSWORD, salt);
+      const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
+      if (superAdminEmail && process.env.SUPER_ADMIN_PASSWORD) {
+        const superAdminCheck = await User.findOne({ where: { email: superAdminEmail } });
+        if (!superAdminCheck) {
+          const salt = await bcrypt.genSalt(10);
+          const hashedPassword = await bcrypt.hash(process.env.SUPER_ADMIN_PASSWORD, salt);
 
-      await User.create({
-        email: superAdminEmail,
-        password: hashedPassword,
-        nama: process.env.SUPER_ADMIN_NAME || 'Nurmiyaty (Super Admin)',
-        roles: ['super_admin', 'buyer', 'seller', 'driver', 'admin'],
-        role: 'super_admin',
-        isPro: true,
-        avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4'
-      });
-      console.log(`👑 Akun Super Admin (${superAdminEmail}) berhasil diinisialisasi!`);
+          await User.create({
+            email: superAdminEmail,
+            password: hashedPassword,
+            nama: process.env.SUPER_ADMIN_NAME || 'Nurmiyaty (Super Admin)',
+            roles: ['super_admin', 'buyer', 'seller', 'driver', 'admin'],
+            role: 'super_admin',
+            isPro: true,
+            avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4'
+          });
+          console.log(`👑 Akun Super Admin (${superAdminEmail}) berhasil diinisialisasi!`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Gagal terhubung ke PostgreSQL:', error.message);
     }
-  } catch (error) {
-    console.error('❌ Gagal terhubung ke PostgreSQL:', error);
-  }
+  })();
+  return dbInitPromise;
 }
 
-initDB();
+// Middleware agar DB terhubung saat request datang
+app.use(async (req, res, next) => {
+  try {
+    await initDB();
+  } catch (e) {
+    console.error('DB Middleware Init Error:', e);
+  }
+  next();
+});
 
 // --- 5. ENDPOINT API ---
 
 app.get('/', (req, res) => {
-  res.send('Back-end Antasari Mart aktif & berjalan normal!');
+  res.json({
+    status: 'success',
+    message: '🌸 Server API Antasari Mart aktif & berjalan normal di Vercel!',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    uptime: process.uptime(),
+    db: !!process.env.DB_HOST
+  });
 });
 
 // 📧 1. ENDPOINT KIRIM OTP
