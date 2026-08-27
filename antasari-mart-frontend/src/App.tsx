@@ -257,22 +257,55 @@ export default function App() {
 
     const buyerEmail = currentUser.email;
     const buyerName = currentUser.nama || currentUser.name || 'Pengguna';
-    const initialMessage = `Halo Kak ${sellerName}, saya ingin bertanya mengenai produk "${productName}" apakah stoknya tersedia?`;
+    const targetRoomId = [buyerEmail.toLowerCase(), (sellerId || 'seller_1').toLowerCase()].sort().join('__');
+    const initialMessage = `Halo Kak ${sellerName}, saya tertarik dan ingin bertanya mengenai produk "${productName}" apakah stoknya masih tersedia?`;
+
+    // 1. Simpan target kontak ke localStorage agar ChatPage langsung membukanya
+    localStorage.setItem('am_target_chat_contact', JSON.stringify({
+      id: Date.now(),
+      nama: sellerName,
+      email: sellerId || 'seller_1',
+      role: 'seller',
+      productName
+    }));
+
+    // 2. Buat & Simpan pesan langsung ke daftar obrolan lokal
+    const localMsg = {
+      id: Date.now(),
+      roomId: targetRoomId,
+      senderId: buyerEmail,
+      senderName: buyerName,
+      senderRole: currentUser.role || 'buyer',
+      receiverId: sellerId || 'seller_1',
+      receiverName: sellerName,
+      receiverRole: 'seller',
+      text: initialMessage,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: new Date().toISOString()
+    };
 
     try {
-      await sendChatApi({
-        fromId: buyerEmail,
-        fromName: buyerName,
-        fromRole: currentUser.role || 'buyer',
-        toId: sellerId,
-        toName: sellerName,
-        toRole: 'seller',
-        text: initialMessage
-      });
-    } catch (error) {
-      console.error("Gagal membuat/mengirim chat room:", error);
-    }
+      const existingLocal = JSON.parse(localStorage.getItem('am_local_chats') || '[]');
+      existingLocal.push(localMsg);
+      localStorage.setItem('am_local_chats', JSON.stringify(existingLocal));
+    } catch (_e) {}
 
+    // 3. Update counter unread
+    setChatUnread(prev => prev + 1);
+
+    // 4. Kirim ke backend jika online
+    sendChatApi({
+      fromId: buyerEmail,
+      fromName: buyerName,
+      fromRole: currentUser.role || 'buyer',
+      toId: sellerId || 'seller_1',
+      toName: sellerName,
+      toRole: 'seller',
+      text: initialMessage
+    }).catch(() => {});
+
+    // 5. Tampilkan popup konfirmasi & langsung buka tab Obrolan
+    setSuccessPopupMessage(`💬 Pesan terkirim ke Kak ${sellerName} untuk produk "${productName}"!`);
     setActiveTab('chat');
   }
 

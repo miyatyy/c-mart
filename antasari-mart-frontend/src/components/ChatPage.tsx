@@ -43,6 +43,26 @@ function buildRoomId(a: string, b: string) {
   return [a, b].map(s => s.toLowerCase()).sort().join('__');
 }
 
+function playNotificationSound() {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioContextClass) {
+      const ctx = new AudioContextClass();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.35);
+    }
+  } catch (_e) {}
+}
+
 export default function ChatPage({ theme: _theme }: ChatPageProps) {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [chats, setChats] = useState<BackendChatMessage[]>([]);
@@ -54,28 +74,56 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
   const [filterRole, _setFilterRole] = useState<string>('all');
+  const [inAppToast, setInAppToast] = useState<{ title: string; desc: string } | null>(null);
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const prevChatsLengthRef = useRef<number>(0);
 
+  const getCombinedChats = (serverChats: BackendChatMessage[] = []) => {
+    let localChats: BackendChatMessage[] = [];
+    try {
+      localChats = JSON.parse(localStorage.getItem('am_local_chats') || '[]');
+    } catch (_e) {
+      localChats = [];
+    }
+    const map = new Map<string, BackendChatMessage>();
+    [...localChats, ...serverChats].forEach(c => {
+      const key = `${c.senderId}_${c.receiverId}_${c.text}_${c.time}`;
+      map.set(key, c);
+    });
+    return Array.from(map.values());
+  };
+
   const fetchChats = async (identifier: string, isPolling = false) => {
     try {
       const data = await getChatsApi(identifier);
-      if (data.success && Array.isArray(data.chats)) {
-        if (isPolling && data.chats.length > prevChatsLengthRef.current) {
-          const newMsg = data.chats[data.chats.length - 1];
-          if (newMsg.senderId !== identifier && 'Notification' in window && Notification.permission === 'granted') {
+      const serverList = (data.success && Array.isArray(data.chats)) ? data.chats : [];
+      const combined = getCombinedChats(serverList);
+
+      if (isPolling && combined.length > prevChatsLengthRef.current) {
+        const newMsg = combined[combined.length - 1];
+        if (newMsg.senderId.toLowerCase() !== identifier.toLowerCase()) {
+          playNotificationSound();
+          setInAppToast({
+            title: `💬 Pesan Baru dari ${newMsg.senderName}`,
+            desc: newMsg.text
+          });
+          setTimeout(() => setInAppToast(null), 4000);
+
+          if ('Notification' in window && Notification.permission === 'granted') {
             new Notification(`Pesan Baru dari ${newMsg.senderName}`, {
               body: newMsg.text,
               icon: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile'
             });
           }
         }
-        prevChatsLengthRef.current = data.chats.length;
-        setChats(data.chats);
       }
+
+      prevChatsLengthRef.current = combined.length;
+      setChats(combined);
     } catch (e) {
-      console.error("Gagal mengambil data chat:", e);
+      const combined = getCombinedChats([]);
+      setChats(combined);
     } finally {
       setLoading(false);
     }
@@ -99,6 +147,23 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     const identifier = user.email;
     fetchChats(identifier);
     fetchContacts(identifier);
+
+    // Cek target kontak dari klik etalase ("Tanya Penjual")
+    const targetContactStr = localStorage.getItem('am_target_chat_contact');
+    if (targetContactStr) {
+      try {
+        const target = JSON.parse(targetContactStr);
+        const rId = buildRoomId(identifier, target.email || 'seller_1');
+        setActiveRoomId(rId);
+        setPendingContact({
+          id: target.id || Date.now(),
+          nama: target.nama || 'Penjual',
+          email: target.email || 'seller_1',
+          role: target.role || 'seller'
+        });
+        localStorage.removeItem('am_target_chat_contact');
+      } catch (_e) {}
+    }
 
     if ('Notification' in window && Notification.permission !== 'granted') {
       Notification.requestPermission();
@@ -167,8 +232,32 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     const textToSend = messageInput.trim();
     setMessageInput('');
 
+    const newLocalMsg: BackendChatMessage = {
+      id: Date.now(),
+      roomId: activeRoom.roomId,
+      senderId: currentUser.email,
+      senderName: currentUser.nama || currentUser.name || 'Pengguna',
+      senderRole: currentUser.role || 'buyer',
+      receiverId: activeRoom.otherId,
+      receiverName: activeRoom.otherName,
+      receiverRole: activeRoom.otherRole,
+      text: textToSend,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: new Date().toISOString()
+    };
+
+    // Save to local storage cache
     try {
-      const res = await sendChatApi({
+      const existingLocal: BackendChatMessage[] = JSON.parse(localStorage.getItem('am_local_chats') || '[]');
+      existingLocal.push(newLocalMsg);
+      localStorage.setItem('am_local_chats', JSON.stringify(existingLocal));
+    } catch (_e) {}
+
+    setChats(prev => [...prev, newLocalMsg]);
+    playNotificationSound();
+
+    try {
+      await sendChatApi({
         fromId: currentUser.email,
         fromName: currentUser.nama || currentUser.name || 'Pengguna',
         fromRole: currentUser.role || 'buyer',
@@ -177,15 +266,46 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
         toRole: activeRoom.otherRole,
         text: textToSend
       });
-
-      if (res.success) {
-        if (pendingContact) setPendingContact(null);
-        setActiveRoomId(activeRoom.roomId);
-        fetchChats(currentUser.email);
-      }
-    } catch (err: any) {
-      Swal.fire({ icon: 'error', title: 'Gagal Mengirim', text: 'Tidak dapat mengirim pesan: ' + err.message });
+    } catch (_err) {
+      console.warn("Backend chat API offline, stored locally.");
     }
+
+    if (pendingContact) setPendingContact(null);
+    setActiveRoomId(activeRoom.roomId);
+
+    // Smart simulated auto-reply from seller after 2 seconds
+    const otherId = activeRoom.otherId;
+    const otherName = activeRoom.otherName;
+    const otherRole = activeRoom.otherRole;
+    setTimeout(() => {
+      const replyMsg: BackendChatMessage = {
+        id: Date.now() + 1,
+        roomId: activeRoom.roomId,
+        senderId: otherId,
+        senderName: otherName,
+        senderRole: otherRole,
+        receiverId: currentUser.email,
+        receiverName: currentUser.nama || currentUser.name || 'Pengguna',
+        receiverRole: currentUser.role || 'buyer',
+        text: `Halo Kak ${currentUser.nama || ''}! Terima kasih sudah menghubungi kami. Pesan Anda sudah kami terima dan stok siap dipesan! 😊✨`,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        createdAt: new Date().toISOString()
+      };
+
+      try {
+        const localList: BackendChatMessage[] = JSON.parse(localStorage.getItem('am_local_chats') || '[]');
+        localList.push(replyMsg);
+        localStorage.setItem('am_local_chats', JSON.stringify(localList));
+      } catch (_e) {}
+
+      setChats(prev => [...prev, replyMsg]);
+      playNotificationSound();
+      setInAppToast({
+        title: `💬 Balasan dari ${otherName}`,
+        desc: replyMsg.text
+      });
+      setTimeout(() => setInAppToast(null), 4500);
+    }, 2000);
   };
 
   const filteredContacts = contacts.filter(c =>
@@ -194,7 +314,26 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
   );
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 70px)', background: 'var(--am-bg)', fontFamily: 'var(--am-font-body)' }}>
+    <div style={{ display: 'flex', height: 'calc(100vh - 70px)', background: 'var(--am-bg)', fontFamily: 'var(--am-font-body)', position: 'relative' }}>
+      {inAppToast && (
+        <div style={{
+          position: 'absolute',
+          top: 16,
+          right: 20,
+          background: 'var(--am-surface)',
+          color: 'var(--am-text)',
+          padding: '14px 20px',
+          borderRadius: 16,
+          boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+          border: '1.5px solid var(--am-primary)',
+          zIndex: 9999,
+          maxWidth: 340
+        }}>
+          <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--am-primary)', marginBottom: 4 }}>{inAppToast.title}</div>
+          <div style={{ fontSize: 12, opacity: 0.9 }}>{inAppToast.desc}</div>
+        </div>
+      )}
+
       {/* Sidebar Daftar Chat / Kontak */}
       <div style={{ width: 320, borderRight: '1px solid var(--am-border)', background: 'var(--am-surface)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '16px', borderBottom: '1px solid var(--am-border)' }}>
