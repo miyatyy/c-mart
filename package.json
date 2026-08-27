@@ -1,0 +1,8 @@
+{
+  "name": "project-antasari-mart",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm run build --prefix antasari-mart-frontend",
+    "start": "npm start --prefix antasari-mart-backend"
+  }
+}
