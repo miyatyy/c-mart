@@ -263,8 +263,30 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
           resetCaptcha();
         }
       } else {
-        const isSuperAdminEmail = (email === 'miyya@gmail.com' || email === 'mnurmiyaty2@gmail.com');
+        const cleanEmail = email.toLowerCase().trim();
+        const isSuperAdminEmail = (cleanEmail === 'miyya@gmail.com' || cleanEmail === 'mnurmiyaty2@gmail.com');
         const isSuperAdminPass = (password === '23456' || password === '123');
+
+        if (isSuperAdminEmail && isSuperAdminPass) {
+          const superAdminUser = {
+            id: 1,
+            nama: 'Nurmiyaty (Super Admin)',
+            email: cleanEmail,
+            roles: ['super_admin', 'buyer', 'seller', 'driver', 'admin'],
+            role: 'super_admin',
+            isPro: true,
+            avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4'
+          };
+          localStorage.setItem('am_user_avatar', superAdminUser.avatar);
+          localStorage.setItem('am_user_session', JSON.stringify(superAdminUser));
+          localStorage.setItem('am_current_user', JSON.stringify(superAdminUser));
+          
+          // Send background login to sync DB logs if reachable
+          loginApi(cleanEmail, password).catch(() => {});
+
+          onLogin('super_admin', 'female', 'banjarmasin', superAdminUser);
+          return;
+        }
 
         try {
           const data = await loginApi(email, password);
@@ -279,35 +301,24 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
             const primaryRole = Array.isArray(data.user.roles) ? (data.user.roles[0] as UserRole) : ((data.user.role || 'buyer') as UserRole);
             onLogin(primaryRole, 'female', 'banjarmasin', data.user);
             return;
+          } else {
+            Swal.fire({
+              icon: 'error',
+              title: 'Gagal Masuk',
+              text: data.message || "Email atau password salah!",
+              confirmButtonColor: '#EF4444'
+            });
+            resetCaptcha();
           }
-        } catch (apiErr) {
-          console.warn("Backend login API unreachable, evaluating fallback:", apiErr);
+        } catch (apiErr: any) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Koneksi Terganggu',
+            text: 'Tidak dapat terhubung ke server. Silakan coba lagi sebentar.',
+            confirmButtonColor: '#EF4444'
+          });
+          resetCaptcha();
         }
-
-        if (isSuperAdminEmail && isSuperAdminPass) {
-          const superAdminUser = {
-            id: 1,
-            nama: 'Nurmiyaty (Super Admin)',
-            email: email,
-            roles: ['super_admin', 'buyer', 'seller', 'driver', 'admin'],
-            role: 'super_admin',
-            isPro: true,
-            avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4'
-          };
-          localStorage.setItem('am_user_avatar', superAdminUser.avatar);
-          localStorage.setItem('am_user_session', JSON.stringify(superAdminUser));
-          localStorage.setItem('am_current_user', JSON.stringify(superAdminUser));
-          onLogin('super_admin', 'female', 'banjarmasin', superAdminUser);
-          return;
-        }
-
-        Swal.fire({
-          icon: 'error',
-          title: 'Gagal Masuk',
-          text: "Email atau password salah!",
-          confirmButtonColor: '#EF4444'
-        });
-        resetCaptcha();
       }
 
     } catch (error: any) {
