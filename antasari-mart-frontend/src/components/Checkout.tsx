@@ -170,7 +170,21 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     return () => clearInterval(timer);
   }, [step, countdown, items]);
 
+  function deductOrderedStock(orderItems: CartItem[]) {
+    try {
+      const stockOverrides: Record<string, number> = JSON.parse(localStorage.getItem('am_stock_overrides') || '{}');
+      orderItems.forEach(item => {
+        const pId = item.product.id;
+        const current = stockOverrides[pId] !== undefined ? stockOverrides[pId] : (item.product.stock || 50);
+        stockOverrides[pId] = Math.max(0, current - item.quantity);
+      });
+      localStorage.setItem('am_stock_overrides', JSON.stringify(stockOverrides));
+      window.dispatchEvent(new Event('storage'));
+    } catch (_e) {}
+  }
+
   function showVendingQR(data: any, orderId?: string) {
+    deductOrderedStock(items);
     if (delivery === 'vending') {
       const vendingObj = {
         vendingToken: data.vendingToken || `VEND-${Math.floor(100000 + Math.random() * 900000)}`,

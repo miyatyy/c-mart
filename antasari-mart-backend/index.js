@@ -317,6 +317,35 @@ async function initDB() {
         ]);
         console.log('📦 Produk awal katalog berhasil diisi ke database!');
       }
+
+      // Pastikan produk Blind Bag Keychain Mystery 50 stok selalu terdaftar di database
+      const blindBagInDB = await Product.findOne({
+        where: {
+          [Sequelize.Op.or]: [
+            { nama_produk: { [Sequelize.Op.iLike]: '%blind bag%' } },
+            { nama_produk: { [Sequelize.Op.iLike]: '%blindbag%' } }
+          ]
+        }
+      });
+
+      if (!blindBagInDB) {
+        await Product.create({
+          nama_produk: 'Blind Bag Keychain Mystery (Myammiy Craft)',
+          deskripsi: 'Blind bag suvenir kejutan buatan tangan (handmade) eksklusif Myammiy Craft. Berisi mystery ganci rajut sakura, strawberry tulip, atau charm kpop! Siap ambil di Vending Machine Kampus.',
+          harga: 35000,
+          stok: 50,
+          kategori: 'kerajinan',
+          kampus: 'banjarmasin',
+          sellerId: 'seller_1',
+          sellerName: 'Myammiy Craft',
+          foto: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=400&fit=crop&auto=format',
+          isKoperasi: false,
+          slotNumber: 1,
+          rating: 5.0,
+          sold: 28
+        });
+        console.log('✨ Blind Bag Keychain Mystery berhasil ditambahkan ke database!');
+      }
     } catch (error) {
       console.error('❌ Gagal terhubung ke PostgreSQL:', error.message);
     }

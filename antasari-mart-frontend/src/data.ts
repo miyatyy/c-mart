@@ -81,6 +81,23 @@ export const MOCK_USERS: User[] = [
 ]
 
 export const MOCK_PRODUCTS: Product[] = [
+  // Myammiy Craft — Produk Unggulan Vending Machine
+  {
+    id: 'blind_bag_myammiy_35k',
+    name: 'Blind Bag Keychain Mystery (Myammiy Craft)',
+    description: 'Blind bag suvenir kejutan buatan tangan (handmade) eksklusif Myammiy Craft. Berisi mystery ganci rajut sakura, strawberry tulip, atau charm kpop! Siap ambil di Vending Machine Kampus.',
+    price: 35000,
+    stock: 50,
+    category: 'kerajinan',
+    campus: 'banjarmasin',
+    sellerId: 'seller_1',
+    sellerName: 'Myammiy Craft',
+    image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=400&fit=crop&auto=format',
+    isKoperasi: false,
+    slotNumber: 1,
+    rating: 5.0,
+    sold: 28,
+  },
   // Koperasi — Banjarmasin
   {
     id: 'p1',

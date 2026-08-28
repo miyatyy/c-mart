@@ -46,18 +46,44 @@ export default function ProductList({ theme, campus, cartItems: _cartItems, onAd
 
   useEffect(() => {
     setLoading(true);
+    const stockOverrides: Record<string, number> = JSON.parse(localStorage.getItem('am_stock_overrides') || '{}');
+    const customProds: Product[] = JSON.parse(localStorage.getItem('am_custom_products') || '[]');
+
     getProductsApi()
       .then(data => {
-        if (data.success && data.products && data.products.length > 0) {
-          setProductsList(data.products);
-        } else {
-          setProductsList(MOCK_PRODUCTS);
-        }
+        let serverList: Product[] = (data.success && data.products && data.products.length > 0) ? data.products : [];
+        // Pastikan produk Blind Bag & MOCK_PRODUCTS selalu ada jika belum ada di server
+        const combined = [
+          ...customProds,
+          ...serverList,
+          ...MOCK_PRODUCTS.filter(m => !serverList.some(s => s.id === m.id || s.name.toLowerCase() === m.name.toLowerCase()) && !customProds.some(c => c.id === m.id))
+        ];
+
+        const finalProducts = combined.map(p => {
+          const override = stockOverrides[p.id] !== undefined ? stockOverrides[p.id] : (p.id === 'blind_bag_myammiy_35k' && stockOverrides['blind_bag_myammiy_35k'] !== undefined ? stockOverrides['blind_bag_myammiy_35k'] : undefined);
+          if (override !== undefined) {
+            return { ...p, stock: override };
+          }
+          return p;
+        });
+
+        setProductsList(finalProducts);
         setLoading(false);
       })
       .catch(err => {
         console.error("Gagal mengambil produk dari backend:", err);
-        setProductsList(MOCK_PRODUCTS);
+        const combined = [
+          ...customProds,
+          ...MOCK_PRODUCTS.filter(m => !customProds.some(c => c.id === m.id))
+        ];
+        const finalProducts = combined.map(p => {
+          const override = stockOverrides[p.id] !== undefined ? stockOverrides[p.id] : undefined;
+          if (override !== undefined) {
+            return { ...p, stock: override };
+          }
+          return p;
+        });
+        setProductsList(finalProducts);
         setLoading(false);
       });
   }, [campus]);
