@@ -32,9 +32,56 @@ const PRESET_AVATARS = [
   { id: 10, name: 'Ken (Pro Stylish)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585' },
 ];
 
+import { Component, type ReactNode } from 'react';
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("App Crash Caught by ErrorBoundary:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: 'system-ui, sans-serif' }}>
+          <div style={{ fontSize: 54, marginBottom: 12 }}>🌸 Antasari Mart</div>
+          <h2 style={{ color: '#0077B6' }}>Memuat Ulang Tampilan...</h2>
+          <p style={{ color: '#64748B', marginBottom: 20 }}>Terjadi pembaruan sistem. Silakan klik tombol di bawah:</p>
+          <button
+            onClick={() => {
+              localStorage.removeItem('am_tab');
+              window.location.reload();
+            }}
+            style={{ padding: '12px 24px', borderRadius: 12, border: 'none', background: '#0077B6', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            Muat Ulang Halaman 🔄
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const VALID_CAMPUSES: Campus[] = ['banjarmasin', 'banjarbaru'];
 
 export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainAppContent />
+    </ErrorBoundary>
+  );
+}
+
+function MainAppContent() {
   const [_loggedIn, setLoggedIn] = useState(true);
   const [role, setRole] = useState<UserRole>('buyer');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);

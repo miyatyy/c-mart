@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Product } from '../types';
 
 interface MyammiyVoiceAssistantProps {
