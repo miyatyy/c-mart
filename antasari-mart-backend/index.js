@@ -835,6 +835,33 @@ app.post('/api/vending/claim', async (req, res) => {
   }
 });
 
+// STATUS PENGELUARAN UNTUK HARDWARE ESP32
+app.get('/api/vending/dispense-status', async (req, res) => {
+  try {
+    const pendingOrder = await Order.findOne({
+      where: { status: 'claimed' },
+      order: [['updatedAt', 'DESC']]
+    });
+
+    if (pendingOrder) {
+      const isRecent = (Date.now() - new Date(pendingOrder.updatedAt).getTime()) < 20000;
+      if (isRecent) {
+        return res.json({
+          hasPendingDispense: true,
+          orderId: pendingOrder.orderId,
+          slotNumber: pendingOrder.slotNumber || 1,
+          buyerName: pendingOrder.buyerName,
+          productName: "Blind Bag Keychain Mystery"
+        });
+      }
+    }
+
+    res.json({ hasPendingDispense: false });
+  } catch (error) {
+    res.json({ hasPendingDispense: false });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 if (!process.env.VERCEL) {
   app.listen(PORT, '0.0.0.0', () => {

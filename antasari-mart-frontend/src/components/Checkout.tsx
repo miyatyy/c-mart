@@ -18,10 +18,60 @@ interface CheckoutProps {
   onBack: () => void;
 }
 
+function playCelebrationFanfare() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+
+    // Jingle Nada Kemenangan Ceria (C5 -> E5 -> G5 -> C6)
+    const melody = [
+      { f: 523.25, d: 0.12, t: 0 },
+      { f: 659.25, d: 0.12, t: 0.12 },
+      { f: 783.99, d: 0.15, t: 0.24 },
+      { f: 1046.50, d: 0.45, t: 0.39 }
+    ];
+
+    melody.forEach(note => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(note.f, ctx.currentTime + note.t);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + note.t);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + note.t + note.d);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + note.t);
+      osc.stop(ctx.currentTime + note.t + note.d);
+    });
+  } catch (_e) {}
+}
+
+function speakVoice(text: string) {
+  if (!('speechSynthesis' in window)) return;
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'id-ID';
+    utterance.rate = 1.05;
+    utterance.pitch = 1.25;
+    window.speechSynthesis.speak(utterance);
+  } catch (_e) {}
+}
+
+const MYSTERY_KEYCHAINS = [
+  { name: 'Ganci Kucing Rajut Sakura 🌸', icon: '🐱🌷', rarity: 'Super Rare ✨' },
+  { name: 'Ganci Strawberry Tulip Handmade 🍓', icon: '🍓🎀', rarity: 'Special Edition 💎' },
+  { name: 'Ganci K-Pop Crystal Star 🌟', icon: '⭐💖', rarity: 'Ultra Rare 👑' },
+  { name: 'Ganci Kaktus Senyum Antasari 🌵', icon: '🌵✨', rarity: 'Limited Edition 🎁' }
+];
+
 export default function Checkout({ theme: _theme, campus, items, onConfirmOrder, onBack }: CheckoutProps) {
   const isOnlyGanciInCart = items.length > 0 && items.every(i => 
     (i.product as any).sellerId === 'seller_1' || 
-    i.product.name.toLowerCase().includes('ganci')
+    (i.product as any).sellerId === 'seller_myammiy' ||
+    i.product.name.toLowerCase().includes('ganci') ||
+    i.product.name.toLowerCase().includes('blind bag')
   );
 
   const [delivery, setDelivery] = useState<DeliveryMethod | 'vending'>(isOnlyGanciInCart ? 'vending' : 'pickup');
@@ -34,6 +84,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   const [step, setStep] = useState<'form' | 'searching_driver' | 'success' | 'vending_qr' | 'vending_dispensing' | 'vending_done' | 'receipt_pickup'>('form');
   const [countdown, setCountdown] = useState(10);
   const [loadingPayment, setLoadingPayment] = useState(false);
+  const [revealedMystery, setRevealedMystery] = useState<{ name: string; icon: string; rarity: string } | null>(null);
 
   const [vendingData, setVendingResult] = useState<{
     vendingToken: string;
@@ -98,12 +149,26 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
       localStorage.removeItem('am_active_vending_qr');
       setStep('vending_dispensing');
       setTimeout(() => {
+        const rand = MYSTERY_KEYCHAINS[Math.floor(Math.random() * MYSTERY_KEYCHAINS.length)];
+        setRevealedMystery(rand);
         setStep('vending_done');
+
+        playCelebrationFanfare();
+        const hasBlindBag = items.some(i => 
+          i.product.name.toLowerCase().includes('blind bag') || 
+          i.product.name.toLowerCase().includes('ganci') || 
+          i.product.price === 35000
+        );
+        const speechMsg = hasBlindBag
+          ? 'Yaaay! Selamat Kakak berhasil mendapatkan Blind Bag Keychain Myammiy seharga tiga puluh lima ribu rupiah! Silakan ambil gantungan kunci imut di slot mesin vending yaa!'
+          : 'Yaaay! Pesanan berhasil dikeluarkan dari mesin vending kampus! Silakan ambil barang Anda di slot boks yaa!';
+        
+        setTimeout(() => speakVoice(speechMsg), 400);
       }, 2500);
     }
 
     return () => clearInterval(timer);
-  }, [step, countdown]);
+  }, [step, countdown, items]);
 
   function showVendingQR(data: any, orderId?: string) {
     if (delivery === 'vending') {
@@ -460,14 +525,41 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
 
       {step === 'vending_done' && (
         <div className="am-card" style={{ padding: 30, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
-          <div style={{ fontSize: 54, marginBottom: 12 }}>🎉✅</div>
-          <h2 style={{ margin: '0 0 8px', color: '#16A34A' }}>Barang Berhasil Diambil!</h2>
-          <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 24 }}>
-            Terima kasih telah berbelanja menggunakan Antasari Smart Vending Machine.
+          <div style={{ fontSize: 54, marginBottom: 8, animation: 'floatCute 2s ease-in-out infinite' }}>🎁✨</div>
+          <h2 style={{ margin: '0 0 6px', color: '#16A34A', fontSize: 22, fontWeight: 900 }}>Barang Berhasil Diambil! 🎉</h2>
+          
+          {revealedMystery && (
+            <div style={{
+              margin: '16px auto 20px',
+              padding: '20px',
+              borderRadius: 20,
+              background: 'linear-gradient(135deg, #FFF0F5 0%, #FFE4E6 100%)',
+              border: '2px dashed #FF6B8B',
+              maxWidth: 360,
+              animation: 'bounceIn 0.5s ease-out'
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#FF6B8B', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+                ✨ UNBOXING BLIND BAG KEYCHAIN ✨
+              </div>
+              <div style={{ fontSize: 48, margin: '8px 0' }}>{revealedMystery.icon}</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#9F1239', marginBottom: 4 }}>
+                {revealedMystery.name}
+              </div>
+              <div style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 20, background: '#FF4D6D', color: 'white', fontSize: 11, fontWeight: 800 }}>
+                {revealedMystery.rarity}
+              </div>
+              <div style={{ fontSize: 12, color: '#881337', marginTop: 10, fontWeight: 600 }}>
+                Harga: Rp 35.000 (Lunas via Antasari Mart)
+              </div>
+            </div>
+          )}
+
+          <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 20 }}>
+            Terima kasih telah berbelanja produk Myammiy Craft & Vending Machine UIN Antasari!
           </p>
           <button
             onClick={() => onConfirmOrder('pickup', payment, finalLocation)}
-            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, cursor: 'pointer' }}
+            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)', color: 'white', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0, 180, 216, 0.3)' }}
           >
             Selesai & Kembali ke Beranda 🏠
           </button>

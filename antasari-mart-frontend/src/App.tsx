@@ -16,6 +16,7 @@ import ProModal from './components/ProModal';
 import { ProfileModal, SuccessPopup, InfoModal, LoginPromptModal } from './components/AppModals';
 import SuperAdminPanel from './components/SuperAdminPanel';
 import VendingSimulator from './components/VendingSimulator';
+import MyammiyVoiceAssistant from './components/MyammiyVoiceAssistant';
 import { getChatsApi, sendChatApi } from './lib/api';
 
 const PRESET_AVATARS = [
@@ -581,6 +582,14 @@ export default function App() {
         <SuccessPopup
           message={successPopupMessage}
           onClose={() => setSuccessPopupMessage(null)}
+        />
+      )}
+
+      {/* Floating AI Voice Assistant Myammiy */}
+      {activeTab !== 'login_page' && (
+        <MyammiyVoiceAssistant
+          onAddToCart={handleAddToCart}
+          onNavigateTab={(targetTab) => setActiveTab(targetTab as AppTab)}
         />
       )}
     </div>
