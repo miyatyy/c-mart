@@ -588,7 +588,7 @@ export default function App() {
       {/* Floating AI Voice Assistant Myammiy */}
       {activeTab !== 'login_page' && (
         <MyammiyVoiceAssistant
-          onAddToCart={handleAddToCart}
+          onAddToCart={addToCart}
           onNavigateTab={(targetTab) => setActiveTab(targetTab as AppTab)}
         />
       )}
