@@ -162,10 +162,10 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
       return {
         id: `ai_${Date.now()}`,
         sender: 'ai',
-        text: 'Hy selamat datang di Myammiy Store! 🎀 Blind Bag Keychain edisi spesial handmade kami harganya Rp 35.000. Isinya mystery keychain lucu seperti tulip rajut, lucky cat, atau kpop charm! Kamu bisa langsung pesan di sini yaa:',
+        text: 'Hy selamat datang di Myammiy Store! 🎀 Blind Bag Keychain edisi spesial handmade kami harganya Rp 35.000. Pembayaran praktis bisa scan QR atau transfer ke SeaBank (901156882439) atau GoPay (08813576012) a.n. Nurmiyaty! Klik tombol di bawah untuk bayar langsung:',
         action: {
           type: 'add_blind_bag',
-          label: '🎁 Beli Blind Bag Keychain (Rp 35.000)'
+          label: '🎁 Bayar Blind Bag via SeaBank / GoPay (Rp 35.000)'
         }
       };
     }
@@ -175,20 +175,24 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
       return {
         id: `ai_${Date.now()}`,
         sender: 'ai',
-        text: 'Cara belinya gampang banget Kak! 🤖 1. Buka website https://ma-project-fix.vercel.app/ 2. Pilih produk Myammiy 3. Pilih metode Ambil di Vending Machine 4. Scan QR token di depan mesin, dan motor stepper mesin akan berputar otomatis menurunkan pesananmu!',
+        text: 'Cara belinya gampang banget Kak! 🤖 1. Buka website https://ma-project-fix.vercel.app/ 2. Pilih produk Blind Bag Rp 35.000 3. Bayar via SeaBank (901156882439) atau GoPay (08813576012) a.n. Nurmiyaty 4. Dapatkan Token QR Vending untuk ambil ganci di mesin!',
         action: {
-          type: 'go_vending',
-          label: '🤖 Buka Simulasi Vending Machine'
+          type: 'add_blind_bag',
+          label: '🎁 Beli Blind Bag & Bayar Sekarang'
         }
       };
     }
 
-    // 3. Tanya Harga & Katalog Produk
-    if (q.includes('harga') || q.includes('katalog') || q.includes('berapa') || q.includes('produk') || q.includes('jual')) {
+    // 3. Tanya Harga & Rekening
+    if (q.includes('rekening') || q.includes('seabank') || q.includes('gopay') || q.includes('transfer') || q.includes('harga')) {
       return {
         id: `ai_${Date.now()}`,
         sender: 'ai',
-        text: 'Di Myammiy Store tersedia berbagai kerajinan tangan imut: Ganci Handmade mulai Rp 15.000 - Rp 35.000, Blind Bag Mystery Keychain Rp 35.000, dan aneka aksesoris manik! Semua dibuat dengan penuh cinta kak! ✨'
+        text: 'Pembayaran Myammiy Store menerima SeaBank: 901156882439 (a.n. Nurmiyaty) dan GoPay: 08813576012 (a.n. Nurmiyaty). Blind Bag Keychain seharga Rp 35.000 siap kamu pesan! ✨',
+        action: {
+          type: 'add_blind_bag',
+          label: '🎁 Buka Pembayaran SeaBank / GoPay'
+        }
       };
     }
 
@@ -197,7 +201,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
       return {
         id: `ai_${Date.now()}`,
         sender: 'ai',
-        text: 'Total estimasi biaya rakit Vending Machine lengkap (body PVC Board, ESP32, Stepper 28BYJ-48, Speaker I2S, Mic INMP441, & Display OLED) adalah sekitar Rp 400.000 - Rp 525.000 saja kak! Sangat hemat dan siap pakai!'
+        text: 'Total estimasi biaya rakit Vending Machine lengkap (body PVC Board, ESP32, Stepper 28BYJ-48, Speaker I2S, Mic INMP441, & Display OLED) adalah sekitar Rp 250.000 - Rp 300.000 saja kak!'
       };
     }
 
@@ -206,10 +210,10 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
       return {
         id: `ai_${Date.now()}`,
         sender: 'ai',
-        text: 'Halo Kakak manis! Selamat datang di Vending Machine Myammiy Store UIN Antasari! Mau coba Blind Bag Keychain keberuntunganmu hari ini seharga Rp 35.000? 🌸✨',
+        text: 'Halo Kakak manis! Selamat datang di Vending Machine Myammiy Store UIN Antasari! Mau coba Blind Bag Keychain keberuntunganmu hari ini seharga Rp 35.000? Pembayaran bisa via SeaBank & GoPay loh! 🌸✨',
         action: {
           type: 'add_blind_bag',
-          label: '🎁 Coba Blind Bag Sekarang'
+          label: '🎁 Beli Blind Bag Sekarang (Rp 35.000)'
         }
       };
     }
@@ -218,7 +222,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
     return {
       id: `ai_${Date.now()}`,
       sender: 'ai',
-      text: 'Aku siap membantu seputar produk Myammiy Store, Blind Bag Keychain Rp 35.000, dan panduan mesin vending! Boleh silakan klik tombol di bawah untuk pesan langsung yaa kak:',
+      text: 'Aku siap membantu seputar produk Myammiy Store, Blind Bag Keychain Rp 35.000, dan pembayaran via SeaBank (901156882439) / GoPay (08813576012)! Klik tombol di bawah untuk pesan langsung yaa kak:',
       action: {
         type: 'add_blind_bag',
         label: '🎁 Beli Blind Bag Keychain (Rp 35.000)'
@@ -250,8 +254,8 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
       if (onAddToCart) {
         onAddToCart(blindBagProduct, 1);
         playCuteChime();
-        speakMyammiyVoice('Blind Bag Keychain seharga Rp 35.000 berhasil dimasukkan ke keranjang! Silakan selesaikan pesanan yaa Kakak! 🎉');
-        if (onNavigateTab) onNavigateTab('cart');
+        speakMyammiyVoice('Blind Bag Keychain seharga tiga puluh lima ribu rupiah siap di keranjang! Silakan transfer ke SeaBank atau GoPay yaa Kakak! 🌸');
+        if (onNavigateTab) onNavigateTab('checkout');
       }
     } else if (action.type === 'go_vending') {
       if (onNavigateTab) onNavigateTab('vending');

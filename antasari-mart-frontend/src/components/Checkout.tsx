@@ -75,7 +75,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   );
 
   const [delivery, setDelivery] = useState<DeliveryMethod | 'vending'>(isOnlyGanciInCart ? 'vending' : 'pickup');
-  const [payment, setPayment] = useState<PaymentMethod>('cod');
+  const [payment, setPayment] = useState<PaymentMethod | 'seabank' | 'gopay'>('seabank');
   
   const [selectedDropdownLocation, setSelectedDropdownLocation] = useState('');
   const [customLocationText, setCustomLocationText] = useState('');
@@ -409,10 +409,12 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
 
           {/* Metode Pembayaran */}
           <div className="am-card" style={{ padding: 20, borderRadius: 20, background: 'var(--am-surface)' }}>
-            <h3 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700, color: 'var(--am-text)' }}>Metode Pembayaran</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+            <h3 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700, color: 'var(--am-text)' }}>Pilih Metode Pembayaran</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
               {[
-                { id: 'qris', label: '💳 Midtrans / QRIS / E-Wallet' },
+                { id: 'seabank', label: '🌊 SeaBank (Nurmiyaty)' },
+                { id: 'gopay', label: '💚 GoPay (Nurmiyaty)' },
+                { id: 'qris', label: '💳 Midtrans Snap' },
                 { id: 'cod', label: '💵 Bayar Tunai (COD / Kasir)' }
               ].map(pm => (
                 <div
@@ -424,8 +426,8 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                     border: `2px solid ${payment === pm.id ? 'var(--am-primary)' : 'var(--am-border)'}`,
                     background: payment === pm.id ? 'rgba(0, 180, 216, 0.08)' : 'var(--am-surface)',
                     cursor: 'pointer',
-                    fontWeight: 700,
-                    fontSize: 13,
+                    fontWeight: 800,
+                    fontSize: 12,
                     textAlign: 'center',
                     color: 'var(--am-text)'
                   }}
@@ -434,6 +436,68 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                 </div>
               ))}
             </div>
+
+            {/* Kotak Rincian Rekening SeaBank */}
+            {payment === 'seabank' && (
+              <div style={{ padding: 18, borderRadius: 16, background: '#EFF6FF', border: '1.5px solid #3B82F6', marginTop: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#1E40AF', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                  🌊 QR & REKENING SEABANK INDONESIA
+                </div>
+                <div style={{ display: 'inline-block', padding: 12, background: 'white', borderRadius: 16, boxShadow: '0 4px 15px rgba(0,0,0,0.08)', marginBottom: 12 }}>
+                  <QRCodeSVG value="https://app.seabank.co.id/transfer?account=901156882439" size={150} />
+                </div>
+                <div style={{ fontSize: 13, color: '#1E3A8A', marginBottom: 2 }}>
+                  Nomor Rekening SeaBank:
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#1D4ED8', letterSpacing: 2, marginBottom: 4 }}>
+                  901156882439
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#2563EB', marginBottom: 12 }}>
+                  Atas Nama: <strong>Nurmiyaty</strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText('901156882439');
+                    alert('Nomor rekening SeaBank (901156882439) a.n. Nurmiyaty berhasil disalin! 📋');
+                  }}
+                  style={{ padding: '8px 18px', borderRadius: 10, border: 'none', background: '#2563EB', color: 'white', fontSize: 12, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)' }}
+                >
+                  📋 Salin Nomor Rekening SeaBank
+                </button>
+              </div>
+            )}
+
+            {/* Kotak Rincian GoPay */}
+            {payment === 'gopay' && (
+              <div style={{ padding: 18, borderRadius: 16, background: '#ECFDF5', border: '1.5px solid #10B981', marginTop: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#065F46', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                  💚 QR & NOMOR GOPAY / QRIS
+                </div>
+                <div style={{ display: 'inline-block', padding: 12, background: 'white', borderRadius: 16, boxShadow: '0 4px 15px rgba(0,0,0,0.08)', marginBottom: 12 }}>
+                  <QRCodeSVG value="https://gopay.co.id/pay?phone=08813576012" size={150} />
+                </div>
+                <div style={{ fontSize: 13, color: '#064E3B', marginBottom: 2 }}>
+                  Nomor Telepon GoPay:
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#047857', letterSpacing: 2, marginBottom: 4 }}>
+                  08813576012
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#059669', marginBottom: 12 }}>
+                  Atas Nama: <strong>Nurmiyaty</strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText('08813576012');
+                    alert('Nomor GoPay (08813576012) a.n. Nurmiyaty berhasil disalin! 📋');
+                  }}
+                  style={{ padding: '8px 18px', borderRadius: 10, border: 'none', background: '#059669', color: 'white', fontSize: 12, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(5, 150, 105, 0.3)' }}
+                >
+                  📋 Salin Nomor GoPay
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Ringkasan Total & Tombol Konfirmasi */}
@@ -473,7 +537,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                 boxShadow: '0 4px 14px rgba(0, 180, 216, 0.3)'
               }}
             >
-              {loadingPayment ? 'Memproses Pesanan...' : payment === 'qris' ? 'Bayar via Midtrans Snap 💳' : 'Konfirmasi Pesanan Sekarang 🚀'}
+              {loadingPayment ? 'Memproses Pesanan...' : (payment === 'seabank' || payment === 'gopay') ? 'Saya Sudah Transfer, Dapatkan Token Vending 🚀' : payment === 'qris' ? 'Bayar via Midtrans Snap 💳' : 'Konfirmasi Pesanan Sekarang 🚀'}
             </button>
           </div>
         </div>
