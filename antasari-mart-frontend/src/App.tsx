@@ -18,6 +18,7 @@ import SuperAdminPanel from './components/SuperAdminPanel';
 import VendingSimulator from './components/VendingSimulator';
 import MyammiyVoiceAssistant from './components/MyammiyVoiceAssistant';
 import BottomNavBar from './components/BottomNavBar';
+import CampusMartSplashScreen from './components/CampusMartSplashScreen';
 import { getChatsApi, sendChatApi } from './lib/api';
 
 const PRESET_AVATARS = [
@@ -103,6 +104,7 @@ function MainAppContent() {
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [chatUnread, setChatUnread] = useState(0);
+  const [showSplash, setShowSplash] = useState(true);
 
   function getEffectiveUserName(u: SessionUser | null): string {
     if (!u) return 'Pengunjung Tamu';
@@ -407,6 +409,9 @@ function MainAppContent() {
   return (
     <div className={`am-root theme-${theme}`} style={{ display: 'flex', minHeight: '100vh', background: 'var(--am-bg)', position: 'relative' }}>
       <style>{customModalStyles}</style>
+
+      {/* 🌸 ELEGANT CAMPUS MART PASTEL SPLASH SCREEN */}
+      {showSplash && <CampusMartSplashScreen onFinish={() => setShowSplash(false)} />}
 
       <Sidebar
         theme={theme}

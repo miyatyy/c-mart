@@ -1,42 +1,44 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
-/* ── Aesthetic theme (soft/feminine) ── */
+/* ── Aesthetic theme (Pastel Cream & Soft Baby Blue) ── */
 .theme-aesthetic {
-  --am-bg: #FDF8F3;
-  --am-bg2: #F5EDE4;
+  --am-bg: #FAF7F2;
+  --am-bg2: #F3ECE2;
   --am-surface: #FFFFFF;
-  --am-primary: #7A9E7E;
-  --am-primary-dark: #5A7E5E;
-  --am-secondary: #D4A5A5;
-  --am-accent: #C9B8D8;
-  --am-text: #3D2B2B;
-  --am-text-muted: #9B7E7E;
-  --am-border: #E8D5C8;
-  --am-badge-koperasi: #7A9E7E;
+  --am-primary: #4A8FE7;
+  --am-primary-dark: #3574C7;
+  --am-primary-light: #EBF4FC;
+  --am-secondary: #E5EEF8;
+  --am-accent: #7BB2ED;
+  --am-text: #2D3748;
+  --am-text-muted: #718096;
+  --am-border: #E8E1D5;
+  --am-badge-koperasi: #4A8FE7;
   --am-radius: 16px;
-  --am-font-heading: 'Playfair Display', Georgia, serif;
+  --am-font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
   --am-font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --am-shadow: 0 4px 20px rgba(122, 158, 126, 0.12);
+  --am-shadow: 0 4px 20px rgba(74, 143, 231, 0.08);
 }
 
-/* ── Modern theme (dark/tech) ── */
+/* ── Modern theme (Pastel Soft Slate & Powder Blue) ── */
 .theme-modern {
-  --am-bg: #0D1B2A;
-  --am-bg2: #162032;
-  --am-surface: #1E2E42;
-  --am-primary: #00B4D8;
-  --am-primary-dark: #0090AE;
-  --am-secondary: #2C3E50;
-  --am-accent: #F59E0B;
-  --am-text: #E8F4FD;
-  --am-text-muted: #64748B;
-  --am-border: #2D3F55;
-  --am-badge-koperasi: #00B4D8;
-  --am-radius: 6px;
-  --am-font-heading: 'Space Grotesk', system-ui, sans-serif;
-  --am-font-body: 'Space Grotesk', system-ui, sans-serif;
-  --am-shadow: 0 4px 20px rgba(0, 180, 216, 0.1);
+  --am-bg: #F5EFE6;
+  --am-bg2: #EAE2D5;
+  --am-surface: #FFFFFF;
+  --am-primary: #3B82F6;
+  --am-primary-dark: #2563EB;
+  --am-primary-light: #EFF6FF;
+  --am-secondary: #E0EBF7;
+  --am-accent: #60A5FA;
+  --am-text: #1F2937;
+  --am-text-muted: #6B7280;
+  --am-border: #E2D9CC;
+  --am-badge-koperasi: #3B82F6;
+  --am-radius: 12px;
+  --am-font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --am-font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --am-shadow: 0 4px 20px rgba(59, 130, 246, 0.08);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
