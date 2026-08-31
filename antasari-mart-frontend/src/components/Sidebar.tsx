@@ -176,30 +176,41 @@ export default function Sidebar({
       z-index: 1000;
     }
 
-    /* 📱 MOBILE HP: Sidebar berubah jadi drawer melayang dari kiri */
+    /* 📱 MOBILE HP: Drawer Elegan, Jelas, & Tajam */
     @media screen and (max-width: 768px) {
+      .desktop-sidebar-spacer {
+        display: none !important;
+        width: 0 !important;
+      }
       .am-sidebar-main {
-        width: 280px !important;
-        transform: translateX(-100%) !important;
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        box-shadow: 15px 0 35px rgba(0,0,0,0.3) !important;
+        width: min(85vw, 300px) !important;
+        background: #FFFFFF !important;
+        transform: translateX(-105%) !important;
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        box-shadow: 10px 0 35px rgba(0, 0, 0, 0.25) !important;
         z-index: 100000 !important;
+        visibility: hidden;
       }
       .am-sidebar-main.mobile-open {
         transform: translateX(0) !important;
+        visibility: visible !important;
       }
       .am-mobile-backdrop {
         position: fixed !important;
         inset: 0 !important;
-        background: rgba(0, 0, 0, 0.5) !important;
-        backdrop-filter: blur(3px) !important;
+        background: rgba(15, 23, 42, 0.6) !important;
         z-index: 99999 !important;
+        animation: fadeIn 0.2s ease forwards;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
       }
     }
   `;
 
-  // Di layar HP, jika isOpenExternal true, anggap sidebar terbuka penuh
-  const effectiveIsOpen = typeof window !== 'undefined' && window.innerWidth <= 768 ? isOpenExternal : isOpen;
+  // Di layar HP saat dibuka, sidebar selalu tampil penuh dengan label & profil
+  const effectiveIsOpen = typeof window !== 'undefined' && window.innerWidth <= 768 ? true : isOpen;
 
   return (
     <>
@@ -215,12 +226,39 @@ export default function Sidebar({
 
       <aside className={`am-sidebar-main ${isOpenExternal ? 'mobile-open' : ''}`}>
         
-        {/* Header Sidebar Bersih Tanpa Tombol Berlebih (Tombol Burger Tunggal di TopBar yang Mengontrol Semuanya) */}
-        <div style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--am-border)', height: 65 }}>
+        {/* Header Sidebar dengan Judul & Tombol Tutup Khusus HP */}
+        <div style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--am-border)', height: 65 }}>
           {effectiveIsOpen ? (
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--am-primary)', whiteSpace: 'nowrap' }}>Antasari Mart</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 20 }}>🌸</span>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--am-primary)', whiteSpace: 'nowrap' }}>Antasari Mart</div>
+            </div>
           ) : (
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--am-primary)', margin: '0 auto' }}>AM</div>
+          )}
+
+          {/* Tombol Tutup Silang (✕) di HP */}
+          {isOpenExternal && (
+            <button
+              onClick={onCloseExternal}
+              aria-label="Tutup Menu"
+              style={{
+                background: 'rgba(0,0,0,0.06)',
+                border: 'none',
+                borderRadius: 8,
+                width: 32,
+                height: 32,
+                fontSize: 16,
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                color: '#334155',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              ✕
+            </button>
           )}
         </div>
 
