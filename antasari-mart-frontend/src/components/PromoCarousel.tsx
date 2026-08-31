@@ -160,7 +160,8 @@ export default function PromoCarousel({
     }
   };
 
-  const active = PROMO_SLIDES[currentSlide];
+  const active = PROMO_SLIDES[currentSlide] || PROMO_SLIDES[0];
+  if (!active) return null;
 
   return (
     <div

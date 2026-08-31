@@ -58,15 +58,36 @@ export default function ProductList({ theme, campus, cartItems: _cartItems, onAd
         const combined = [
           ...customProds,
           ...serverList,
-          ...MOCK_PRODUCTS.filter(m => !serverList.some(s => s.id === m.id || s.name.toLowerCase() === m.name.toLowerCase()) && !customProds.some(c => c.id === m.id))
+          ...MOCK_PRODUCTS.filter(m => {
+            const mName = (m.name || '').toLowerCase();
+            return !serverList.some(s => {
+              const sName = (s.name || (s as any).nama_produk || '').toLowerCase();
+              return s.id === m.id || (sName && sName === mName);
+            }) && !customProds.some(c => c.id === m.id);
+          })
         ];
 
         const finalProducts = combined.map(p => {
+          const mappedName = p.name || (p as any).nama_produk || 'Produk';
+          const mappedDesc = p.description || (p as any).deskripsi || '';
+          const mappedSeller = p.sellerName || (p as any).seller_name || 'Penjual';
+          const mappedImage = p.image || (p as any).foto || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format';
+          const mappedCategory = p.category || (p as any).kategori || 'kerajinan';
+          const mappedPrice = typeof p.price === 'number' ? p.price : (typeof (p as any).harga === 'number' ? (p as any).harga : 0);
+          const mappedStock = typeof p.stock === 'number' ? p.stock : (typeof (p as any).stok === 'number' ? (p as any).stok : 0);
+
           const override = stockOverrides[p.id] !== undefined ? stockOverrides[p.id] : (p.id === 'blind_bag_myammiy_35k' && stockOverrides['blind_bag_myammiy_35k'] !== undefined ? stockOverrides['blind_bag_myammiy_35k'] : undefined);
-          if (override !== undefined) {
-            return { ...p, stock: override };
-          }
-          return p;
+          
+          return {
+            ...p,
+            name: mappedName,
+            description: mappedDesc,
+            sellerName: mappedSeller,
+            image: mappedImage,
+            category: mappedCategory,
+            price: mappedPrice,
+            stock: override !== undefined ? override : mappedStock
+          };
         });
 
         setProductsList(finalProducts);
@@ -80,10 +101,14 @@ export default function ProductList({ theme, campus, cartItems: _cartItems, onAd
         ];
         const finalProducts = combined.map(p => {
           const override = stockOverrides[p.id] !== undefined ? stockOverrides[p.id] : undefined;
-          if (override !== undefined) {
-            return { ...p, stock: override };
-          }
-          return p;
+          return {
+            ...p,
+            name: p.name || (p as any).nama_produk || 'Produk',
+            description: p.description || (p as any).deskripsi || '',
+            sellerName: p.sellerName || (p as any).seller_name || 'Penjual',
+            image: p.image || (p as any).foto || '',
+            stock: override !== undefined ? override : (p.stock || 0)
+          };
         });
         setProductsList(finalProducts);
         setLoading(false);
@@ -95,9 +120,12 @@ export default function ProductList({ theme, campus, cartItems: _cartItems, onAd
     const currentCampus = (campus || 'banjarmasin').toLowerCase().trim();
     const matchCampus = productCampus === 'semua' || productCampus === currentCampus;
     const matchCat = category === 'all' || p.category === category;
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.description.toLowerCase().includes(search.toLowerCase()) ||
-      p.sellerName.toLowerCase().includes(search.toLowerCase());
+    const pName = (p.name || (p as any).nama_produk || '').toLowerCase();
+    const pDesc = (p.description || (p as any).deskripsi || '').toLowerCase();
+    const pSeller = (p.sellerName || (p as any).seller_name || '').toLowerCase();
+    const sQuery = (search || '').toLowerCase();
+
+    const matchSearch = !sQuery || pName.includes(sQuery) || pDesc.includes(sQuery) || pSeller.includes(sQuery);
     const matchFilter = filter === 'all'
       ? true
       : filter === 'koperasi'
