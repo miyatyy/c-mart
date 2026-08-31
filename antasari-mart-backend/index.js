@@ -784,22 +784,32 @@ app.get('/api/users/contacts/:email', async (req, res) => {
 });
 
 // ==========================================
-// 🍃 CHAT / PESAN (POWERED BY MONGO DB & POSTGRESQL HYBRID)
+// 🍃 CHAT / PESAN (STRICT 100% PRIVATE USER ISOLATION)
 // ==========================================
 app.get('/api/chats/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params;
-    const cleanId = String(identifier).toLowerCase();
+    const { partner, roomId } = req.query;
+    const cleanId = String(identifier).toLowerCase().trim();
+
+    // 🔒 PRIVASI KETAT: Hanya ambil pesan milik akun ini sendiri (sebagai pengirim atau penerima)
+    let mongoQuery = {
+      $or: [
+        { senderId: new RegExp(`^${cleanId}$`, 'i') },
+        { receiverId: new RegExp(`^${cleanId}$`, 'i') }
+      ]
+    };
+
+    if (roomId) {
+      mongoQuery = { roomId: String(roomId).toLowerCase() };
+    } else if (partner) {
+      const cleanPartner = String(partner).toLowerCase().trim();
+      const targetRoomId = buildRoomId(cleanId, cleanPartner);
+      mongoQuery = { roomId: targetRoomId };
+    }
 
     if (isMongoConnected) {
-      const mongoChats = await MongoChat.find({
-        $or: [
-          { senderId: new RegExp(`^${cleanId}$`, 'i') },
-          { receiverId: new RegExp(`^${cleanId}$`, 'i') },
-          { receiverRole: 'admin' },
-          { receiverName: /koperasi/i }
-        ]
-      }).sort({ createdAt: 1 }).lean();
+      const mongoChats = await MongoChat.find(mongoQuery).sort({ createdAt: 1 }).lean();
 
       if (mongoChats && mongoChats.length > 0) {
         const formatted = mongoChats.map(c => ({
@@ -810,16 +820,22 @@ app.get('/api/chats/:identifier', async (req, res) => {
       }
     }
 
-    // Fallback ke PostgreSQL
+    // Fallback ke PostgreSQL dengan Privasi Ketat
+    let pgWhere = {
+      [Sequelize.Op.or]: [
+        { senderId: identifier }, 
+        { receiverId: identifier }
+      ]
+    };
+
+    if (roomId) {
+      pgWhere = { roomId: String(roomId).toLowerCase() };
+    } else if (partner) {
+      pgWhere = { roomId: buildRoomId(identifier, partner) };
+    }
+
     const chats = await Chat.findAll({
-      where: {
-        [Sequelize.Op.or]: [
-          { senderId: identifier }, 
-          { receiverId: identifier },
-          { receiverRole: 'admin' },
-          { receiverName: { [Sequelize.Op.iLike]: '%koperasi%' } }
-        ]
-      },
+      where: pgWhere,
       order: [['createdAt', 'ASC']]
     });
     res.json({ success: true, source: 'postgresql', chats });
