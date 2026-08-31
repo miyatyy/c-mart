@@ -12,6 +12,8 @@ interface ProductListProps {
   onChat: (sellerId: string, sellerName: string, productName: string) => void;
   onNavigateCheckout?: () => void;
   onOpenVending?: () => void;
+  isGuest?: boolean;
+  onRequireLogin?: () => void;
 }
 
 export default function ProductList({
@@ -21,7 +23,9 @@ export default function ProductList({
   onAddToCart,
   onChat,
   onNavigateCheckout,
-  onOpenVending
+  onOpenVending,
+  isGuest,
+  onRequireLogin
 }: ProductListProps) {
   const [category, setCategory] = useState('all');
   const [search, setSearch] = useState('');
@@ -425,6 +429,10 @@ export default function ProductList({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (isGuest) {
+                        if (onRequireLogin) onRequireLogin();
+                        return;
+                      }
                       onAddToCart(p, 1);
                       setSuccessPopup({ product: p, qty: 1 });
                     }}
@@ -446,6 +454,10 @@ export default function ProductList({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (isGuest) {
+                        if (onRequireLogin) onRequireLogin();
+                        return;
+                      }
                       onChat(p.sellerId, p.sellerName, p.name);
                     }}
                     style={{
@@ -576,6 +588,11 @@ export default function ProductList({
               <div style={{ display: 'flex', gap: 10 }}>
                 <button
                   onClick={() => {
+                    if (isGuest) {
+                      setSelectedProduct(null);
+                      if (onRequireLogin) onRequireLogin();
+                      return;
+                    }
                     onAddToCart(selectedProduct, qty);
                     setSuccessPopup({ product: selectedProduct, qty });
                     setSelectedProduct(null);
@@ -597,6 +614,11 @@ export default function ProductList({
                 </button>
                 <button
                   onClick={() => {
+                    if (isGuest) {
+                      setSelectedProduct(null);
+                      if (onRequireLogin) onRequireLogin();
+                      return;
+                    }
                     onChat(selectedProduct.sellerId, selectedProduct.sellerName, selectedProduct.name);
                     setSelectedProduct(null);
                   }}

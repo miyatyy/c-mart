@@ -479,6 +479,8 @@ function MainAppContent() {
               onChat={handleOpenChat}
               onNavigateCheckout={() => setActiveTab('checkout')}
               onOpenVending={() => setActiveTab('vending')}
+              isGuest={isGuest}
+              onRequireLogin={() => setShowLoginModal(true)}
             />
           )}
           {activeTab === 'cart' && (

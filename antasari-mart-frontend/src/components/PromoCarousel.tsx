@@ -23,6 +23,8 @@ interface PromoCarouselProps {
   onFilterCategory?: (category: string) => void;
   onFilterType?: (type: 'all' | 'koperasi' | 'mahasiswa') => void;
   onOpenVending?: () => void;
+  isGuest?: boolean;
+  onRequireLogin?: () => void;
 }
 
 const PROMO_SLIDES: PromoSlide[] = [
@@ -104,7 +106,9 @@ export default function PromoCarousel({
   onAddToCart,
   onFilterCategory,
   onFilterType,
-  onOpenVending
+  onOpenVending,
+  isGuest,
+  onRequireLogin
 }: PromoCarouselProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -152,6 +156,10 @@ export default function PromoCarousel({
   };
 
   const handleAction = (slide: PromoSlide) => {
+    if (isGuest && (slide.ctaAction === 'blind_bag' || slide.ctaAction === 'vending')) {
+      if (onRequireLogin) onRequireLogin();
+      return;
+    }
     if (slide.ctaAction === 'blind_bag') {
       const blindBagProduct: Product = {
         id: 'blind_bag_myammiy_35k',

@@ -1,5 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-@import 'tailwindcss';
+:root {
+  --am-bg: #FAFDFB;            /* Putih segar dengan sentuhan lembut */
+  --am-bg2: #F0F7F2;           /* Hijau muda pastel sangat lembut */
+  --am-surface: #FFFFFF;       /* Putih bersih */
+  --am-primary: #5FA874;       /* Hijau muda pastel segar */
+  --am-primary-dark: #4D9562;  /* Hijau daun lembut */
+  --am-primary-light: #EAF5EE; /* Hijau muda tint */
+  --am-secondary: #FCE7EE;     /* Pink muda pastel */
+  --am-accent: #F4AEC2;        /* Pink muda pastel aksen */
+  --am-accent-dark: #E68FA5;   /* Pink berry lembut */
+  --am-text: #243329;          /* Teks gelap hijau charcoal ramah mata */
+  --am-text-muted: #687D70;    /* Teks abu kehijauan */
+  --am-border: #E1ECE4;        /* Border putih kehijauan bersih */
+  --am-badge-koperasi: #5FA874;/* Lencana hijau */
+  --am-badge-pink: #F4AEC2;    /* Lencana pink muda */
+  --am-radius: 16px;
+  --am-font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --am-font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --am-shadow: 0 4px 20px rgba(95, 168, 116, 0.08);
+}
 
 /* ── Aesthetic theme: MODE SIANG (Putih Bersih, Pastel Hijau Muda & Pink Muda) ── */
 .theme-aesthetic {
