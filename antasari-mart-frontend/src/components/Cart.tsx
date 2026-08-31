@@ -22,13 +22,40 @@ export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, 
   const deliveryFee = deliveryMethod === 'delivery' ? 5000 : 0
   const total = subtotal + (items.length > 0 ? deliveryFee : 0)
 
-  // 💡 Cek apakah ada produk yang tidak sesuai untuk Vending Machine (misal bukan ganci/snack kecil)
-  // Kita asumsikan produk yang valid untuk vending memiliki kategori/nama mengandung 'ganci', 'aksesoris', 'snack', 'kecil', 'keripik', dll.
-  const hasInvalidVendingItems = items.some(i => {
-    const name = i.product.name.toLowerCase()
-    const isSmallItem = name.includes('ganci') || name.includes('gantungan') || name.includes('snack') || name.includes('keripik') || name.includes('roti') || name.includes('aksesoris')
-    return deliveryMethod === 'vending' && !isSmallItem
-  })
+  // 💡 Cek apakah ada produk yang tidak sesuai untuk Vending Machine (misal bukan ganci/snack kecil/blind bag)
+  const isVendingItem = (p: any) => {
+    if (!p) return false;
+    const name = (p.name || p.nama_produk || '').toLowerCase();
+    const desc = (p.description || p.deskripsi || '').toLowerCase();
+    const seller = (p.sellerId || p.sellerName || p.seller_name || '').toLowerCase();
+    const category = (p.category || p.kategori || '').toLowerCase();
+    
+    return (
+      p.slotNumber !== undefined ||
+      p.isVending === true ||
+      p.id === 'blind_bag_myammiy_35k' ||
+      seller.includes('myammiy') ||
+      seller.includes('seller_1') ||
+      name.includes('ganci') ||
+      name.includes('gantungan') ||
+      name.includes('blind bag') ||
+      name.includes('blindbag') ||
+      name.includes('keychain') ||
+      name.includes('rajut') ||
+      name.includes('bando') ||
+      name.includes('snack') ||
+      name.includes('keripik') ||
+      name.includes('roti') ||
+      name.includes('aksesoris') ||
+      category === 'kerajinan' ||
+      category === 'aksesoris' ||
+      desc.includes('ganci') ||
+      desc.includes('blind bag') ||
+      desc.includes('vending')
+    );
+  };
+
+  const hasInvalidVendingItems = items.some(i => deliveryMethod === 'vending' && !isVendingItem(i.product));
 
   const handleMethodChange = (method: 'delivery' | 'pickup' | 'vending') => {
     setDeliveryMethod(method)

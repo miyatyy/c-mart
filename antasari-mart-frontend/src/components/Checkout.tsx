@@ -67,12 +67,38 @@ const MYSTERY_KEYCHAINS = [
 ];
 
 export default function Checkout({ theme: _theme, campus, items, onConfirmOrder, onBack }: CheckoutProps) {
-  const isOnlyGanciInCart = items.length > 0 && items.every(i => 
-    (i.product as any).sellerId === 'seller_1' || 
-    (i.product as any).sellerId === 'seller_myammiy' ||
-    i.product.name.toLowerCase().includes('ganci') ||
-    i.product.name.toLowerCase().includes('blind bag')
-  );
+  const isVendingItem = (p: any) => {
+    if (!p) return false;
+    const name = (p.name || p.nama_produk || '').toLowerCase();
+    const desc = (p.description || p.deskripsi || '').toLowerCase();
+    const seller = (p.sellerId || p.sellerName || p.seller_name || '').toLowerCase();
+    const category = (p.category || p.kategori || '').toLowerCase();
+    
+    return (
+      p.slotNumber !== undefined ||
+      p.isVending === true ||
+      p.id === 'blind_bag_myammiy_35k' ||
+      seller.includes('myammiy') ||
+      seller.includes('seller_1') ||
+      name.includes('ganci') ||
+      name.includes('gantungan') ||
+      name.includes('blind bag') ||
+      name.includes('blindbag') ||
+      name.includes('keychain') ||
+      name.includes('rajut') ||
+      name.includes('bando') ||
+      name.includes('snack') ||
+      name.includes('keripik') ||
+      name.includes('roti') ||
+      name.includes('aksesoris') ||
+      category === 'kerajinan' ||
+      category === 'aksesoris' ||
+      desc.includes('ganci') ||
+      desc.includes('blind bag')
+    );
+  };
+
+  const isOnlyGanciInCart = items.length > 0 && items.every(i => isVendingItem(i.product));
 
   const [delivery, setDelivery] = useState<DeliveryMethod | 'vending'>(isOnlyGanciInCart ? 'vending' : 'pickup');
   const [payment, setPayment] = useState<PaymentMethod | 'seabank' | 'gopay'>('seabank');

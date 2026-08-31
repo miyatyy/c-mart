@@ -92,7 +92,7 @@ export const MOCK_PRODUCTS: Product[] = [
     campus: 'banjarmasin',
     sellerId: 'seller_1',
     sellerName: 'Myammiy Craft',
-    image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=400&fit=crop&auto=format',
+    image: '/banners/banner_blindbag.jpg',
     isKoperasi: false,
     slotNumber: 1,
     rating: 5.0,
