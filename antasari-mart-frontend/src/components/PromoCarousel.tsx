@@ -110,18 +110,22 @@ export default function PromoCarousel({
     setCurrentSlide(prev => (prev + 1) % PROMO_SLIDES.length);
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
+  const handleTouchStart = (e: any) => {
+    if (e && e.touches && e.touches[0]) {
+      touchStartX.current = e.touches[0].clientX;
+    }
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    touchEndX.current = e.changedTouches[0].clientX;
-    const diff = touchStartX.current - touchEndX.current;
-    if (Math.abs(diff) > 40) {
-      if (diff > 0) {
-        handleNext();
-      } else {
-        handlePrev();
+  const handleTouchEnd = (e: any) => {
+    if (e && e.changedTouches && e.changedTouches[0]) {
+      touchEndX.current = e.changedTouches[0].clientX;
+      const diff = touchStartX.current - touchEndX.current;
+      if (Math.abs(diff) > 40) {
+        if (diff > 0) {
+          handleNext();
+        } else {
+          handlePrev();
+        }
       }
     }
   };
