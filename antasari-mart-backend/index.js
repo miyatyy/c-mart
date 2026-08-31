@@ -245,7 +245,7 @@ async function initDB() {
           },
           {
             nama_produk: 'Ganci Myammiy Craft (Vending)',
-            deskripsi: 'Gantungan kunci rajut buatan mahasiswa, siap diambil instan di Vending Machine Kampus.',
+            deskripsi: 'Gantungan kunci pipe cleaner / kawat bulu handmade buatan mahasiswi, siap diambil instan di Vending Machine Kampus.',
             harga: 15000,
             stok: 25,
             kategori: 'aksesoris',
@@ -331,7 +331,7 @@ async function initDB() {
       if (!blindBagInDB) {
         await Product.create({
           nama_produk: 'Blind Bag Keychain Mystery (Myammiy Craft)',
-          deskripsi: 'Blind bag suvenir kejutan buatan tangan (handmade) eksklusif Myammiy Craft. Berisi mystery ganci rajut sakura, strawberry tulip, atau charm kpop! Siap ambil di Vending Machine Kampus.',
+          deskripsi: 'Blind bag suvenir kejutan buatan tangan (handmade) eksklusif Myammiy Craft dari bahan pipe cleaner / kawat bulu chenille premium. Berisi mystery ganci bunga tulip, kaktus senyum, boneka lucu, atau charm kpop! Siap ambil di Vending Machine Kampus.',
           harga: 35000,
           stok: 50,
           kategori: 'kerajinan',
@@ -898,10 +898,10 @@ const MYAMMIY_SYSTEM_PROMPT = `Kamu adalah Myammiy AI 🌸, asisten virtual dan 
 1. BAHASA MANUSIA NORMAL, SANTAI & RAMAH: Bicaralah seperti bestie / sahabat kampus yang manis, sopan, dan solutif. Jangan kaku dan jangan seperti robot! Gunakan sapaan manis seperti "Hai Kak! 🌸", "Wah, siap Kak! 😊", "Boleh banget Kak! 🥰".
 2. SELALU PAKAI EMOTIKON EKSPRESIF: Selalu sisipkan emoji lucu & bersahabat di setiap jawaban (🌸, ✨, 😊, 🎁, 🥰, 🎀, 💖, 🛵, 🤖, 🛍️) agar obrolan terasa hidup dan menyenangkan.
 3. JAWAB SINGKAT, PADAT & MENYENANGKAN (1 sampai 3 kalimat saja): Jawabanmu dibacakan langsung oleh suara AI kepada pelanggan, jadi pastikan singkat, jelas, dan enak didengar.
-4. INFO PROMO BLIND BAG: Produk utama adalah Blind Bag Keychain Mystery seharga Rp 35.000 (sedang diskon spesial dari harga normal Rp 40.000). Isinya ganci rajut handmade suvenir eksklusif (sakura, strawberry tulip, kpop charm).
-5. JIKA ADA YANG MENAWAR HARGA: Jawab santai dan ramah: "Wah Kak, Rp 35.000 itu udah harga diskon spesial banget lho dari Rp 40.000! Soalnya handmade rajut asli kualitas premium, gemas dan dijamin worth it banget buat teman kuliah! 🌸🥰"
+4. INFO PRODUK BLIND BAG & BAHAN: Produk utama adalah Blind Bag Keychain Mystery seharga Rp 35.000 (sedang diskon spesial dari harga normal Rp 40.000). Ganci ini dibuat 100% HANDMADE DARI PIPE CLEANER (KAWAT BULU CHENILLE / KAWAT BULU BERKUALITAS), BUKAN DARI RAJUT! Isinya mystery ganci karakter lucu, bunga tulip pipe cleaner, boneka kawat bulu, kaktus senyum, dan charm estetik.
+5. JIKA ADA YANG MENAWAR HARGA: Jawab santai dan ramah: "Wah Kak, Rp 35.000 itu udah harga diskon spesial banget lho dari Rp 40.000! Soalnya handmade pipe cleaner premium yang dibentuk super rapi, gemas dan dijamin worth it banget buat teman kuliah! 🌸🥰"
 6. PEMBAYARAN & VENDING MACHINE: "Bisa bayar mudah via transfer SeaBank atau GoPay a.n. Nurmiyaty ya Kak! Nanti langsung dapat kode QR buat ambil instan di Vending Machine kampus tanpa antre! 🤖✨"
-7. REKOMENDASI LAIN: Kamu juga bisa merekomendasikan kuliner makanan/snack kampus dan jas almamater di Campus Mart! 🍱🎓`;
+7. REKOMENDASI LAIN: Kamu juga bisa merekomendasikan aneka bando / aksesoris kawat bulu pipe cleaner, kuliner makanan/snack kampus, dan jas almamater di Campus Mart! 🍱🎓`;
 
 app.post('/api/ai/myammiy-chat', async (req, res) => {
   try {

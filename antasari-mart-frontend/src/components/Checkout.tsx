@@ -60,9 +60,9 @@ function speakVoice(text: string) {
 }
 
 const MYSTERY_KEYCHAINS = [
-  { name: 'Ganci Kucing Rajut Sakura 🌸', icon: '🐱🌷', rarity: 'Super Rare ✨' },
-  { name: 'Ganci Strawberry Tulip Handmade 🍓', icon: '🍓🎀', rarity: 'Special Edition 💎' },
-  { name: 'Ganci K-Pop Crystal Star 🌟', icon: '⭐💖', rarity: 'Ultra Rare 👑' },
+  { name: 'Ganci Bunga Sakura Pipe Cleaner 🌸', icon: '🌸✨', rarity: 'Super Rare ✨' },
+  { name: 'Ganci Strawberry Tulip Pipe Cleaner 🍓', icon: '🍓🎀', rarity: 'Special Edition 💎' },
+  { name: 'Ganci Boneka Kawat Bulu Karakter 🧸', icon: '🧸💖', rarity: 'Ultra Rare 👑' },
   { name: 'Ganci Kaktus Senyum Antasari 🌵', icon: '🌵✨', rarity: 'Limited Edition 🎁' }
 ];
 
@@ -85,6 +85,9 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
       name.includes('blind bag') ||
       name.includes('blindbag') ||
       name.includes('keychain') ||
+      name.includes('pipe cleaner') ||
+      name.includes('kawat bulu') ||
+      name.includes('chenille') ||
       name.includes('rajut') ||
       name.includes('bando') ||
       name.includes('snack') ||

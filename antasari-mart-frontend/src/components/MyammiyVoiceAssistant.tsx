@@ -276,7 +276,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
       return {
         id: `ai_${Date.now()}`,
         sender: 'ai',
-        text: 'Wah Kak, Rp 35.000 itu udah harga diskon spesial banget lho dari harga asli Rp 40.000! Soalnya ini 100% rajut handmade premium buatan mahasiswi Antasari, dijamin gemas dan worth it banget buat teman kuliah! Yuk langsung checkout Kak! 🌸🥰✨',
+        text: 'Wah Kak, Rp 35.000 itu udah harga diskon spesial banget lho dari harga asli Rp 40.000! Soalnya ini 100% handmade pipe cleaner premium berkualitas buatan mahasiswi Antasari, dijamin gemas dan worth it banget buat teman kuliah! Yuk langsung checkout Kak! 🌸🥰✨',
         action: {
           type: 'add_blind_bag',
           label: '🎁 Beli Harga Promo Rp 35.000'
@@ -311,12 +311,14 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
       q.includes('keychain') ||
       q.includes('ganci mystery') ||
       q.includes('gantungan kunci') ||
-      q.includes('ganci kustom')
+      q.includes('ganci kustom') ||
+      q.includes('pipe cleaner') ||
+      q.includes('kawat bulu')
     ) {
       return {
         id: `ai_${Date.now()}`,
         sender: 'ai',
-        text: 'Hai Kak! 🌸 Blind Bag Keychain Mystery Myammiy Craft lagi ada promo spesial dari Rp 40.000 jadi Rp 35.000 aja! Di dalamnya ada kejutan ganci rajut sakura, strawberry tulip, atau charm k-pop yang super lucu! Mau ambil di vending machine sekarang? 🎁✨',
+        text: 'Hai Kak! 🌸 Blind Bag Keychain Mystery Myammiy Craft dibuat dari kawat bulu pipe cleaner premium lho! Lagi promo dari Rp 40.000 jadi Rp 35.000 aja! Di dalamnya ada kejutan ganci bunga tulip, kaktus, atau karakter lucu yang super estetik! Mau ambil di vending machine sekarang? 🎁✨',
         action: {
           type: 'add_blind_bag',
           label: '🎁 Beli Blind Bag Keychain (Rp 35.000)'
@@ -336,7 +338,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
       return {
         id: `ai_${Date.now()}`,
         sender: 'ai',
-        text: 'Ada banyak pilihan aksesoris rambut cantik & suvenir handmade dari Myammiy Craft lho Kak! Cocok banget buat OOTD kuliah atau hadiah kado wisuda manis untuk teman! 🎀✨'
+        text: 'Ada banyak pilihan aksesoris rambut kawat bulu pipe cleaner cantik & suvenir handmade dari Myammiy Craft lho Kak! Cocok banget buat OOTD kuliah atau hadiah kado wisuda manis untuk teman! 🎀✨'
       };
     }
 
@@ -393,7 +395,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
     return {
       id: `ai_${Date.now()}`,
       sender: 'ai',
-      text: 'Halo Kak! 🌸 Ada yang bisa Myammiy bantu seputar Blind Bag Keychain Rp 35.000, ganci rajut handmade, atau panduan Vending Machine Campus Mart hari ini? 😊✨',
+      text: 'Halo Kak! 🌸 Ada yang bisa Myammiy bantu seputar Blind Bag Keychain Pipe Cleaner Rp 35.000, ganci kawat bulu handmade, atau panduan Vending Machine Campus Mart hari ini? 😊✨',
       action: {
         type: 'add_blind_bag',
         label: '🎁 Beli Blind Bag Promo Rp 35.000'
@@ -408,7 +410,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
       const blindBagProduct: Product = {
         id: 'blind_bag_myammiy_35k',
         name: 'Blind Bag Keychain Mystery (Myammiy Craft)',
-        description: 'Blind bag gantungan kunci handmade spesial Myammiy Store. Berisi mystery keychain lucu (Kucing Rajut, Bunga Tulip, Manik Kpop) seharga Rp 35.000.',
+        description: 'Blind bag gantungan kunci handmade spesial Myammiy Store dari kawat bulu pipe cleaner. Berisi mystery keychain lucu (Bunga Tulip, Kaktus Senyum, Boneka Karakter) seharga Rp 35.000.',
         price: 35000,
         stock: 50,
         category: 'kerajinan',

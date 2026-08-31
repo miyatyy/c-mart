@@ -41,6 +41,9 @@ export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, 
       name.includes('blind bag') ||
       name.includes('blindbag') ||
       name.includes('keychain') ||
+      name.includes('pipe cleaner') ||
+      name.includes('kawat bulu') ||
+      name.includes('chenille') ||
       name.includes('rajut') ||
       name.includes('bando') ||
       name.includes('snack') ||

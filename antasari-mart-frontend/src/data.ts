@@ -85,7 +85,7 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'blind_bag_myammiy_35k',
     name: 'Blind Bag Keychain Mystery (Myammiy Craft)',
-    description: 'Blind bag suvenir kejutan buatan tangan (handmade) eksklusif Myammiy Craft. Berisi mystery ganci rajut sakura, strawberry tulip, atau charm kpop! Siap ambil di Vending Machine Kampus.',
+    description: 'Blind bag suvenir kejutan buatan tangan (handmade) eksklusif Myammiy Craft dari bahan pipe cleaner / kawat bulu chenille premium. Berisi mystery ganci bunga tulip, kaktus senyum, boneka lucu, atau charm kpop! Siap ambil di Vending Machine Kampus.',
     price: 35000,
     stock: 50,
     category: 'kerajinan',

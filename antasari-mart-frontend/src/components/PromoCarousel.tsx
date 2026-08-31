@@ -35,7 +35,7 @@ const PROMO_SLIDES: PromoSlide[] = [
       original: 'Rp 40.000',
       promo: 'Rp 35.000'
     },
-    subtitle: 'Ganci rajut suvenir kejutan handmade eksklusif. Siap ambil instan di Vending Machine!',
+    subtitle: 'Ganci pipe cleaner suvenir kejutan handmade eksklusif. Siap ambil instan di Vending Machine!',
     bgGradient: 'linear-gradient(135deg, #FF4D6D 0%, #C9184A 50%, #800F2F 100%)',
     image: '/banners/banner_blindbag.jpg',
     ctaText: '🎁 Beli Promo Rp 35.000',
@@ -49,7 +49,7 @@ const PROMO_SLIDES: PromoSlide[] = [
     priceHighlight: {
       promo: 'Mulai Rp 15.000'
     },
-    subtitle: 'Gantungan kunci rajut kustom & bando estetik karya mahasiswi UIN Antasari.',
+    subtitle: 'Gantungan kunci kawat bulu pipe cleaner & bando estetik karya mahasiswi UIN Antasari.',
     bgGradient: 'linear-gradient(135deg, #7B2CBF 0%, #5A189A 50%, #3C096C 100%)',
     image: '/banners/banner_ganci.jpg',
     ctaText: '🎀 Lihat Katalog Aksesoris',
@@ -156,7 +156,7 @@ export default function PromoCarousel({
       const blindBagProduct: Product = {
         id: 'blind_bag_myammiy_35k',
         name: 'Blind Bag Keychain Mystery (Myammiy Craft)',
-        description: 'Blind bag suvenir kejutan buatan tangan (handmade) eksklusif Myammiy Craft. Berisi mystery ganci rajut sakura, strawberry tulip, atau charm kpop! Siap ambil di Vending Machine Kampus.',
+        description: 'Blind bag suvenir kejutan buatan tangan (handmade) eksklusif Myammiy Craft dari bahan pipe cleaner / kawat bulu chenille premium. Berisi mystery ganci bunga tulip, kaktus senyum, boneka lucu, atau charm kpop! Siap ambil di Vending Machine Kampus.',
         price: 35000,
         stock: 50,
         category: 'kerajinan',
