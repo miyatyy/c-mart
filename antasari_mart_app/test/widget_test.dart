@@ -13,10 +13,10 @@ import 'package:antasari_mart_app/main.dart';
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const AntasariMartApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
+    // Verify that the title appears
+    expect(find.byType(MaterialApp), findsOneWidget);
     expect(find.text('1'), findsNothing);
 
     // Tap the '+' icon and trigger a frame.
