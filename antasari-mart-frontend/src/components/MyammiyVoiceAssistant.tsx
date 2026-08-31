@@ -439,9 +439,30 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
 
   return (
     <>
+      <style>{`
+        .am-myammiy-launcher-wrap {
+          position: fixed;
+          bottom: 24px;
+          right: 24px;
+          z-index: 998;
+        }
+        @media screen and (max-width: 768px) {
+          .am-myammiy-launcher-wrap {
+            bottom: 70px;
+            right: 14px;
+          }
+          .am-myammiy-launcher-btn {
+            padding: 8px 14px !important;
+            font-size: 12px !important;
+            border-radius: 24px !important;
+          }
+        }
+      `}</style>
+
       {/* Floating Launcher Button */}
-      <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 999 }}>
+      <div className="am-myammiy-launcher-wrap">
         <button
+          className="am-myammiy-launcher-btn"
           onClick={() => {
             setIsOpen(!isOpen);
             if (!isOpen) {
@@ -452,7 +473,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
+            gap: 8,
             padding: '12px 20px',
             borderRadius: 30,
             border: 'none',
@@ -467,7 +488,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
             animation: 'floatCute 3s ease-in-out infinite'
           }}
         >
-          <span style={{ fontSize: 20 }}>🎀🎙️</span>
+          <span style={{ fontSize: 18 }}>🎀🎙️</span>
           <span>Tanya Myammiy AI</span>
           {isSpeaking && <span style={{ fontSize: 12 }}>🔊</span>}
         </button>
