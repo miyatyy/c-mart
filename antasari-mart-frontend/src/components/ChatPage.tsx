@@ -24,7 +24,7 @@ interface RoomInfo {
 
 const ROLE_LABEL: Record<string, string> = {
   buyer: 'Pembeli',
-  seller: 'Penjual (AI Ready)',
+  seller: 'Penjual',
   driver: 'Driver',
   admin: 'Admin',
   super_admin: 'Super Admin',
@@ -64,6 +64,14 @@ function playNotificationSound() {
   } catch (_e) {}
 }
 
+const CLOSING_KEYWORDS = [
+  'deal', 'beli sekarang', 'mau beli', 'mau pesan', 'mau order', 'order sekarang',
+  'transfer', 'sudah bayar', 'sudah tf', 'nomor rekening', 'rekening',
+  'bicara dengan admin', 'hubungi admin', 'admin asli', 'minta wa', 'whatsapp',
+  'terima kasih', 'makasih', 'terimakasih', 'siap kak', 'oke siap', 'closing',
+  'baik kak terima kasih', 'oke makasih'
+];
+
 export default function ChatPage({ theme: _theme }: ChatPageProps) {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [chats, setChats] = useState<BackendChatMessage[]>([]);
@@ -75,6 +83,23 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
   const [contactSearch, setContactSearch] = useState('');
   const [inAppToast, setInAppToast] = useState<{ title: string; desc: string } | null>(null);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
+
+  // Status Handover: jika true, AI tidak lagi membalas otomatis (ditangani langsung oleh Admin Seller)
+  const [handovers, setHandovers] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('am_chat_handovers') || '{}');
+    } catch (_e) {
+      return {};
+    }
+  });
+
+  const setRoomHandover = (roomId: string, status: boolean) => {
+    setHandovers(prev => {
+      const next = { ...prev, [roomId]: status };
+      localStorage.setItem('am_chat_handovers', JSON.stringify(next));
+      return next;
+    });
+  };
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const prevChatsLengthRef = useRef<number>(0);
@@ -213,6 +238,8 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     return rooms.find(r => r.roomId === activeRoomId) || null;
   }, [rooms, activeRoomId, pendingContact, currentUser]);
 
+  const isCurrentRoomHandedOver = activeRoom ? Boolean(handovers[activeRoom.roomId]) : false;
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageInput.trim() || !activeRoom || !currentUser) return;
@@ -260,53 +287,66 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     if (pendingContact) setPendingContact(null);
     setActiveRoomId(activeRoom.roomId);
 
-    // 🤖 SMART AI SELLER AGENT PROCESSING (DEEPSEEK AI INTEGRATION)
+    // 🛑 JIKA SUDAH DI-HANDOVER KE ADMIN PENJUAL, AI TIDAK LAGI MEMBALAS OTOMATIS
+    if (handovers[activeRoom.roomId]) {
+      return;
+    }
+
+    // 🤖 SMART AI SELLER AGENT PROCESSING DENGAN DETEKSI CLOSING & HANDOVER
     const otherId = activeRoom.otherId;
     const otherName = activeRoom.otherName;
     const otherRole = activeRoom.otherRole;
     const buyerName = currentUser.nama || currentUser.name || 'Kakak';
+    const lowerText = textToSend.toLowerCase();
+
+    const isClosing = CLOSING_KEYWORDS.some(kw => lowerText.includes(kw));
 
     setIsOtherTyping(true);
 
     setTimeout(async () => {
       let aiReplyText = '';
 
-      try {
-        const aiRes = await askSellerAIApi({
-          sellerId: otherId,
-          sellerName: otherName,
-          sellerRole: otherRole,
-          buyerName: buyerName,
-          message: textToSend,
-          history: activeRoom.messages
-        });
+      if (isClosing) {
+        // ✨ CLOSING MESSAGE: AI mengalihkan obrolan secara manis ke Admin Penjual Asli
+        aiReplyText = `Wah, siap Kak ${buyerName}! 🌸 Percakapan ini sekarang sudah otomatis kami alihkan ke Admin Penjual ${otherName} untuk proses transaksi & konfirmasi order lebih lanjut yaa. Admin kami akan segera membalas langsung di sini. Terima kasih banyak dan happy shopping! 🥰✨`;
+        setRoomHandover(activeRoom.roomId, true);
+      } else {
+        try {
+          const aiRes = await askSellerAIApi({
+            sellerId: otherId,
+            sellerName: otherName,
+            sellerRole: otherRole,
+            buyerName: buyerName,
+            message: textToSend,
+            history: activeRoom.messages
+          });
 
-        if (aiRes && aiRes.success && aiRes.reply && aiRes.reply.trim()) {
-          aiReplyText = aiRes.reply.trim();
-        }
-      } catch (_e) {
-        console.warn('DeepSeek AI response failed, fallback to store catalog generator.');
-      }
-
-      // 🌸 Smart Contextual Fallback based on Store Catalog
-      if (!aiReplyText) {
-        const lowerText = textToSend.toLowerCase();
-        const isMyammiy = otherName.toLowerCase().includes('myammiy') || otherId.includes('seller_1');
-
-        if (isMyammiy) {
-          if (lowerText.includes('bahan') || lowerText.includes('rajut') || lowerText.includes('kawat') || lowerText.includes('pipe cleaner')) {
-            aiReplyText = `Hai Kak ${buyerName}! 🌸 Untuk gantungan kunci di Myammiy Craft kami buat 100% HANDMADE DARI PIPE CLEANER (KAWAT BULU CHENILLE) premium yaa, bukan rajut! Bahannya lembut, padat, dan dibentuk sangat rapi! 🥰✨`;
-          } else if (lowerText.includes('harga') || lowerText.includes('diskon') || lowerText.includes('berapa') || lowerText.includes('tawar')) {
-            aiReplyText = `Hai Kak ${buyerName}! 🌸 Blind Bag Keychain Mystery kami harganya Rp 35.000 (lagi diskon spesial dari harga normal Rp 40.000 lho!). Sudah dapat ganci pipe cleaner aesthetic dan siap ambil di Vending Machine! 🎁✨`;
-          } else if (lowerText.includes('vending') || lowerText.includes('mesin') || lowerText.includes('ambil') || lowerText.includes('bayar') || lowerText.includes('beli') || lowerText.includes('order')) {
-            aiReplyText = `Bisa langsung order di aplikasi ya Kak ${buyerName}! Pembayaran transfer SeaBank atau GoPay a.n. Nurmiyaty, lalu Kakak langsung dapat kode QR untuk ambil instan di Vending Machine Kampus! 🤖🛍️`;
-          } else if (lowerText.includes('stok') || lowerText.includes('ready') || lowerText.includes('ada')) {
-            aiReplyText = `Stok Blind Bag Keychain Pipe Cleaner kami masih ready banget Kak ${buyerName}! Boleh langsung di-checkout sebelum kehabisan yaa! 🌸🥰`;
-          } else {
-            aiReplyText = `Hai Kak ${buyerName}! 🌸 Selamat datang di ${otherName}. Semua produk handmade pipe cleaner & aksesoris kami siap dipesan. Ada yang mau ditanyakan seputar stok atau pemesanan? 😊✨`;
+          if (aiRes && aiRes.success && aiRes.reply && aiRes.reply.trim()) {
+            aiReplyText = aiRes.reply.trim();
           }
-        } else {
-          aiReplyText = `Halo Kak ${buyerName}! Terima kasih sudah menghubungi ${otherName}. Pesan Anda sudah kami terima dan katalog produk kami siap dipesan yaa! 😊🛍️`;
+        } catch (_e) {
+          console.warn('DeepSeek AI response failed, fallback to store catalog generator.');
+        }
+
+        // 🌸 Smart Contextual Fallback based on Store Catalog
+        if (!aiReplyText) {
+          const isMyammiy = otherName.toLowerCase().includes('myammiy') || otherId.includes('seller_1');
+
+          if (isMyammiy) {
+            if (lowerText.includes('bahan') || lowerText.includes('rajut') || lowerText.includes('kawat') || lowerText.includes('pipe cleaner')) {
+              aiReplyText = `Hai Kak ${buyerName}! 🌸 Untuk gantungan kunci di Myammiy Craft kami buat 100% HANDMADE DARI PIPE CLEANER (KAWAT BULU CHENILLE) premium yaa, bukan rajut! Bahannya lembut, padat, dan dibentuk sangat rapi! 🥰✨`;
+            } else if (lowerText.includes('harga') || lowerText.includes('diskon') || lowerText.includes('berapa') || lowerText.includes('tawar')) {
+              aiReplyText = `Hai Kak ${buyerName}! 🌸 Blind Bag Keychain Mystery kami harganya Rp 35.000 (lagi diskon spesial dari harga normal Rp 40.000 lho!). Sudah dapat ganci pipe cleaner aesthetic dan siap ambil di Vending Machine! 🎁✨`;
+            } else if (lowerText.includes('vending') || lowerText.includes('mesin') || lowerText.includes('ambil') || lowerText.includes('bayar') || lowerText.includes('beli') || lowerText.includes('order')) {
+              aiReplyText = `Bisa langsung order di aplikasi ya Kak ${buyerName}! Pembayaran transfer SeaBank atau GoPay a.n. Nurmiyaty, lalu Kakak langsung dapat kode QR untuk ambil instan di Vending Machine Kampus! 🤖🛍️`;
+            } else if (lowerText.includes('stok') || lowerText.includes('ready') || lowerText.includes('ada')) {
+              aiReplyText = `Stok Blind Bag Keychain Pipe Cleaner kami masih ready banget Kak ${buyerName}! Boleh langsung di-checkout sebelum kehabisan yaa! 🌸🥰`;
+            } else {
+              aiReplyText = `Hai Kak ${buyerName}! 🌸 Selamat datang di ${otherName}. Semua produk handmade pipe cleaner & aksesoris kami siap dipesan. Ada yang mau ditanyakan seputar stok atau pemesanan? 😊✨`;
+            }
+          } else {
+            aiReplyText = `Halo Kak ${buyerName}! Terima kasih sudah menghubungi ${otherName}. Pesan Anda sudah kami terima dan katalog produk kami siap dipesan yaa! 😊🛍️`;
+          }
         }
       }
 
@@ -632,6 +672,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
             /* Daftar Room Obrolan Aktif */
             rooms.map(r => {
               const isActive = activeRoom?.roomId === r.roomId;
+              const isRoomHanded = Boolean(handovers[r.roomId]);
               const lastMsg = r.messages[r.messages.length - 1];
               return (
                 <div
@@ -659,8 +700,17 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                       <span style={{ fontSize: 12, color: 'var(--am-text-muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {lastMsg?.text || 'Mulai percakapan...'}
                       </span>
-                      <span style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 6, background: 'var(--am-bg2, #f1f5f9)', color: '#0077B6', fontWeight: 800, flexShrink: 0, marginLeft: 6 }}>
-                        🤖 AI Ready
+                      <span style={{
+                        fontSize: 9.5,
+                        padding: '2px 6px',
+                        borderRadius: 6,
+                        background: isRoomHanded ? '#ECFDF5' : 'var(--am-bg2, #f1f5f9)',
+                        color: isRoomHanded ? '#059669' : '#0077B6',
+                        fontWeight: 800,
+                        flexShrink: 0,
+                        marginLeft: 6
+                      }}>
+                        {isRoomHanded ? '🤝 Admin Penjual' : '🤖 AI Ready'}
                       </span>
                     </div>
                   </div>
@@ -682,50 +732,118 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
               borderBottom: '1px solid var(--am-border, #e2e8f0)',
               display: 'flex',
               alignItems: 'center',
-              gap: 12,
+              justifyContent: 'space-between',
+              gap: 10,
               zIndex: 20
             }}>
-              {/* Back Button (Always available on mobile to return to list) */}
-              <button
-                onClick={() => {
-                  setActiveRoomId(null);
-                  setPendingContact(null);
-                }}
-                style={{
-                  background: 'var(--am-bg2, #f1f5f9)',
-                  border: '1px solid var(--am-border, #e2e8f0)',
-                  borderRadius: '50%',
-                  width: 36,
-                  height: 36,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 16,
-                  color: 'var(--am-text, #1e293b)',
-                  cursor: 'pointer',
-                  fontWeight: 900
-                }}
-                title="Kembali ke daftar pesan"
-              >
-                ←
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                {/* Back Button */}
+                <button
+                  onClick={() => {
+                    setActiveRoomId(null);
+                    setPendingContact(null);
+                  }}
+                  style={{
+                    background: 'var(--am-bg2, #f1f5f9)',
+                    border: '1px solid var(--am-border, #e2e8f0)',
+                    borderRadius: '50%',
+                    width: 36,
+                    height: 36,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 16,
+                    color: 'var(--am-text, #1e293b)',
+                    cursor: 'pointer',
+                    fontWeight: 900
+                  }}
+                  title="Kembali ke daftar pesan"
+                >
+                  ←
+                </button>
 
-              <div className="am-chat-avatar-circle" style={{ width: 40, height: 40, fontSize: 20 }}>
-                {ROLE_EMOJI[activeRoom.otherRole] || '👤'}
-                <span className="am-chat-online-dot"></span>
-              </div>
+                <div className="am-chat-avatar-circle" style={{ width: 40, height: 40, fontSize: 20 }}>
+                  {ROLE_EMOJI[activeRoom.otherRole] || '👤'}
+                  <span className="am-chat-online-dot"></span>
+                </div>
 
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <h4 style={{ margin: 0, fontSize: 14.5, fontWeight: 900, color: 'var(--am-text, #1e293b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {activeRoom.otherName}
-                </h4>
-                <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span>● Online</span>
-                  <span style={{ color: '#94a3b8' }}>•</span>
-                  <span style={{ color: '#0077B6', fontWeight: 800 }}>🤖 AI Agent Penjual</span>
+                <div style={{ minWidth: 0 }}>
+                  <h4 style={{ margin: 0, fontSize: 14.5, fontWeight: 900, color: 'var(--am-text, #1e293b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {activeRoom.otherName}
+                  </h4>
+                  <div style={{ fontSize: 11, color: isCurrentRoomHandedOver ? '#059669' : '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>● Online</span>
+                    <span style={{ color: '#94a3b8' }}>•</span>
+                    <span style={{ color: isCurrentRoomHandedOver ? '#059669' : '#0077B6', fontWeight: 800 }}>
+                      {isCurrentRoomHandedOver ? '🤝 Admin Penjual Langsung' : '🤖 AI Agent Penjual'}
+                    </span>
+                  </div>
                 </div>
               </div>
+
+              {/* Handover Toggle Action Button */}
+              <div>
+                {isCurrentRoomHandedOver ? (
+                  <button
+                    onClick={() => setRoomHandover(activeRoom.roomId, false)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 14,
+                      border: '1px solid #0077B6',
+                      background: 'rgba(0, 119, 182, 0.08)',
+                      color: '#0077B6',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                    title="Aktifkan kembali asisten bot AI"
+                  >
+                    🤖 Bantuan AI
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setRoomHandover(activeRoom.roomId, true);
+                      setInAppToast({
+                        title: '🤝 Dialihkan ke Admin Penjual',
+                        desc: `Percakapan sekarang diteruskan langsung ke Admin ${activeRoom.otherName}.`
+                      });
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 14,
+                      border: '1px solid #059669',
+                      background: '#ECFDF5',
+                      color: '#059669',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                    title="Alihkan obrolan langsung ke Admin Toko Asli"
+                  >
+                    🙋 Hubungi Admin
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Handover Alert Ribbon */}
+            {isCurrentRoomHandedOver && (
+              <div style={{
+                padding: '7px 16px',
+                background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+                borderBottom: '1px solid #A7F3D0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: 11.5,
+                color: '#065F46',
+                fontWeight: 700
+              }}>
+                <span>🤝 Obrolan telah dialihkan ke Admin Penjual Asli (Human Support).</span>
+                <span style={{ fontSize: 10, background: '#059669', color: 'white', padding: '2px 8px', borderRadius: 10 }}>Live</span>
+              </div>
+            )}
 
             {/* Message Bubbles Area */}
             <div
@@ -796,7 +914,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
             >
               <input
                 type="text"
-                placeholder={`Tulis pertanyaan / pesan untuk ${activeRoom.otherName}...`}
+                placeholder={isCurrentRoomHandedOver ? `Tulis pesan untuk Admin Penjual ${activeRoom.otherName}...` : `Tulis pertanyaan / pesan untuk ${activeRoom.otherName}...`}
                 value={messageInput}
                 onChange={e => setMessageInput(e.target.value)}
                 style={{
