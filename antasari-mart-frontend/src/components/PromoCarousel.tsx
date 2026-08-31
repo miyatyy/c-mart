@@ -108,6 +108,7 @@ export default function PromoCarousel({
 }: PromoCarouselProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
 
@@ -188,8 +189,14 @@ export default function PromoCarousel({
         userSelect: 'none',
         width: '100%'
       }}
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
+      onMouseEnter={() => {
+        setIsPaused(true);
+        setIsHovered(true);
+      }}
+      onMouseLeave={() => {
+        setIsPaused(false);
+        setIsHovered(false);
+      }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
@@ -229,7 +236,7 @@ export default function PromoCarousel({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: 'clamp(12px, 2.5vw, 20px) clamp(16px, 3.5vw, 32px)',
+                padding: 'clamp(12px, 2.5vw, 20px) clamp(24px, 4.5vw, 44px)',
                 background: slide.bgGradient,
                 cursor: 'pointer',
                 overflow: 'hidden',
@@ -237,15 +244,15 @@ export default function PromoCarousel({
                 boxSizing: 'border-box'
               }}
             >
-              {/* SISI KIRI: Teks Promo Tajam, Jelas & Mudah Dibaca */}
+              {/* SISI KIRI: Teks Promo Tajam & Leluasa (Tidak Tertutup Panah) */}
               <div
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'center',
                   zIndex: 3,
-                  maxWidth: '62%',
-                  paddingRight: 10
+                  maxWidth: '60%',
+                  paddingRight: 8
                 }}
               >
                 {/* Badge Tag */}
@@ -392,7 +399,7 @@ export default function PromoCarousel({
           ))}
         </div>
 
-        {/* Tombol Panah Kiri */}
+        {/* Tombol Panah Kiri (Hanya Muncul Otomatis Saat Kursor Diarahkan/Hover) */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -401,14 +408,16 @@ export default function PromoCarousel({
           aria-label="Slide Sebelumnya"
           style={{
             position: 'absolute',
-            left: 8,
+            left: 10,
             top: '50%',
-            transform: 'translateY(-50%)',
-            width: 30,
-            height: 30,
+            transform: isHovered ? 'translateY(-50%) scale(1)' : 'translateY(-50%) scale(0.75)',
+            opacity: isHovered ? 1 : 0,
+            pointerEvents: isHovered ? 'auto' : 'none',
+            width: 32,
+            height: 32,
             borderRadius: '50%',
             border: 'none',
-            background: 'rgba(255, 255, 255, 0.9)',
+            background: 'rgba(255, 255, 255, 0.95)',
             backdropFilter: 'blur(4px)',
             color: '#0F172A',
             fontSize: 18,
@@ -417,14 +426,15 @@ export default function PromoCarousel({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
-            zIndex: 10
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)',
+            zIndex: 10,
+            transition: 'opacity 0.25s ease, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)'
           }}
         >
           ‹
         </button>
 
-        {/* Tombol Panah Kanan */}
+        {/* Tombol Panah Kanan (Hanya Muncul Otomatis Saat Kursor Diarahkan/Hover) */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -433,14 +443,16 @@ export default function PromoCarousel({
           aria-label="Slide Berikutnya"
           style={{
             position: 'absolute',
-            right: 8,
+            right: 10,
             top: '50%',
-            transform: 'translateY(-50%)',
-            width: 30,
-            height: 30,
+            transform: isHovered ? 'translateY(-50%) scale(1)' : 'translateY(-50%) scale(0.75)',
+            opacity: isHovered ? 1 : 0,
+            pointerEvents: isHovered ? 'auto' : 'none',
+            width: 32,
+            height: 32,
             borderRadius: '50%',
             border: 'none',
-            background: 'rgba(255, 255, 255, 0.9)',
+            background: 'rgba(255, 255, 255, 0.95)',
             backdropFilter: 'blur(4px)',
             color: '#0F172A',
             fontSize: 18,
@@ -449,8 +461,9 @@ export default function PromoCarousel({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
-            zIndex: 10
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)',
+            zIndex: 10,
+            transition: 'opacity 0.25s ease, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)'
           }}
         >
           ›
