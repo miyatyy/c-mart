@@ -196,8 +196,14 @@ function MainAppContent() {
 
   useEffect(() => {
     const saved = localStorage.getItem('am_tab') as AppTab | null;
-    if (saved) setActiveTab(saved);
-  }, []);
+    if (saved) {
+      if (isGuest && ['cart', 'checkout', 'chat', 'seller', 'driver', 'admin', 'tracker', 'super_admin'].includes(saved)) {
+        setActiveTab('home');
+      } else {
+        setActiveTab(saved);
+      }
+    }
+  }, [isGuest]);
 
   useEffect(() => {
     localStorage.setItem('am_tab', activeTab);
@@ -221,12 +227,12 @@ function MainAppContent() {
   }, [user]);
 
   useEffect(() => {
-    if (isGuest || !currentUser?.email) {
-      setChatUnread(0);
-      return;
-    }
-
     const fetchUnreadChats = async () => {
+      if (isGuest || !currentUser?.email) {
+        setChatUnread(0);
+        return;
+      }
+
       try {
         const identifier = currentUser.email;
         const data = await getChatsApi(identifier);
@@ -287,7 +293,7 @@ function MainAppContent() {
   }
 
   const handleSetActiveTab = (tab: AppTab) => {
-    const guestRestricted: AppTab[] = ['seller', 'driver', 'admin', 'tracker'];
+    const guestRestricted: AppTab[] = ['cart', 'checkout', 'chat', 'seller', 'driver', 'admin', 'tracker', 'super_admin'];
     if (isGuest && guestRestricted.includes(tab)) {
       setShowLoginModal(true);
       return;
@@ -317,6 +323,10 @@ function MainAppContent() {
   }
 
   function addToCart(product: Product, qty: number) {
+    if (isGuest) {
+      setShowLoginModal(true);
+      return;
+    }
     setCart(prev => {
       const existing = prev.find(i => i.product.id === product.id);
       if (existing) return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + qty } : i);
@@ -484,29 +494,51 @@ function MainAppContent() {
             />
           )}
           {activeTab === 'cart' && (
-            <Cart
-              theme={theme}
-              items={cart}
-              onUpdateQty={(id, qty) => setCart(prev => prev.map(i => i.product.id === id ? { ...i, quantity: qty } : i))}
-              onRemove={id => setCart(prev => prev.filter(i => i.product.id !== id))}
-              onCheckout={() => {
-                if (isGuest) {
-                  setShowLoginModal(true);
-                } else {
-                  setActiveTab('checkout');
-                }
-              }}
-              onContinueShopping={() => setActiveTab('home')}
-            />
+            isGuest ? (
+              <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--am-text-muted)' }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+                <h3 style={{ color: 'var(--am-text)', margin: '0 0 8px' }}>Fitur Keranjang Terkunci</h3>
+                <p style={{ fontSize: 13, marginBottom: 20 }}>Silakan Masuk atau Daftar akun terlebih dahulu untuk melihat dan mengelola keranjang belanja.</p>
+                <button onClick={() => setShowLoginModal(true)} style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, cursor: 'pointer' }}>
+                  🔑 Masuk / Daftar Akun
+                </button>
+              </div>
+            ) : (
+              <Cart
+                theme={theme}
+                items={cart}
+                onUpdateQty={(id, qty) => setCart(prev => prev.map(i => i.product.id === id ? { ...i, quantity: qty } : i))}
+                onRemove={id => setCart(prev => prev.filter(i => i.product.id !== id))}
+                onCheckout={() => {
+                  if (isGuest) {
+                    setShowLoginModal(true);
+                  } else {
+                    setActiveTab('checkout');
+                  }
+                }}
+                onContinueShopping={() => setActiveTab('home')}
+              />
+            )
           )}
           {activeTab === 'checkout' && (
-            <Checkout
-              theme={theme}
-              campus={campus}
-              items={cart}
-              onConfirmOrder={handleCheckout}
-              onBack={() => setActiveTab('home')}
-            />
+            isGuest ? (
+              <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--am-text-muted)' }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+                <h3 style={{ color: 'var(--am-text)', margin: '0 0 8px' }}>Fitur Belanja Terkunci</h3>
+                <p style={{ fontSize: 13, marginBottom: 20 }}>Tingkat keamanan akun aktif: Anda harus Masuk atau Mendaftar akun terlebih dahulu sebelum dapat membeli barang.</p>
+                <button onClick={() => setShowLoginModal(true)} style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, cursor: 'pointer' }}>
+                  🔑 Masuk / Daftar Akun Sekarang
+                </button>
+              </div>
+            ) : (
+              <Checkout
+                theme={theme}
+                campus={campus}
+                items={cart}
+                onConfirmOrder={handleCheckout}
+                onBack={() => setActiveTab('home')}
+              />
+            )
           )}
           {activeTab === 'tracker' && (
             hasActiveOrder ? (
