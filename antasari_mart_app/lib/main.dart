@@ -62,10 +62,10 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
     _initWebView();
   }
 
-  void _initWebView() {
+  void _initWebView() async {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFFF8FAFC))
+      ..setBackgroundColor(const Color(0xFFFAFDFB))
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (int progress) {
@@ -113,8 +113,14 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
             return NavigationDecision.navigate;
           },
         ),
-      )
-      ..loadRequest(Uri.parse(_initialUrl));
+      );
+
+    try {
+      await _controller.clearCache();
+    } catch (_) {}
+
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    _controller.loadRequest(Uri.parse('$_initialUrl?v=$timestamp'));
   }
 
   Future<bool> _onWillPop() async {
@@ -145,7 +151,11 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
               RefreshIndicator(
                 color: const Color(0xFF5FA874),
                 onRefresh: () async {
-                  await _controller.reload();
+                  try {
+                    await _controller.clearCache();
+                  } catch (_) {}
+                  final timestamp = DateTime.now().millisecondsSinceEpoch;
+                  await _controller.loadRequest(Uri.parse('$_initialUrl?v=$timestamp'));
                 },
                 child: WebViewWidget(controller: _controller),
               ),

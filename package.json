@@ -1,6 +1,11 @@
 {
   "name": "project-antasari-mart",
   "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "antasari-mart-frontend",
+    "antasari-mart-backend"
+  ],
   "scripts": {
     "build": "npm run build --prefix antasari-mart-frontend",
     "start": "npm start --prefix antasari-mart-backend"

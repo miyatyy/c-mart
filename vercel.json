@@ -1,5 +1,12 @@
 {
   "framework": "vite",
+  "installCommand": "npm install --prefix antasari-mart-frontend",
   "buildCommand": "npm run build --prefix antasari-mart-frontend",
-  "outputDirectory": "antasari-mart-frontend/dist"
+  "outputDirectory": "antasari-mart-frontend/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
