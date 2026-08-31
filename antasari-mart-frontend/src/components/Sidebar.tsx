@@ -183,26 +183,37 @@ export default function Sidebar({
         width: 0 !important;
       }
       .am-sidebar-main {
-        width: min(85vw, 300px) !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        width: min(82vw, 290px) !important;
         background: #FFFFFF !important;
-        transform: translateX(-105%) !important;
-        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        box-shadow: 10px 0 35px rgba(0, 0, 0, 0.25) !important;
-        z-index: 100000 !important;
-        visibility: hidden;
+        transform: translateX(-100%) !important;
+        transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1) !important;
+        box-shadow: 10px 0 35px rgba(0, 0, 0, 0.3) !important;
+        z-index: 999999 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
       }
       .am-sidebar-main.mobile-open {
         transform: translateX(0) !important;
-        visibility: visible !important;
       }
       .am-mobile-backdrop {
         position: fixed !important;
         inset: 0 !important;
-        background: rgba(15, 23, 42, 0.6) !important;
-        z-index: 99999 !important;
-        animation: fadeIn 0.2s ease forwards;
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        background: rgba(15, 23, 42, 0.65) !important;
+        z-index: 999998 !important;
+        animation: fadeInBackdrop 0.25s ease forwards;
       }
-      @keyframes fadeIn {
+      @keyframes fadeInBackdrop {
         from { opacity: 0; }
         to { opacity: 1; }
       }

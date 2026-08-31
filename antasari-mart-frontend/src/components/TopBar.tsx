@@ -90,11 +90,27 @@ export default function TopBar({
           
           {/* 📱 Tombol Hamburger Menu Khusus HP */}
           <button
-            onClick={onToggleMobileSidebar}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (onToggleMobileSidebar) onToggleMobileSidebar();
+            }}
+            aria-label="Buka Menu Sidebar"
             style={{
-              background: 'var(--am-bg2)', border: '1px solid var(--am-border)', borderRadius: 8,
-              width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, color: 'var(--am-text)'
+              background: 'var(--am-bg2)',
+              border: '1px solid var(--am-border)',
+              borderRadius: 10,
+              width: 38,
+              height: 38,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 20,
+              fontWeight: 'bold',
+              color: 'var(--am-primary)',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+              zIndex: 102
             }}
             title="Buka Sidebar Menu"
           >
