@@ -25,7 +25,7 @@ class AntasariMartApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Antasari Mart',
+      title: 'Campus Mart',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -141,7 +141,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
         body: SafeArea(
           child: Stack(
             children: [
-              // 🌐 Webview Utama Antasari Mart
+              // 🌐 Webview Utama Campus Mart
               RefreshIndicator(
                 color: const Color(0xFF0077B6),
                 onRefresh: () async {
@@ -166,64 +166,62 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
                   ),
                 ),
 
-              // 🌸 Splash Loading Overlay saat pertama kali buka
+              // 🚀 Splash Loading Overlay saat pertama kali buka
               if (_isLoading && _loadingProgress < 60)
                 Container(
-                  color: Colors.white,
+                  color: const Color(0xFF0F172A),
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          width: 80,
-                          height: 80,
+                          width: 96,
+                          height: 96,
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFFFCAD4), Color(0xFFB5E2FA)],
-                            ),
+                            borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.08),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
+                                color: const Color(0xFF00B4D8).withOpacity(0.4),
+                                blurRadius: 30,
+                                offset: const Offset(0, 10),
                               ),
                             ],
                           ),
-                          child: const Center(
-                            child: Text(
-                              '🌸',
-                              style: TextStyle(fontSize: 40),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: Image.asset(
+                              'assets/campus_mart_icon.png',
+                              fit: BoxFit.cover,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 24),
                         const Text(
-                          'Antasari Mart',
+                          'Campus Mart',
                           style: TextStyle(
-                            fontSize: 24,
+                            fontSize: 26,
                             fontWeight: FontWeight.w900,
-                            color: Color(0xFF0077B6),
+                            color: Color(0xFFFFFFFF),
                             letterSpacing: 0.5,
                           ),
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'Marketplace Kampus & Vending Machine UIN Antasari',
+                          'Smart IoT Campus Hub & Vending Machine',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF64748B),
+                            color: Color(0xFF94A3B8),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 32),
                         const SizedBox(
                           width: 24,
                           height: 24,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              Color(0xFF0077B6),
+                              Color(0xFF00B4D8),
                             ),
                           ),
                         ),
