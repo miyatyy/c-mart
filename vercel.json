@@ -1,0 +1,5 @@
+{
+  "framework": "vite",
+  "buildCommand": "npm run build --prefix antasari-mart-frontend",
+  "outputDirectory": "antasari-mart-frontend/dist"
+}

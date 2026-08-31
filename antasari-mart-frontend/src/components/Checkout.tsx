@@ -63,35 +63,14 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   const isVendingItem = (p: any) => {
     if (!p) return false;
     const name = (p.name || p.nama_produk || '').toLowerCase();
-    const desc = (p.description || p.deskripsi || '').toLowerCase();
     const seller = (p.sellerId || p.sellerName || p.seller_name || '').toLowerCase();
-    const category = (p.category || p.kategori || '').toLowerCase();
+    const id = (p.id || '').toLowerCase();
     
-    return (
-      p.slotNumber !== undefined ||
-      p.isVending === true ||
-      p.id === 'blind_bag_myammiy_35k' ||
-      seller.includes('myammiy') ||
-      seller.includes('seller_1') ||
-      name.includes('ganci') ||
-      name.includes('gantungan') ||
-      name.includes('blind bag') ||
-      name.includes('blindbag') ||
-      name.includes('keychain') ||
-      name.includes('pipe cleaner') ||
-      name.includes('kawat bulu') ||
-      name.includes('chenille') ||
-      name.includes('rajut') ||
-      name.includes('bando') ||
-      name.includes('snack') ||
-      name.includes('keripik') ||
-      name.includes('roti') ||
-      name.includes('aksesoris') ||
-      category === 'kerajinan' ||
-      category === 'aksesoris' ||
-      desc.includes('ganci') ||
-      desc.includes('blind bag')
-    );
+    // STRICT: HANYA produk Blind Bag / Ganci dari Toko Resmi Myammiy Store / Myammiy Craft
+    const isMyammiySeller = seller.includes('myammiy') || p.sellerId === 'seller_1';
+    const isBlindBagOrGanci = id === 'blind_bag_myammiy_35k' || name.includes('blind bag') || name.includes('ganci') || name.includes('keychain') || name.includes('pipe cleaner');
+
+    return isMyammiySeller && isBlindBagOrGanci;
   };
 
   const isOnlyGanciInCart = items.length > 0 && items.every(i => isVendingItem(i.product));
@@ -375,25 +354,45 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
             <h3 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700, color: 'var(--am-text)' }}>Metode Pengambilan</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
               {[
-                { id: 'vending', title: '🤖 Vending Machine', desc: 'Ambil instan via QR Scanner' },
-                { id: 'pickup', title: '🚶 Pick-Up Mandiri', desc: 'Ambil di tenant/koperasi' },
-                { id: 'courier', title: '🛵 Kurir Antasari (+Rp5.000)', desc: 'Diantar langsung ke lokasimu' }
+                {
+                  id: 'vending',
+                  title: '🤖 Vending Machine',
+                  desc: isOnlyGanciInCart 
+                    ? 'Ambil instan via QR Scanner' 
+                    : '⚠️ Khusus suvenir Blind Bag Myammiy Store',
+                  disabled: !isOnlyGanciInCart
+                },
+                { id: 'pickup', title: '🚶 Pick-Up Mandiri', desc: 'Ambil di tenant/koperasi', disabled: false },
+                { id: 'courier', title: '🛵 Kurir Antasari (+Rp5.000)', desc: 'Diantar langsung ke lokasimu', disabled: false }
               ].map(opt => (
                 <div
                   key={opt.id}
-                  onClick={() => setDelivery(opt.id as any)}
+                  onClick={() => {
+                    if (opt.disabled) {
+                      alert('Mesin Vending hanya khusus untuk produk Blind Bag Suvenir / Ganci karya Myammiy Store! Produk lain (seperti Almamater, Buku, dll) silakan pilih Pick-Up Mandiri atau Kurir Antasari.');
+                      return;
+                    }
+                    setDelivery(opt.id as any);
+                  }}
                   style={{
                     padding: 14,
                     borderRadius: 14,
                     border: `2px solid ${delivery === opt.id ? '#5FA874' : 'var(--am-border)'}`,
-                    background: delivery === opt.id ? '#FCE7EE' : 'var(--am-surface)',
-                    cursor: 'pointer',
+                    background: opt.disabled 
+                      ? '#f8fafc' 
+                      : (delivery === opt.id ? '#FCE7EE' : 'var(--am-surface)'),
+                    opacity: opt.disabled ? 0.65 : 1,
+                    cursor: opt.disabled ? 'not-allowed' : 'pointer',
                     transition: 'all 0.2s',
-                    boxShadow: delivery === opt.id ? '0 4px 12px rgba(95, 168, 116, 0.15)' : 'none'
+                    boxShadow: (!opt.disabled && delivery === opt.id) ? '0 4px 12px rgba(95, 168, 116, 0.15)' : 'none'
                   }}
                 >
-                  <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--am-text)', marginBottom: 2 }}>{opt.title}</div>
-                  <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>{opt.desc}</div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: opt.disabled ? '#94a3b8' : 'var(--am-text)', marginBottom: 2 }}>
+                    {opt.title}
+                  </div>
+                  <div style={{ fontSize: 11, color: opt.disabled ? '#e11d48' : 'var(--am-text-muted)', fontWeight: opt.disabled ? 600 : 400 }}>
+                    {opt.desc}
+                  </div>
                 </div>
               ))}
             </div>
