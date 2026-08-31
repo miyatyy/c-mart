@@ -202,8 +202,8 @@ async function initDB() {
       await sequelize.authenticate();
       console.log('✅ Koneksi PostgreSQL berhasil!');
 
-      await sequelize.sync(); 
-      console.log('✅ Database & Tabel berhasil disinkronkan!');
+      await sequelize.sync({ alter: true }); 
+      console.log('✅ Database & Tabel berhasil disinkronkan dengan PostgreSQL (alter: true)!');
 
       const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
       if (superAdminEmail && process.env.SUPER_ADMIN_PASSWORD) {

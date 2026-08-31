@@ -54,15 +54,13 @@ export default function ProductList({
     }
   `;
 
-  useEffect(() => {
-    setLoading(true);
+  const loadProducts = () => {
     const stockOverrides: Record<string, number> = JSON.parse(localStorage.getItem('am_stock_overrides') || '{}');
     const customProds: Product[] = JSON.parse(localStorage.getItem('am_custom_products') || '[]');
 
     getProductsApi()
       .then(data => {
         let serverList: Product[] = (data.success && data.products && data.products.length > 0) ? data.products : [];
-        // Pastikan produk Blind Bag & MOCK_PRODUCTS selalu ada jika belum ada di server
         const combined = [
           ...customProds,
           ...serverList,
@@ -82,7 +80,7 @@ export default function ProductList({
           const mappedImage = p.image || (p as any).foto || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format';
           const mappedCategory = p.category || (p as any).kategori || 'kerajinan';
           const mappedPrice = typeof p.price === 'number' ? p.price : (typeof (p as any).harga === 'number' ? (p as any).harga : 0);
-          const mappedStock = typeof p.stock === 'number' ? p.stock : (typeof (p as any).stok === 'number' ? (p as any).stok : 0);
+          const mappedStock = typeof p.stock === 'number' ? p.stock : (typeof (p as any).stok === 'number' ? (p as any).stok : 50);
 
           const override = stockOverrides[p.id] !== undefined ? stockOverrides[p.id] : (p.id === 'blind_bag_myammiy_35k' && stockOverrides['blind_bag_myammiy_35k'] !== undefined ? stockOverrides['blind_bag_myammiy_35k'] : undefined);
           
@@ -115,12 +113,28 @@ export default function ProductList({
             description: p.description || (p as any).deskripsi || '',
             sellerName: p.sellerName || (p as any).seller_name || 'Penjual',
             image: p.image || (p as any).foto || '',
-            stock: override !== undefined ? override : (p.stock || 0)
+            stock: override !== undefined ? override : (p.stock !== undefined ? p.stock : 50)
           };
         });
         setProductsList(finalProducts);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    loadProducts();
+
+    const handleStorageChange = () => {
+      loadProducts();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    const interval = setInterval(loadProducts, 3000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
   }, [campus]);
 
   const products = productsList.filter(p => {
@@ -353,7 +367,22 @@ export default function ProductList({
               </div>
 
               <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ fontSize: 11, color: 'var(--am-text-muted)', marginBottom: 2 }}>{p.sellerName}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 4 }}>
+                  <span style={{ fontSize: 11, color: 'var(--am-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '60%' }}>
+                    {p.sellerName}
+                  </span>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: '2px 6px',
+                    borderRadius: 6,
+                    background: p.stock > 10 ? 'rgba(34, 197, 94, 0.12)' : (p.stock > 0 ? 'rgba(234, 179, 8, 0.15)' : 'rgba(239, 68, 68, 0.12)'),
+                    color: p.stock > 10 ? '#16a34a' : (p.stock > 0 ? '#b45309' : '#dc2626'),
+                    flexShrink: 0
+                  }}>
+                    {p.stock > 0 ? `📦 Sisa ${p.stock}` : '❌ Habis'}
+                  </span>
+                </div>
                 <h4 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--am-text)', lineHeight: 1.3 }}>
                   {p.name}
                 </h4>
@@ -466,9 +495,30 @@ export default function ProductList({
                 {selectedProduct.sellerName} • Kampus {selectedProduct.campus.toUpperCase()}
               </div>
               <h2 style={{ margin: '0 0 8px', fontSize: 18, color: 'var(--am-text)' }}>{selectedProduct.name}</h2>
-              <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--am-primary)', marginBottom: 12 }}>
+              <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--am-primary)', marginBottom: 10 }}>
                 {formatRupiah(selectedProduct.price)}
               </div>
+
+              {/* 📦 Real-time Stock Information Badge */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 12px',
+                background: selectedProduct.stock > 0 ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                border: `1px solid ${selectedProduct.stock > 0 ? '#86efac' : '#fca5a5'}`,
+                borderRadius: 12,
+                marginBottom: 14,
+                fontSize: 12.5,
+                fontWeight: 700,
+                color: selectedProduct.stock > 0 ? '#16a34a' : '#dc2626'
+              }}>
+                <span>{selectedProduct.stock > 0 ? '📦 Sisa Stok Tersedia (Real-Time):' : '❌ Status Stok:'}</span>
+                <span style={{ fontSize: 13, fontWeight: 900, background: selectedProduct.stock > 0 ? '#16a34a' : '#dc2626', color: 'white', padding: '2px 8px', borderRadius: 8 }}>
+                  {selectedProduct.stock > 0 ? `${selectedProduct.stock} unit` : 'Habis'}
+                </span>
+              </div>
+
               <p style={{ fontSize: 13, color: 'var(--am-text-muted)', lineHeight: 1.5, marginBottom: 16 }}>
                 {selectedProduct.description || 'Tidak ada deskripsi tambahan.'}
               </p>
