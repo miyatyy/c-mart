@@ -508,9 +508,9 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           max-width: 78%;
           padding: 10px 14px 6px 14px;
           border-radius: 18px 18px 4px 18px;
-          background: #4A8FE7;
+          background: #5FA874;
           color: #ffffff;
-          box-shadow: 0 2px 8px rgba(74, 143, 231, 0.25);
+          box-shadow: 0 2px 8px rgba(95, 168, 116, 0.25);
           word-break: break-word;
           font-size: 13.5px;
           line-height: 1.45;
@@ -518,7 +518,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
 
         .am-chat-bubble-user .am-chat-time {
           font-size: 10px;
-          color: rgba(255, 255, 255, 0.85);
+          color: rgba(255, 255, 255, 0.9);
           text-align: right;
           margin-top: 4px;
           display: flex;
@@ -542,9 +542,9 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           padding: 10px 14px 6px 14px;
           border-radius: 18px 18px 18px 4px;
           background: #FFFFFF;
-          color: #2D3748;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-          border: 1px solid #E2E8F0;
+          color: #243329;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+          border: 1px solid #E1ECE4;
           word-break: break-word;
           font-size: 13.5px;
           line-height: 1.45;
@@ -552,7 +552,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
 
         .am-chat-bubble-partner .am-chat-time {
           font-size: 10px;
-          color: #A0AEC0;
+          color: #8FA596;
           text-align: right;
           margin-top: 4px;
         }
@@ -561,7 +561,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           width: 40px;
           height: 40px;
           border-radius: 50%;
-          background: var(--am-bg2, #f3ece2);
+          background: var(--am-bg2, #F0F7F2);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -577,13 +577,13 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           width: 10px;
           height: 10px;
           border-radius: 50%;
-          background: #22c55e;
+          background: #5FA874;
           border: 2px solid white;
         }
 
         .am-chat-room-card {
           padding: 12px 14px;
-          border-bottom: 1px solid var(--am-border, #e8e1d5);
+          border-bottom: 1px solid var(--am-border, #E1ECE4);
           cursor: pointer;
           display: flex;
           align-items: center;
@@ -592,12 +592,12 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
         }
 
         .am-chat-room-card:hover {
-          background: #f0eae1;
+          background: #F0F7F2;
         }
 
         .am-chat-room-card.is-active {
-          background: #EBF4FC;
-          border-left: 4px solid #4A8FE7;
+          background: #EAF5EE;
+          border-left: 4px solid #5FA874;
         }
 
         .am-chat-typing-bubble {
@@ -607,8 +607,8 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           padding: 8px 14px;
           border-radius: 16px 16px 16px 4px;
           background: #FFFFFF;
-          color: #718096;
-          border: 1px solid #E2E8F0;
+          color: #687D70;
+          border: 1px solid #E1ECE4;
           font-size: 12px;
           font-style: italic;
           margin-bottom: 8px;
@@ -623,16 +623,16 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           top: 14,
           right: 14,
           background: '#FFFFFF',
-          color: '#2D3748',
+          color: '#243329',
           padding: '12px 18px',
           borderRadius: 14,
-          boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
-          border: '1.5px solid #4A8FE7',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
+          border: '1.5px solid #5FA874',
           zIndex: 9999,
           maxWidth: 320,
           animation: 'bounceIn 0.3s ease-out'
         }}>
-          <div style={{ fontWeight: 800, fontSize: 13, color: '#4A8FE7', marginBottom: 2 }}>{inAppToast.title}</div>
+          <div style={{ fontWeight: 800, fontSize: 13, color: '#5FA874', marginBottom: 2 }}>{inAppToast.title}</div>
           <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.3 }}>{inAppToast.desc}</div>
         </div>
       )}
@@ -652,12 +652,12 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                 padding: '5px 12px',
                 borderRadius: 16,
                 border: 'none',
-                background: showContactPicker ? '#718096' : 'linear-gradient(135deg, #4A8FE7 0%, #3B77CC 100%)',
+                background: showContactPicker ? '#687D70' : 'linear-gradient(135deg, #5FA874 0%, #4D9562 100%)',
                 color: 'white',
                 fontWeight: 700,
                 fontSize: 11.5,
                 cursor: 'pointer',
-                boxShadow: '0 2px 6px rgba(74, 143, 231, 0.25)'
+                boxShadow: '0 2px 6px rgba(95, 168, 116, 0.25)'
               }}
             >
               {showContactPicker ? '✕ Batal' : '+ Chat Baru'}
@@ -1040,7 +1040,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                   height: 40,
                   borderRadius: '50%',
                   border: 'none',
-                  background: messageInput.trim() ? 'linear-gradient(135deg, #4A8FE7 0%, #3B77CC 100%)' : '#CBD5E0',
+                  background: messageInput.trim() ? 'linear-gradient(135deg, #5FA874 0%, #4D9562 100%)' : '#E1ECE4',
                   color: 'white',
                   fontWeight: 800,
                   fontSize: 16,
@@ -1048,7 +1048,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: messageInput.trim() ? '0 2px 8px rgba(74, 143, 231, 0.3)' : 'none',
+                  boxShadow: messageInput.trim() ? '0 2px 8px rgba(95, 168, 116, 0.3)' : 'none',
                   flexShrink: 0,
                   transition: 'all 0.2s ease'
                 }}

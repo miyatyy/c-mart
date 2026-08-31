@@ -1,44 +1,48 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
-/* ── Aesthetic theme: MODE SIANG (Pastel Cream & Soft Baby Blue) ── */
+/* ── Aesthetic theme: MODE SIANG (Putih Bersih, Pastel Hijau Muda & Pink Muda) ── */
 .theme-aesthetic {
-  --am-bg: #FAF7F2;
-  --am-bg2: #F3ECE2;
-  --am-surface: #FFFFFF;
-  --am-primary: #4A8FE7;
-  --am-primary-dark: #3574C7;
-  --am-primary-light: #EBF4FC;
-  --am-secondary: #E5EEF8;
-  --am-accent: #7BB2ED;
-  --am-text: #2D3748;
-  --am-text-muted: #718096;
-  --am-border: #E8E1D5;
-  --am-badge-koperasi: #4A8FE7;
+  --am-bg: #FAFDFB;            /* Putih segar dengan sentuhan lembut */
+  --am-bg2: #F0F7F2;           /* Hijau muda pastel sangat lembut */
+  --am-surface: #FFFFFF;       /* Putih bersih */
+  --am-primary: #5FA874;       /* Hijau muda pastel segar */
+  --am-primary-dark: #4D9562;  /* Hijau daun lembut */
+  --am-primary-light: #EAF5EE; /* Hijau muda tint */
+  --am-secondary: #FCE7EE;     /* Pink muda pastel */
+  --am-accent: #F4AEC2;        /* Pink muda pastel aksen */
+  --am-accent-dark: #E68FA5;   /* Pink berry lembut */
+  --am-text: #243329;          /* Teks gelap hijau charcoal ramah mata */
+  --am-text-muted: #687D70;    /* Teks abu kehijauan */
+  --am-border: #E1ECE4;        /* Border putih kehijauan bersih */
+  --am-badge-koperasi: #5FA874;/* Lencana hijau */
+  --am-badge-pink: #F4AEC2;    /* Lencana pink muda */
   --am-radius: 16px;
   --am-font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
   --am-font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --am-shadow: 0 4px 20px rgba(74, 143, 231, 0.08);
+  --am-shadow: 0 4px 20px rgba(95, 168, 116, 0.08);
 }
 
-/* ── Modern theme: MODE MALAM (Dark Midnight Slate & Pastel Blue) ── */
+/* ── Modern theme: MODE MALAM (Dark Forest Slate, Pastel Mint & Soft Blush) ── */
 .theme-modern {
-  --am-bg: #0F172A;
-  --am-bg2: #1E293B;
-  --am-surface: #1E293B;
-  --am-primary: #60A5FA;
-  --am-primary-dark: #3B82F6;
-  --am-primary-light: rgba(96, 165, 250, 0.15);
-  --am-secondary: #334155;
-  --am-accent: #93C5FD;
-  --am-text: #F8FAFC;
-  --am-text-muted: #94A3B8;
-  --am-border: #334155;
-  --am-badge-koperasi: #60A5FA;
+  --am-bg: #131E17;            /* Latar gelap kehijauan elegan */
+  --am-bg2: #1B2920;           /* Kartu gelap kehijauan */
+  --am-surface: #1E2E24;       /* Permukaan gelap premium */
+  --am-primary: #76C291;       /* Hijau muda pastel terang */
+  --am-primary-dark: #5FA874;  /* Hijau daun */
+  --am-primary-light: rgba(118, 194, 145, 0.16);
+  --am-secondary: #36242B;     /* Slate pink gelap */
+  --am-accent: #F8A8BE;        /* Pink muda terang */
+  --am-accent-dark: #F4AEC2;
+  --am-text: #F2F9F4;          /* Teks putih segar */
+  --am-text-muted: #8FA596;    /* Teks abu lembut */
+  --am-border: #293D30;        /* Garis gelap halus */
+  --am-badge-koperasi: #76C291;
+  --am-badge-pink: #F8A8BE;
   --am-radius: 16px;
   --am-font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
   --am-font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --am-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --am-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 *, *::before, *::after { box-sizing: border-box; }

@@ -37,7 +37,7 @@ export default function CampusMartSplashScreen({ onFinish }: SplashScreenProps) 
           position: fixed;
           inset: 0;
           z-index: 99999;
-          background: linear-gradient(145deg, #FAF7F2 0%, #F5EFE6 40%, #EBF4FC 100%);
+          background: linear-gradient(145deg, #FFFFFF 0%, #F4FAF6 45%, #FDF0F4 100%);
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -90,7 +90,7 @@ export default function CampusMartSplashScreen({ onFinish }: SplashScreenProps) 
           position: absolute;
           inset: -6px;
           border-radius: 28px;
-          background: radial-gradient(circle, rgba(91, 146, 229, 0.35) 0%, rgba(235, 244, 252, 0) 70%);
+          background: radial-gradient(circle, rgba(95, 168, 116, 0.35) 0%, rgba(244, 174, 194, 0.25) 50%, rgba(255, 255, 255, 0) 70%);
           animation: cmPulseGlow 2.2s infinite ease-in-out;
         }
 
@@ -103,9 +103,9 @@ export default function CampusMartSplashScreen({ onFinish }: SplashScreenProps) 
           width: 82px;
           height: 82px;
           border-radius: 24px;
-          background: linear-gradient(135deg, #FFFFFF 0%, #F0F6FC 100%);
-          border: 2px solid #E2ECF7;
-          box-shadow: 0 10px 30px rgba(91, 146, 229, 0.15), 0 2px 8px rgba(0, 0, 0, 0.04);
+          background: linear-gradient(135deg, #FFFFFF 0%, #F5FAF7 100%);
+          border: 2px solid #E1ECE4;
+          box-shadow: 0 10px 30px rgba(95, 168, 116, 0.15), 0 2px 8px rgba(0, 0, 0, 0.04);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -116,13 +116,13 @@ export default function CampusMartSplashScreen({ onFinish }: SplashScreenProps) 
         .cm-logo-icon {
           font-size: 38px;
           line-height: 1;
-          filter: drop-shadow(0 2px 6px rgba(91, 146, 229, 0.2));
+          filter: drop-shadow(0 2px 6px rgba(95, 168, 116, 0.2));
         }
 
         .cm-brand-title {
           font-size: 26px;
           font-weight: 800;
-          color: #2D3748;
+          color: #243329;
           letter-spacing: -0.5px;
           margin: 0 0 4px 0;
           display: flex;
@@ -131,14 +131,14 @@ export default function CampusMartSplashScreen({ onFinish }: SplashScreenProps) 
         }
 
         .cm-brand-title span.cm-highlight {
-          color: #4A8FE7;
+          color: #5FA874;
           font-weight: 800;
         }
 
         .cm-brand-subtitle {
           font-size: 13px;
           font-weight: 500;
-          color: #718096;
+          color: #687D70;
           margin: 0 0 24px 0;
           letter-spacing: 0.2px;
         }
@@ -146,7 +146,7 @@ export default function CampusMartSplashScreen({ onFinish }: SplashScreenProps) 
         .cm-progress-container {
           width: 170px;
           height: 5px;
-          background: #E8EEF5;
+          background: #E8F2EC;
           border-radius: 999px;
           overflow: hidden;
           position: relative;
@@ -155,7 +155,7 @@ export default function CampusMartSplashScreen({ onFinish }: SplashScreenProps) 
 
         .cm-progress-bar {
           height: 100%;
-          background: linear-gradient(90deg, #7BB2ED 0%, #4A8FE7 100%);
+          background: linear-gradient(90deg, #5FA874 0%, #F4AEC2 100%);
           border-radius: 999px;
           transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -165,12 +165,12 @@ export default function CampusMartSplashScreen({ onFinish }: SplashScreenProps) 
           align-items: center;
           gap: 6px;
           padding: 6px 14px;
-          background: rgba(255, 255, 255, 0.85);
-          border: 1px solid #E2E8F0;
+          background: rgba(255, 255, 255, 0.95);
+          border: 1px solid #E1ECE4;
           border-radius: 999px;
           font-size: 11px;
           font-weight: 600;
-          color: #4A5568;
+          color: #243329;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
           backdrop-filter: blur(8px);
         }
@@ -179,8 +179,8 @@ export default function CampusMartSplashScreen({ onFinish }: SplashScreenProps) 
           width: 7px;
           height: 7px;
           border-radius: 50%;
-          background: #4A8FE7;
-          box-shadow: 0 0 8px #4A8FE7;
+          background: #5FA874;
+          box-shadow: 0 0 8px #5FA874;
           animation: cmDotPulse 1.5s infinite;
         }
 

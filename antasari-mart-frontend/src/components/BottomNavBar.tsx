@@ -147,7 +147,7 @@ export default function BottomNavBar({
           position: absolute;
           top: -2px;
           right: -4px;
-          background: #ef4444;
+          background: linear-gradient(135deg, #F4AEC2 0%, #E68FA5 100%);
           color: white;
           border-radius: 10px;
           font-size: 9.5px;
@@ -158,7 +158,7 @@ export default function BottomNavBar({
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 2px 5px rgba(239, 68, 68, 0.4);
+          box-shadow: 0 2px 6px rgba(230, 143, 165, 0.45);
           border: 1.5px solid var(--am-surface, #ffffff);
           animation: pulseBadge 2s infinite;
         }
