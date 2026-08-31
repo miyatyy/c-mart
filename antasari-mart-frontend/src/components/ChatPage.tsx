@@ -723,7 +723,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                       {ROLE_LABEL[c.role] || c.role} • {c.email}
                     </div>
                   </div>
-                  <span style={{ fontSize: 14, color: '#4A8FE7', fontWeight: 800 }}>→</span>
+                  <span style={{ fontSize: 14, color: '#5FA874', fontWeight: 800 }}>→</span>
                 </div>
               ))}
             </div>
@@ -739,7 +739,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                   padding: '8px 16px',
                   borderRadius: 10,
                   border: 'none',
-                  background: '#4A8FE7',
+                  background: '#5FA874',
                   color: 'white',
                   fontWeight: 700,
                   fontSize: 12,
@@ -785,8 +785,8 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                         fontSize: 9,
                         padding: '1px 5px',
                         borderRadius: 6,
-                        background: isRoomHanded ? '#ECFDF5' : '#EBF4FC',
-                        color: isRoomHanded ? '#059669' : '#3B82F6',
+                        background: isRoomHanded ? '#ECFDF5' : '#EAF5EE',
+                        color: isRoomHanded ? '#059669' : '#5FA874',
                         fontWeight: 800,
                         flexShrink: 0
                       }}>
@@ -854,7 +854,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                   <div style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span>● Online</span>
                     <span style={{ color: '#CBD5E0' }}>•</span>
-                    <span style={{ color: isCurrentRoomHandedOver ? '#059669' : '#4A8FE7', fontWeight: 700 }}>
+                    <span style={{ color: isCurrentRoomHandedOver ? '#059669' : '#5FA874', fontWeight: 700 }}>
                       {isCurrentRoomHandedOver ? '🤝 Admin Penjual' : '🤖 Asisten AI Toko'}
                     </span>
                   </div>
@@ -869,9 +869,9 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                     style={{
                       padding: '5px 10px',
                       borderRadius: 12,
-                      border: '1px solid #4A8FE7',
-                      background: '#EBF4FC',
-                      color: '#4A8FE7',
+                      border: '1px solid #5FA874',
+                      background: '#EAF5EE',
+                      color: '#5FA874',
                       fontSize: 11,
                       fontWeight: 700,
                       cursor: 'pointer'
@@ -971,7 +971,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                         {ROLE_EMOJI[m.senderRole || activeRoom.otherRole] || '👤'}
                       </div>
                       <div className="am-chat-bubble-partner">
-                        <div style={{ fontSize: 10.5, fontWeight: 800, color: '#4A8FE7', marginBottom: 2 }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 800, color: '#5FA874', marginBottom: 2 }}>
                           {m.senderName || activeRoom.otherName}
                         </div>
                         <div>{m.text}</div>

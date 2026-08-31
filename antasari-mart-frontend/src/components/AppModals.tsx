@@ -155,7 +155,7 @@ export function ProfileModal({
           <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 14, border: '1px solid var(--am-border)', textAlign: 'center' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <span style={{ fontSize: 11, fontWeight: 'bold', color: '#334155' }}>Ganti Avatar Kartun / Foto:</span>
-              <label style={{ fontSize: 10, color: '#0077B6', cursor: 'pointer', fontWeight: 700, background: '#E0F2FE', padding: '3px 8px', borderRadius: 6 }}>
+              <label style={{ fontSize: 10, color: '#5FA874', cursor: 'pointer', fontWeight: 700, background: '#E0F2FE', padding: '3px 8px', borderRadius: 6 }}>
                 📁 Upload Galeri
                 <input type="file" accept="image/*" onChange={onImageChange} style={{ display: 'none' }} />
               </label>
@@ -175,8 +175,8 @@ export function ProfileModal({
                   style={{
                     position: 'relative', cursor: 'pointer', borderRadius: '50%', overflow: 'hidden',
                     background: '#f8fafc', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    border: currentAvatar === avatar.url ? '3px solid #00B4D8' : '2px solid #CBD5E1',
-                    boxShadow: currentAvatar === avatar.url ? '0 0 8px rgba(0, 180, 216, 0.4)' : 'none',
+                    border: currentAvatar === avatar.url ? '3px solid #5FA874' : '2px solid #CBD5E1',
+                    boxShadow: currentAvatar === avatar.url ? '0 0 8px rgba(244, 174, 194, 0.35)' : 'none',
                     transition: 'all 0.2s', transform: currentAvatar === avatar.url ? 'scale(1.08)' : 'scale(1)'
                   }}
                 >

@@ -54,7 +54,7 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
   return (
     <div style={{ padding: '24px 16px 80px', maxWidth: 1000, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
       {/* Header Banner */}
-      <div className="am-card" style={{ padding: 24, borderRadius: 20, background: 'linear-gradient(135deg, #03045E 0%, #0077B6 100%)', color: 'white', marginBottom: 20 }}>
+      <div className="am-card" style={{ padding: 24, borderRadius: 20, background: 'linear-gradient(135deg, #243329 0%, #5FA874 100%)', color: 'white', marginBottom: 20 }}>
         <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>👑 Super Admin Control Center</div>
         <p style={{ fontSize: 13, opacity: 0.9, margin: 0 }}>
           Kelola status langganan PRO pengguna, pantau transaksi, dan tinjau kritik/saran secara real-time.
@@ -120,7 +120,7 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
                       style={{ opacity: 0, width: 0, height: 0 }}
                     />
                     <span style={{
-                      position: 'absolute', inset: 0, background: usr.isPro ? '#00B4D8' : '#CBD5E1',
+                      position: 'absolute', inset: 0, background: usr.isPro ? '#5FA874' : '#CBD5E1',
                       borderRadius: 24, transition: '0.3s'
                     }}>
                       <span style={{

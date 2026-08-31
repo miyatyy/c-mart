@@ -557,7 +557,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
                     borderRadius: 16,
                     fontSize: 13,
                     lineHeight: 1.4,
-                    background: m.sender === 'user' ? 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)' : '#FFFFFF',
+                    background: m.sender === 'user' ? 'linear-gradient(135deg, #5FA874 0%, #5FA874 100%)' : '#FFFFFF',
                     color: m.sender === 'user' ? '#FFFFFF' : 'var(--am-text, #1E293B)',
                     boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                     border: m.sender === 'ai' ? '1px solid #FFE4E6' : 'none'
@@ -674,7 +674,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
                   padding: '0 14px',
                   borderRadius: 14,
                   border: 'none',
-                  background: 'var(--am-primary, #0077B6)',
+                  background: 'var(--am-primary, #5FA874)',
                   color: 'white',
                   fontWeight: 800,
                   fontSize: 13,

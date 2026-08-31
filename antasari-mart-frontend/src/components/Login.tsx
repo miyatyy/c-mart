@@ -85,13 +85,13 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
       if (selectedRoles.length > 1) {
         setSelectedRoles(prev => prev.filter(r => r !== roleKey));
       } else {
-        Swal.fire({ icon: 'info', title: 'Perhatian', text: 'Minimal harus memilih 1 peran!', confirmButtonColor: '#00B4D8' });
+        Swal.fire({ icon: 'info', title: 'Perhatian', text: 'Minimal harus memilih 1 peran!', confirmButtonColor: '#5FA874' });
       }
     } else {
       if (selectedRoles.length < 3) {
         setSelectedRoles(prev => [...prev, roleKey]);
       } else {
-        Swal.fire({ icon: 'warning', title: 'Batas Peran', text: '⚠️ Maksimal hanya boleh memilih 3 peran!', confirmButtonColor: '#00B4D8' });
+        Swal.fire({ icon: 'warning', title: 'Batas Peran', text: '⚠️ Maksimal hanya boleh memilih 3 peran!', confirmButtonColor: '#5FA874' });
       }
     }
   };
@@ -101,7 +101,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
   // Kirim OTP via Email
   const handleSendOtp = async () => {
     if (!email) {
-      Swal.fire({ icon: 'warning', title: 'Email Kosong', text: 'Silakan isi alamat email terlebih dahulu!', confirmButtonColor: '#00B4D8' });
+      Swal.fire({ icon: 'warning', title: 'Email Kosong', text: 'Silakan isi alamat email terlebih dahulu!', confirmButtonColor: '#5FA874' });
       return;
     }
 
@@ -115,7 +115,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
           icon: 'success',
           title: 'Kode OTP Terkirim! 📧',
           text: data.message,
-          confirmButtonColor: '#00B4D8'
+          confirmButtonColor: '#5FA874'
         });
       } else {
         const mockOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -124,8 +124,8 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
         Swal.fire({
           icon: 'info',
           title: 'Kode Verifikasi OTP',
-          html: `<p>Gunakan kode OTP berikut untuk melanjutkan pendaftaran:</p><h2 style="color:#00B4D8;letter-spacing:4px;font-size:32px;">${mockOtp}</h2>`,
-          confirmButtonColor: '#00B4D8'
+          html: `<p>Gunakan kode OTP berikut untuk melanjutkan pendaftaran:</p><h2 style="color:#5FA874;letter-spacing:4px;font-size:32px;">${mockOtp}</h2>`,
+          confirmButtonColor: '#5FA874'
         });
       }
     } catch (_err) {
@@ -135,8 +135,8 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
       Swal.fire({
         icon: 'info',
         title: 'Kode Verifikasi OTP',
-        html: `<p>Gunakan kode OTP berikut untuk melanjutkan pendaftaran:</p><h2 style="color:#00B4D8;letter-spacing:4px;font-size:32px;">${mockOtp}</h2>`,
-        confirmButtonColor: '#00B4D8'
+        html: `<p>Gunakan kode OTP berikut untuk melanjutkan pendaftaran:</p><h2 style="color:#5FA874;letter-spacing:4px;font-size:32px;">${mockOtp}</h2>`,
+        confirmButtonColor: '#5FA874'
       });
     } finally {
       setSendingOtp(false);
@@ -146,7 +146,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
   // Verifikasi Kode OTP
   const handleVerifyOtp = async () => {
     if (!otpCode) {
-      Swal.fire({ icon: 'warning', title: 'Kode OTP Kosong', text: 'Masukkan kode OTP yang telah dikirim ke email kamu!', confirmButtonColor: '#00B4D8' });
+      Swal.fire({ icon: 'warning', title: 'Kode OTP Kosong', text: 'Masukkan kode OTP yang telah dikirim ke email kamu!', confirmButtonColor: '#5FA874' });
       return;
     }
 
@@ -154,7 +154,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
     try {
       if (offlineOtp && otpCode === offlineOtp) {
         setIsOtpVerified(true);
-        Swal.fire({ icon: 'success', title: 'Verifikasi Berhasil! ✅', text: 'Email Anda berhasil diverifikasi!', confirmButtonColor: '#00B4D8' });
+        Swal.fire({ icon: 'success', title: 'Verifikasi Berhasil! ✅', text: 'Email Anda berhasil diverifikasi!', confirmButtonColor: '#5FA874' });
         return;
       }
 
@@ -162,17 +162,17 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
 
       if (data.success) {
         setIsOtpVerified(true);
-        Swal.fire({ icon: 'success', title: 'Verifikasi Berhasil! ✅', text: data.message, confirmButtonColor: '#00B4D8' });
+        Swal.fire({ icon: 'success', title: 'Verifikasi Berhasil! ✅', text: data.message, confirmButtonColor: '#5FA874' });
       } else if (offlineOtp && otpCode === offlineOtp) {
         setIsOtpVerified(true);
-        Swal.fire({ icon: 'success', title: 'Verifikasi Berhasil! ✅', text: 'Email Anda berhasil diverifikasi!', confirmButtonColor: '#00B4D8' });
+        Swal.fire({ icon: 'success', title: 'Verifikasi Berhasil! ✅', text: 'Email Anda berhasil diverifikasi!', confirmButtonColor: '#5FA874' });
       } else {
         Swal.fire({ icon: 'error', title: 'Verifikasi Gagal', text: data.message, confirmButtonColor: '#EF4444' });
       }
     } catch (_err) {
       if (offlineOtp && otpCode === offlineOtp) {
         setIsOtpVerified(true);
-        Swal.fire({ icon: 'success', title: 'Verifikasi Berhasil! ✅', text: 'Email Anda berhasil diverifikasi!', confirmButtonColor: '#00B4D8' });
+        Swal.fire({ icon: 'success', title: 'Verifikasi Berhasil! ✅', text: 'Email Anda berhasil diverifikasi!', confirmButtonColor: '#5FA874' });
       } else {
         Swal.fire({ icon: 'error', title: 'Kesalahan Server', text: 'Gagal memverifikasi OTP.', confirmButtonColor: '#EF4444' });
       }
@@ -211,7 +211,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
         icon: 'warning',
         title: 'Verifikasi Belum Selesai',
         text: 'Silakan geser potongan puzzle foto buket bunga sampai pas untuk melanjutkan!',
-        confirmButtonColor: '#00B4D8'
+        confirmButtonColor: '#5FA874'
       });
       return;
     }
@@ -221,7 +221,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
         icon: 'warning',
         title: 'Email Belum Diverifikasi',
         text: 'Silakan masukkan dan verifikasi kode OTP yang telah dikirim ke email kamu!',
-        confirmButtonColor: '#00B4D8'
+        confirmButtonColor: '#5FA874'
       });
       return;
     }
@@ -271,7 +271,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
           title: 'Pendaftaran Berhasil! 🎉',
           text: `Selamat datang Kak ${nama}! Akun Anda berhasil dibuat. Silakan masuk.`,
           confirmButtonText: 'Masuk Sekarang 🚀',
-          confirmButtonColor: '#00B4D8'
+          confirmButtonColor: '#5FA874'
         });
 
         setIsRegister(false);
@@ -390,7 +390,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #03045E 0%, #0077B6 50%, #00B4D8 100%)',
+      background: 'linear-gradient(135deg, #243329 0%, #5FA874 50%, #5FA874 100%)',
       padding: '20px',
       fontFamily: 'var(--am-font-body, system-ui, sans-serif)'
     }}>
@@ -410,7 +410,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
           <div className="cartoon-icon" style={{ fontSize: '48px', display: 'inline-block', marginBottom: '8px' }}>
             🌸
           </div>
-          <h1 style={{ margin: '0 0 6px', fontSize: '24px', fontWeight: 800, color: '#03045E' }}>
+          <h1 style={{ margin: '0 0 6px', fontSize: '24px', fontWeight: 800, color: '#243329' }}>
             {isRegister ? 'Daftar Akun Baru' : 'Masuk Antasari Mart'}
           </h1>
           <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
@@ -438,7 +438,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
               fontSize: '13px',
               cursor: 'pointer',
               background: !isRegister ? '#ffffff' : 'transparent',
-              color: !isRegister ? '#03045E' : '#64748b',
+              color: !isRegister ? '#243329' : '#64748b',
               boxShadow: !isRegister ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
               transition: 'all 0.2s'
             }}
@@ -457,7 +457,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
               fontSize: '13px',
               cursor: 'pointer',
               background: isRegister ? '#ffffff' : 'transparent',
-              color: isRegister ? '#03045E' : '#64748b',
+              color: isRegister ? '#243329' : '#64748b',
               boxShadow: isRegister ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
               transition: 'all 0.2s'
             }}
@@ -544,7 +544,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
                     padding: '0 14px',
                     borderRadius: '10px',
                     border: 'none',
-                    background: isOtpVerified ? '#10B981' : '#0077B6',
+                    background: isOtpVerified ? '#10B981' : '#5FA874',
                     color: '#ffffff',
                     fontWeight: 700,
                     fontSize: '11px',
@@ -560,7 +560,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
 
           {isRegister && isOtpSent && !isOtpVerified && (
             <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#03045E', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#243329', marginBottom: '6px' }}>
                 🔑 Masukkan Kode OTP 6 Digit:
               </label>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -590,7 +590,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
                     padding: '8px 16px',
                     borderRadius: '8px',
                     border: 'none',
-                    background: '#00B4D8',
+                    background: '#5FA874',
                     color: '#ffffff',
                     fontWeight: 700,
                     fontSize: '12px',
@@ -665,13 +665,13 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
                         style={{
                           padding: '8px 6px',
                           borderRadius: '10px',
-                          border: `1.5px solid ${isChecked ? '#0077B6' : '#cbd5e1'}`,
+                          border: `1.5px solid ${isChecked ? '#5FA874' : '#cbd5e1'}`,
                           background: isChecked ? '#e0f2fe' : '#ffffff',
                           cursor: 'pointer',
                           textAlign: 'center',
                           fontSize: '11px',
                           fontWeight: 700,
-                          color: isChecked ? '#03045E' : '#64748b',
+                          color: isChecked ? '#243329' : '#64748b',
                           transition: 'all 0.15s'
                         }}
                       >
@@ -699,7 +699,7 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
                         height: '40px',
                         borderRadius: '50%',
                         cursor: 'pointer',
-                        border: selectedAvatar === av.url ? '3px solid #0077B6' : '2px solid transparent',
+                        border: selectedAvatar === av.url ? '3px solid #5FA874' : '2px solid transparent',
                         transform: selectedAvatar === av.url ? 'scale(1.1)' : 'scale(1)',
                         transition: 'all 0.2s',
                         background: '#f1f5f9'
@@ -785,12 +785,12 @@ export default function Login({ onLogin }: { onLogin: (role: UserRole, gender: '
               padding: '12px',
               borderRadius: '12px',
               border: 'none',
-              background: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)',
+              background: 'linear-gradient(135deg, #5FA874 0%, #5FA874 100%)',
               color: '#ffffff',
               fontSize: '14px',
               fontWeight: 800,
               cursor: loading ? 'not-allowed' : 'pointer',
-              boxShadow: '0 4px 12px rgba(0, 180, 216, 0.3)',
+              boxShadow: '0 4px 12px rgba(244, 174, 194, 0.35)',
               transition: 'transform 0.1s'
             }}
           >

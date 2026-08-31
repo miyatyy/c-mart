@@ -175,7 +175,7 @@ export default function ProductList({
         style={{
           background: isAesthetic
             ? 'linear-gradient(135deg, #FFCAD4 0%, #B5E2FA 50%, #EDF6F9 100%)'
-            : 'linear-gradient(135deg, #03045E 0%, #0077B6 50%, #00B4D8 100%)',
+            : 'linear-gradient(135deg, #243329 0%, #5FA874 50%, #5FA874 100%)',
           color: isAesthetic ? '#2D3748' : '#ffffff',
           padding: '20px 20px',
           borderRadius: 20,
@@ -281,7 +281,7 @@ export default function ProductList({
                   alignItems: 'center',
                   gap: 6,
                   transition: 'all 0.2s ease',
-                  boxShadow: isSelected ? '0 3px 10px rgba(0, 119, 182, 0.3)' : '0 1px 3px rgba(0,0,0,0.03)'
+                  boxShadow: isSelected ? '0 3px 10px rgba(95, 168, 116, 0.25)' : '0 1px 3px rgba(0,0,0,0.03)'
                 }}
               >
                 <span>{c.icon}</span>

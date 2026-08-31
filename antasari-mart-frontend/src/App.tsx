@@ -55,7 +55,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
       return (
         <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: 'system-ui, sans-serif' }}>
           <div style={{ fontSize: 54, marginBottom: 12 }}>🌸 Antasari Mart</div>
-          <h2 style={{ color: '#0077B6', margin: '0 0 8px' }}>Memuat Ulang Tampilan...</h2>
+          <h2 style={{ color: '#5FA874', margin: '0 0 8px' }}>Memuat Ulang Tampilan...</h2>
           <p style={{ color: '#64748B', marginBottom: 16 }}>Sistem baru saja diperbarui. Silakan klik tombol di bawah untuk menyinkronkan:</p>
           {this.state.errorText && (
             <div style={{ margin: '0 auto 20px', padding: '8px 16px', background: '#F1F5F9', color: '#475569', borderRadius: 8, fontSize: 12, maxWidth: 500, fontFamily: 'monospace' }}>
@@ -69,7 +69,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
               this.setState({ hasError: false });
               window.location.reload();
             }}
-            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)', color: 'white', fontWeight: 'bold', fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,180,216,0.3)' }}
+            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #5FA874 0%, #5FA874 100%)', color: 'white', fontWeight: 'bold', fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 14px rgba(244, 174, 194, 0.35)' }}
           >
             Buka Halaman Sekarang 🚀
           </button>

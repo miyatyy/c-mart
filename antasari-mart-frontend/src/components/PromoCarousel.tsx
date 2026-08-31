@@ -64,7 +64,7 @@ const PROMO_SLIDES: PromoSlide[] = [
       promo: 'Scan QR • Langsung Keluar!'
     },
     subtitle: 'Belanja mandiri cepat tanpa antre! Support transfer SeaBank & GoPay a.n. Nurmiyaty.',
-    bgGradient: 'linear-gradient(135deg, #0077B6 0%, #023E8A 50%, #03045E 100%)',
+    bgGradient: 'linear-gradient(135deg, #5FA874 0%, #4D9562 50%, #243329 100%)',
     image: '/banners/banner_vending.jpg',
     ctaText: '🤖 Coba Vending Machine',
     ctaAction: 'vending'
@@ -490,7 +490,7 @@ export default function PromoCarousel({
               height: 6,
               borderRadius: 6,
               border: 'none',
-              background: currentSlide === idx ? 'var(--am-primary, #0077B6)' : '#CBD5E1',
+              background: currentSlide === idx ? 'var(--am-primary, #5FA874)' : '#CBD5E1',
               cursor: 'pointer',
               transition: 'all 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
               padding: 0

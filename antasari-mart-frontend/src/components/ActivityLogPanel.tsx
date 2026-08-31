@@ -42,7 +42,7 @@ export default function ActivityLogPanel({ theme: _theme }: ActivityLogProps) {
   return (
     <div style={{ padding: '24px 16px 80px', maxWidth: 1000, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
       {/* Banner */}
-      <div className="am-card" style={{ padding: 24, borderRadius: 20, background: 'linear-gradient(135deg, #03045E 0%, #0077B6 100%)', color: 'white', marginBottom: 20 }}>
+      <div className="am-card" style={{ padding: 24, borderRadius: 20, background: 'linear-gradient(135deg, #243329 0%, #5FA874 100%)', color: 'white', marginBottom: 20 }}>
         <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>📋 Log Aktivitas Login & Logout User</div>
         <p style={{ fontSize: 13, opacity: 0.9, margin: 0 }}>
           Pantau riwayat akses seluruh pengguna sistem (Buyer, Seller, Admin Koperasi, dan Driver) secara real-time.

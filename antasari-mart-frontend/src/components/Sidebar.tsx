@@ -380,9 +380,9 @@ export default function Sidebar({
                 padding: effectiveIsOpen ? '10px 14px' : '10px 0', 
                 justifyContent: effectiveIsOpen ? 'flex-start' : 'center',
                 borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: 'linear-gradient(135deg, #00B4D8 0%, #03045E 100%)',
+                background: 'linear-gradient(135deg, #5FA874 0%, #243329 100%)',
                 color: 'white', fontWeight: 700, fontSize: 13,
-                marginTop: 6, boxShadow: '0 4px 12px rgba(0, 180, 216, 0.25)',
+                marginTop: 6, boxShadow: '0 4px 12px rgba(244, 174, 194, 0.35)',
                 transition: 'transform 0.2s'
               }}
             >
@@ -430,7 +430,7 @@ export default function Sidebar({
               {effectiveIsOpen && (
                 <span style={{
                   fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 8,
-                  background: theme === 'modern' ? '#3B82F6' : '#F59E0B', color: 'white'
+                  background: theme === 'modern' ? '#5FA874' : '#F59E0B', color: 'white'
                 }}>
                   {theme === 'modern' ? '🌙 Malam' : '☀️ Siang'}
                 </span>
@@ -494,7 +494,7 @@ export default function Sidebar({
               <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 14, border: '1px solid var(--am-border)', textAlign: 'center' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <span style={{ fontSize: 11, fontWeight: 'bold', color: '#334155' }}>Ganti Avatar Kartun / Foto:</span>
-                  <label style={{ fontSize: 10, color: '#0077B6', cursor: 'pointer', fontWeight: 700, background: '#E0F2FE', padding: '3px 8px', borderRadius: 6 }}>
+                  <label style={{ fontSize: 10, color: '#5FA874', cursor: 'pointer', fontWeight: 700, background: '#E0F2FE', padding: '3px 8px', borderRadius: 6 }}>
                     📁 Upload Galeri
                     <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
                   </label>
@@ -518,8 +518,8 @@ export default function Sidebar({
                       style={{
                         position: 'relative', cursor: 'pointer', borderRadius: '50%', overflow: 'hidden',
                         background: '#f8fafc', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        border: currentAvatar === avatar.url ? '3px solid #00B4D8' : '2px solid #CBD5E1',
-                        boxShadow: currentAvatar === avatar.url ? '0 0 8px rgba(0, 180, 216, 0.4)' : 'none',
+                        border: currentAvatar === avatar.url ? '3px solid #5FA874' : '2px solid #CBD5E1',
+                        boxShadow: currentAvatar === avatar.url ? '0 0 8px rgba(244, 174, 194, 0.35)' : 'none',
                         transition: 'all 0.2s', transform: currentAvatar === avatar.url ? 'scale(1.08)' : 'scale(1)'
                       }}
                     >

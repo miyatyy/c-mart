@@ -249,7 +249,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
   return (
     <div style={{ padding: '24px 16px 80px', maxWidth: 1000, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
       {/* Banner Toko */}
-      <div className="am-card" style={{ padding: 24, borderRadius: 20, background: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)', color: 'white', marginBottom: 20 }}>
+      <div className="am-card" style={{ padding: 24, borderRadius: 20, background: 'linear-gradient(135deg, #5FA874 0%, #5FA874 100%)', color: 'white', marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', opacity: 0.8, marginBottom: 4 }}>🏪 Seller Centre Antasari Mart</div>
@@ -258,7 +258,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
           </div>
           <button
             onClick={() => setShowAddModal(true)}
-            style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: '#ffffff', color: '#0077B6', fontWeight: 800, fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}
+            style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: '#ffffff', color: '#5FA874', fontWeight: 800, fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}
           >
             + Tambah Produk Baru
           </button>

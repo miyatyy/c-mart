@@ -109,7 +109,7 @@ export default function BottomNavBar({
         }
 
         .am-bottom-nav-btn.is-active {
-          color: var(--am-primary, #4A8FE7);
+          color: var(--am-primary, #5FA874);
         }
 
         .am-bottom-nav-icon-wrapper {
@@ -126,7 +126,7 @@ export default function BottomNavBar({
         }
 
         .am-bottom-nav-btn.is-active .am-bottom-nav-icon-wrapper {
-          background: var(--am-primary-light, #EBF4FC);
+          background: var(--am-primary-light, #EAF5EE);
           transform: translateY(-2px);
         }
 
@@ -140,7 +140,7 @@ export default function BottomNavBar({
 
         .am-bottom-nav-btn.is-active .am-bottom-nav-label {
           font-weight: 800;
-          color: var(--am-primary, #4A8FE7);
+          color: var(--am-primary, #5FA874);
         }
 
         .am-bottom-nav-badge {

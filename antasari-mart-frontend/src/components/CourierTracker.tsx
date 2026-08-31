@@ -369,7 +369,7 @@ export default function CourierTracker({
           <div style={{
             width: 56, height: 56, borderRadius: '50%', fontSize: 28,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: statusIndex === STATUS_STEPS.length - 1 ? 'rgba(74,197,108,0.12)' : 'rgba(0,180,216,0.12)',
+            background: statusIndex === STATUS_STEPS.length - 1 ? 'rgba(74,197,108,0.12)' : 'rgba(244, 174, 194, 0.35)',
           }}>
             {currentStatus.icon}
           </div>

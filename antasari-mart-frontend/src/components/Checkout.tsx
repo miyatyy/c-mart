@@ -386,7 +386,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                     padding: 14,
                     borderRadius: 14,
                     border: `2px solid ${delivery === opt.id ? 'var(--am-primary)' : 'var(--am-border)'}`,
-                    background: delivery === opt.id ? 'rgba(0, 180, 216, 0.08)' : 'var(--am-surface)',
+                    background: delivery === opt.id ? 'rgba(244, 174, 194, 0.35)' : 'var(--am-surface)',
                     cursor: 'pointer',
                     transition: 'all 0.2s'
                   }}
@@ -450,7 +450,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                     padding: 12,
                     borderRadius: 12,
                     border: `2px solid ${payment === pm.id ? 'var(--am-primary)' : 'var(--am-border)'}`,
-                    background: payment === pm.id ? 'rgba(0, 180, 216, 0.08)' : 'var(--am-surface)',
+                    background: payment === pm.id ? 'rgba(244, 174, 194, 0.35)' : 'var(--am-surface)',
                     cursor: 'pointer',
                     fontWeight: 800,
                     fontSize: 12,
@@ -465,7 +465,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
 
             {/* Kotak Rincian Rekening SeaBank */}
             {payment === 'seabank' && (
-              <div style={{ padding: 18, borderRadius: 16, background: '#EFF6FF', border: '1.5px solid #3B82F6', marginTop: 14, textAlign: 'center' }}>
+              <div style={{ padding: 18, borderRadius: 16, background: '#FAFDFB', border: '1.5px solid #5FA874', marginTop: 14, textAlign: 'center' }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: '#1E40AF', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
                   🌊 QR & REKENING SEABANK INDONESIA
                 </div>
@@ -475,10 +475,10 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                 <div style={{ fontSize: 13, color: '#1E3A8A', marginBottom: 2 }}>
                   Nomor Rekening SeaBank:
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#1D4ED8', letterSpacing: 2, marginBottom: 4 }}>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#3A744C', letterSpacing: 2, marginBottom: 4 }}>
                   901156882439
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#2563EB', marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#4D9562', marginBottom: 12 }}>
                   Atas Nama: <strong>Nurmiyaty</strong>
                 </div>
                 <button
@@ -487,7 +487,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                     navigator.clipboard.writeText('901156882439');
                     alert('Nomor rekening SeaBank (901156882439) a.n. Nurmiyaty berhasil disalin! 📋');
                   }}
-                  style={{ padding: '8px 18px', borderRadius: 10, border: 'none', background: '#2563EB', color: 'white', fontSize: 12, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)' }}
+                  style={{ padding: '8px 18px', borderRadius: 10, border: 'none', background: '#4D9562', color: 'white', fontSize: 12, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(95, 168, 116, 0.25)' }}
                 >
                   📋 Salin Nomor Rekening SeaBank
                 </button>
@@ -555,12 +555,12 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                 padding: '14px',
                 borderRadius: 14,
                 border: 'none',
-                background: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)',
+                background: 'linear-gradient(135deg, #5FA874 0%, #5FA874 100%)',
                 color: 'white',
                 fontSize: 15,
                 fontWeight: 800,
                 cursor: loadingPayment ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 14px rgba(0, 180, 216, 0.3)'
+                boxShadow: '0 4px 14px rgba(244, 174, 194, 0.35)'
               }}
             >
               {loadingPayment ? 'Memproses Pesanan...' : (payment === 'seabank' || payment === 'gopay') ? 'Saya Sudah Transfer, Dapatkan Token Vending 🚀' : payment === 'qris' ? 'Bayar via Midtrans Snap 💳' : 'Konfirmasi Pesanan Sekarang 🚀'}
@@ -647,7 +647,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
           </p>
           <button
             onClick={() => onConfirmOrder('pickup', payment, finalLocation)}
-            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)', color: 'white', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0, 180, 216, 0.3)' }}
+            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #5FA874 0%, #5FA874 100%)', color: 'white', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 14px rgba(244, 174, 194, 0.35)' }}
           >
             Selesai & Kembali ke Beranda 🏠
           </button>

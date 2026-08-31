@@ -126,7 +126,7 @@ export default function ProModal({ theme: _theme, user, onClose, onSuccess }: Pr
           <button
             onClick={handleSubscribe}
             disabled={loading}
-            style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)', color: 'white', fontWeight: 800, cursor: 'pointer' }}
+            style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #5FA874 0%, #5FA874 100%)', color: 'white', fontWeight: 800, cursor: 'pointer' }}
           >
             {loading ? 'Menghubungkan...' : 'Langganan Sekarang 🚀'}
           </button>

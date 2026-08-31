@@ -165,7 +165,7 @@ export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, 
             style={{
               padding: '12px 14px', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               border: deliveryMethod === 'delivery' ? '2px solid var(--am-primary)' : '1.5px solid var(--am-border)',
-              background: deliveryMethod === 'delivery' ? 'rgba(0,180,216,0.06)' : 'var(--am-bg2)',
+              background: deliveryMethod === 'delivery' ? 'rgba(244, 174, 194, 0.35)' : 'var(--am-bg2)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -183,7 +183,7 @@ export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, 
             style={{
               padding: '12px 14px', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               border: deliveryMethod === 'pickup' ? '2px solid var(--am-primary)' : '1.5px solid var(--am-border)',
-              background: deliveryMethod === 'pickup' ? 'rgba(0,180,216,0.06)' : 'var(--am-bg2)',
+              background: deliveryMethod === 'pickup' ? 'rgba(244, 174, 194, 0.35)' : 'var(--am-bg2)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -201,7 +201,7 @@ export default function Cart({ theme, items, onUpdateQty, onRemove, onCheckout, 
             style={{
               padding: '12px 14px', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               border: deliveryMethod === 'vending' ? '2px solid var(--am-primary)' : '1.5px solid var(--am-border)',
-              background: deliveryMethod === 'vending' ? 'rgba(0,180,216,0.06)' : 'var(--am-bg2)',
+              background: deliveryMethod === 'vending' ? 'rgba(244, 174, 194, 0.35)' : 'var(--am-bg2)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
