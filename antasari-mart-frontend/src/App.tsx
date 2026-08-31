@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Component, type ReactNode } from 'react';
 import type { AppTab, Campus, CartItem, DeliveryMethod, PaymentMethod, SessionUser, ThemeMode, UserRole } from './types';
 import type { Product } from './types';
 import TopBar from './components/TopBar';
@@ -33,8 +33,6 @@ const PRESET_AVATARS = [
   { id: 9, name: 'Zara (Pro Elegan)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=ZaraPro&backgroundColor=7209b7' },
   { id: 10, name: 'Ken (Pro Stylish)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585' },
 ];
-
-import { Component, type ReactNode } from 'react';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; errorText?: string }> {
   constructor(props: { children: ReactNode }) {
@@ -153,11 +151,13 @@ function MainAppContent() {
 
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [currentName, setCurrentName] = useState(() => getEffectiveUserName(user));
-  const [selectedCampus, setSelectedCampus] = useState<Campus>(campus);
+  const [selectedCampus, setSelectedCampus] = useState<Campus>(() => campus);
   const [userAvatar, setUserAvatar] = useState<string>(() => {
     return localStorage.getItem('am_user_avatar') || currentUser.avatar || '';
   });
-  const [currentAvatar, setCurrentAvatar] = useState(userAvatar);
+  const [currentAvatar, setCurrentAvatar] = useState<string>(() => {
+    return localStorage.getItem('am_user_avatar') || currentUser.avatar || '';
+  });
   const [successPopupMessage, setSuccessPopupMessage] = useState<string | null>(null);
 
   const customModalStyles = `

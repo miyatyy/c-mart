@@ -66,9 +66,9 @@ export default function Sidebar({
   }, [isOpenExternal]);
 
   const [showProfileModal, setShowProfileModal] = useState(false)
-  const [currentName, setCurrentName] = useState(userName)
-  const [selectedCampus, setSelectedCampus] = useState<Campus>(campus)
-  const [currentAvatar, setCurrentAvatar] = useState(userAvatar)
+  const [currentName, setCurrentName] = useState(() => userName)
+  const [selectedCampus, setSelectedCampus] = useState<Campus>(() => campus)
+  const [currentAvatar, setCurrentAvatar] = useState(() => userAvatar)
 
   const [successPopupMessage, setSuccessPopupMessage] = useState<string | null>(null)
 
