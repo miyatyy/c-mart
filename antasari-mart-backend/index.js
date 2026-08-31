@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const { Sequelize, DataTypes, Op } = require('sequelize');
+const mongoose = require('mongoose');
+const cron = require('node-cron');
 const midtransClient = require('midtrans-client');
 const multer = require('multer');
 const upload = require('./uploadMiddleware');
@@ -188,6 +190,67 @@ const Chat = sequelize.define('Chat', {
 function buildRoomId(emailA, emailB) {
   return [String(emailA).toLowerCase(), String(emailB).toLowerCase()].sort().join('__');
 }
+
+// ==========================================
+// 🍃 3.5. INISIALISASI MONGO DB (CHAT DATABASE)
+// ==========================================
+const MongoChatSchema = new mongoose.Schema({
+  roomId: { type: String, required: true, index: true },
+  senderId: { type: String, required: true, index: true },
+  senderName: { type: String, required: true },
+  senderRole: { type: String, default: 'buyer' },
+  receiverId: { type: String, required: true, index: true },
+  receiverName: { type: String, required: true },
+  receiverRole: { type: String, default: 'seller' },
+  text: { type: String, required: true },
+  time: { type: String, required: true },
+  isRead: { type: Boolean, default: false },
+  isHandedOver: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const MongoChat = mongoose.models.MongoChat || mongoose.model('MongoChat', MongoChatSchema);
+
+let isMongoConnected = false;
+async function initMongoDB() {
+  const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/Antasari_Mart_Chat';
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 3500
+    });
+    isMongoConnected = true;
+    console.log('🍃 [MongoDB] Terhubung Sukses! Database Chat MongoDB & Auto-Cleanup Siap Beroperasi.');
+  } catch (err) {
+    console.warn('⚠️ [MongoDB] Server lokal/Atlas belum terhubung:', err.message);
+    console.warn('🔄 [Hybrid Mode] Sistem chat tetap berjalan lancar dengan PostgreSQL fallback.');
+    isMongoConnected = false;
+  }
+}
+initMongoDB();
+
+// ==========================================================
+// ⏰ PENJADWAL PEMBERSIHAN CHAT OTOMATIS SETIAP PUKUL 00:00:00 WITA
+// ==========================================================
+cron.schedule('0 0 * * *', async () => {
+  const timeStr = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Makassar' });
+  console.log(`\n🧹 [00:00 WITA - MIDNIGHT CLEANUP | ${timeStr}] Memulai pembersihan otomatis riwayat chat harian...`);
+  try {
+    let mongoDeleted = 0;
+    if (isMongoConnected) {
+      const resM = await MongoChat.deleteMany({});
+      mongoDeleted = resM.deletedCount || 0;
+      console.log(`🍃 [MongoDB] Berhasil membersihkan ${mongoDeleted} dokumen pesan.`);
+    }
+    await Chat.destroy({ where: {}, truncate: true });
+    console.log('🐘 [PostgreSQL] Riwayat tabel chat cadangan berhasil dibersihkan.');
+    console.log(`✨ [00:00 WITA] Pembersihan selesai! Penyimpanan database kembali bersih, ringan, dan 0 KB terbuang.\n`);
+  } catch (cleanupError) {
+    console.error('❌ Gagal menjalankan pembersihan chat 00:00 WITA:', cleanupError.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'Asia/Makassar' // WITA (Waktu Indonesia Tengah UTC+8)
+});
 
 // --- 4. INISIALISASI DATABASE ---
 let dbInitPromise = null;
@@ -716,10 +779,34 @@ app.get('/api/users/contacts/:email', async (req, res) => {
   }
 });
 
-// CHAT / PESAN
+// ==========================================
+// 🍃 CHAT / PESAN (POWERED BY MONGO DB & POSTGRESQL HYBRID)
+// ==========================================
 app.get('/api/chats/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params;
+    const cleanId = String(identifier).toLowerCase();
+
+    if (isMongoConnected) {
+      const mongoChats = await MongoChat.find({
+        $or: [
+          { senderId: new RegExp(`^${cleanId}$`, 'i') },
+          { receiverId: new RegExp(`^${cleanId}$`, 'i') },
+          { receiverRole: 'admin' },
+          { receiverName: /koperasi/i }
+        ]
+      }).sort({ createdAt: 1 }).lean();
+
+      if (mongoChats && mongoChats.length > 0) {
+        const formatted = mongoChats.map(c => ({
+          ...c,
+          id: c._id ? String(c._id) : Date.now()
+        }));
+        return res.json({ success: true, source: 'mongodb', chats: formatted });
+      }
+    }
+
+    // Fallback ke PostgreSQL
     const chats = await Chat.findAll({
       where: {
         [Sequelize.Op.or]: [
@@ -731,7 +818,7 @@ app.get('/api/chats/:identifier', async (req, res) => {
       },
       order: [['createdAt', 'ASC']]
     });
-    res.json({ success: true, chats });
+    res.json({ success: true, source: 'postgresql', chats });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -744,9 +831,33 @@ app.post('/api/chats', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Isi pesan tidak boleh kosong!' });
     }
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const roomId = buildRoomId(fromId, toId);
 
-    const newChat = await Chat.create({
-      roomId: buildRoomId(fromId, toId),
+    let savedChat = null;
+
+    // 🍃 1. Simpan ke MongoDB (Utama)
+    if (isMongoConnected) {
+      try {
+        const mChat = await MongoChat.create({
+          roomId,
+          senderId: fromId,
+          senderName: fromName || fromId,
+          senderRole: fromRole || 'buyer',
+          receiverId: toId,
+          receiverName: toName || toId,
+          receiverRole: toRole || 'seller',
+          text: text.trim(),
+          time: timeNow
+        });
+        savedChat = { ...mChat.toObject(), id: String(mChat._id) };
+      } catch (mErr) {
+        console.warn('Gagal simpan ke MongoDB:', mErr.message);
+      }
+    }
+
+    // 🐘 2. Simpan cadangan ke PostgreSQL
+    const pgChat = await Chat.create({
+      roomId,
       senderId: fromId, 
       senderName: fromName || fromId, 
       senderRole: fromRole || 'buyer',
@@ -756,7 +867,12 @@ app.post('/api/chats', async (req, res) => {
       text: text.trim(), 
       time: timeNow
     });
-    res.json({ success: true, message: "Pesan terkirim dan tersimpan!", chat: newChat });
+
+    if (!savedChat) {
+      savedChat = pgChat;
+    }
+
+    res.json({ success: true, message: "Pesan terkirim dan tersimpan di database!", chat: savedChat });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -765,8 +881,68 @@ app.post('/api/chats', async (req, res) => {
 app.delete('/api/chats/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await Chat.destroy({ where: { id } });
-    res.json({ success: true, message: "Pesan dihapus." });
+    if (isMongoConnected) {
+      try {
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          await MongoChat.findByIdAndDelete(id);
+        }
+      } catch (_e) {}
+    }
+    await Chat.destroy({ where: { id: isNaN(parseInt(id)) ? 0 : parseInt(id) } });
+    res.json({ success: true, message: "Pesan berhasil dihapus." });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 🧹 TRIGGER PEMBERSIHAN CHAT (Dapat dipanggil manual / saat 00:00 WITA)
+app.post('/api/chats/cleanup', async (req, res) => {
+  try {
+    let mongoDeleted = 0;
+    if (isMongoConnected) {
+      const resM = await MongoChat.deleteMany({});
+      mongoDeleted = resM.deletedCount || 0;
+    }
+    const pgDeleted = await Chat.destroy({ where: {}, truncate: true });
+    
+    const timeWITA = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Makassar' });
+    res.json({
+      success: true,
+      message: '🧹 Seluruh riwayat chat harian berhasil dibersihkan dari MongoDB & PostgreSQL!',
+      mongoDeletedCount: mongoDeleted,
+      pgDeletedCount: pgDeleted,
+      cleanedAt: `${timeWITA} WITA`
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 📊 CEK STATUS DATABASE CHAT MONGO DB & JADWAL 00:00 WITA
+app.get('/api/chats/status', async (req, res) => {
+  try {
+    let mongoCount = 0;
+    if (isMongoConnected) {
+      mongoCount = await MongoChat.countDocuments();
+    }
+    const pgCount = await Chat.count();
+    const timeWITA = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Makassar' });
+
+    res.json({
+      success: true,
+      database: {
+        mongoConnected: isMongoConnected,
+        mongoDbName: isMongoConnected ? mongoose.connection.name : 'Disconnected',
+        totalChatsInMongoDB: mongoCount,
+        totalChatsInPostgreSQL: pgCount
+      },
+      cleanupSchedule: {
+        cronExpression: '0 0 * * *',
+        frequency: 'Setiap Hari Pukul 00:00:00 WITA (Tengah Malam Banjarmasin / Kalsel)',
+        timezone: 'Asia/Makassar (UTC+8)',
+        currentServerTimeWITA: `${timeWITA} WITA`
+      }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
