@@ -3,6 +3,10 @@ const cors = require('cors');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
+const dns = require('dns');
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (_e) {}
 const midtransClient = require('midtrans-client');
 const multer = require('multer');
 const upload = require('./uploadMiddleware');
