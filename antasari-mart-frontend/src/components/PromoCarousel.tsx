@@ -6,8 +6,6 @@ interface PromoSlide {
   title: string;
   badge: string;
   badgeColor: string;
-  subtitle: string;
-  description: string;
   image: string;
   ctaText: string;
   ctaAction: 'blind_bag' | 'category_aksesoris' | 'vending' | 'filter_koperasi' | 'category_makanan';
@@ -24,57 +22,47 @@ interface PromoCarouselProps {
 const PROMO_SLIDES: PromoSlide[] = [
   {
     id: 'slide_blind_bag',
-    title: 'BLIND BAG KEYCHAIN MYSTERY',
-    badge: '🔥 DISKON SPESIAL: RP 40.000 ➔ RP 35.000',
-    badgeColor: 'linear-gradient(135deg, #FF4D6D 0%, #FF758F 100%)',
-    subtitle: 'Myammiy Craft Exclusive Handmade',
-    description: 'Suvenir gantungan kunci rajut kejutan (Sakura, Strawberry Tulip, K-Pop Charm). Ambil instan di Smart Vending Machine kampus!',
+    title: 'Blind Bag Keychain Mystery Promo',
+    badge: '🔥 DISKON 40K ➔ 35K',
+    badgeColor: '#FF3366',
     image: '/banners/banner_blindbag.jpg',
-    ctaText: '🎁 Beli Blind Bag Promo (Rp 35.000)',
+    ctaText: '🎁 Beli Promo Rp 35.000',
     ctaAction: 'blind_bag'
   },
   {
     id: 'slide_custom_ganci',
-    title: 'CUSTOM GANCI & AKSESORIS RAMBUT',
-    badge: '🌸 HANDMADE CRAFT CANTIK',
-    badgeColor: 'linear-gradient(135deg, #7209B7 0%, #B5179E 100%)',
-    subtitle: 'Koleksi Estetik Myammiy Craft',
-    description: 'Aksesoris rambut, bando, dan gantungan kunci rajut personalisasi mulai Rp 15.000. Hadiah manis untuk mahasiswi UIN Antasari!',
+    title: 'Custom Ganci & Aksesoris Rambut',
+    badge: '🌸 HANDMADE CRAFT',
+    badgeColor: '#8B5CF6',
     image: '/banners/banner_ganci.jpg',
-    ctaText: '🎀 Lihat Koleksi Aksesoris',
+    ctaText: '🎀 Lihat Koleksi',
     ctaAction: 'category_aksesoris'
   },
   {
     id: 'slide_vending',
-    title: 'SMART CAMPUS VENDING MACHINE',
-    badge: '🤖 LAYANAN MANDIRI 24 JAM',
-    badgeColor: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)',
-    subtitle: 'Inovasi IoT Kampus UIN Antasari',
-    description: 'Belanja ganci & snack cepat tanpa antre! Scan QR Token via SeaBank / GoPay langsung keluar otomatis via motor penggerak ESP32.',
+    title: 'Smart Vending Machine Kampus',
+    badge: '🤖 BUKA 24 JAM',
+    badgeColor: '#0284C7',
     image: '/banners/banner_vending.jpg',
-    ctaText: '🤖 Coba Vending Machine',
+    ctaText: '🤖 Coba Vending',
     ctaAction: 'vending'
   },
   {
     id: 'slide_koperasi',
-    title: 'KOPERASI MAHASISWA UIN ANTASARI',
-    badge: '🎓 KEBUTUHAN AKADEMIK RESMI',
-    badgeColor: 'linear-gradient(135deg, #166534 0%, #15803D 100%)',
-    subtitle: 'Almamater, Buku Teks & Merchandise',
-    description: 'Dapatkan jas almamater resmi UIN Antasari, buku kuliah hukum ekonomi syariah, dan paket ATK lengkap bergaransi resmi.',
+    title: 'Koperasi Mahasiswa UIN Antasari',
+    badge: '🎓 MERCHANDISE RESMI',
+    badgeColor: '#16A34A',
     image: '/banners/banner_koperasi.jpg',
     ctaText: '🏛️ Buka Lapak Koperasi',
     ctaAction: 'filter_koperasi'
   },
   {
     id: 'slide_delivery',
-    title: 'ANTASARI FOOD & SNACK EXPRESS',
-    badge: '🛵 CEPAT • FRESH • RAMAH',
-    badgeColor: 'linear-gradient(135deg, #EA580C 0%, #F97316 100%)',
-    subtitle: 'Delivery Antar Gedung Kampus 1 & 2',
-    description: 'Lapar saat jeda kuliah? Pesan nasi kuning, kue banjar, roti, dan minuman dingin langsung diantar ke depan ruang kelasmu!',
+    title: 'Antasari Food & Snack Express',
+    badge: '🛵 DELIVERY KAMPUS',
+    badgeColor: '#EA580C',
     image: '/banners/banner_delivery.jpg',
-    ctaText: '🍱 Pesan Kuliner & Snack',
+    ctaText: '🍱 Pesan Kuliner',
     ctaAction: 'category_makanan'
   }
 ];
@@ -120,7 +108,7 @@ export default function PromoCarousel({
     if (e && e.changedTouches && e.changedTouches[0]) {
       touchEndX.current = e.changedTouches[0].clientX;
       const diff = touchStartX.current - touchEndX.current;
-      if (Math.abs(diff) > 40) {
+      if (Math.abs(diff) > 30) {
         if (diff > 0) {
           handleNext();
         } else {
@@ -165,28 +153,34 @@ export default function PromoCarousel({
 
   return (
     <div
-      style={{ marginBottom: 24, position: 'relative' }}
+      style={{
+        marginBottom: 20,
+        position: 'relative',
+        userSelect: 'none',
+        width: '100%'
+      }}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Container Carousel */}
+      {/* 📱💻 Frame Brosur Responsif (Aspect-Ratio 16:9 Landscape Alami) */}
       <div
         className="am-card"
+        onClick={() => handleAction(active)}
         style={{
           position: 'relative',
-          borderRadius: 24,
+          width: '100%',
+          aspectRatio: '16 / 9',
+          borderRadius: 20,
           overflow: 'hidden',
-          aspectRatio: '16 / 8.5',
-          minHeight: 220,
-          maxHeight: 420,
-          boxShadow: '0 12px 32px rgba(0, 0, 0, 0.12)',
-          background: '#1E293B',
-          transition: 'all 0.4s ease'
+          cursor: 'pointer',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
+          backgroundColor: '#0F172A',
+          transition: 'transform 0.3s ease, box-shadow 0.3s ease'
         }}
       >
-        {/* Background Image Banner */}
+        {/* Gambar Brosur Asli Tanpa Tertutup Blok Teks Besar */}
         <img
           src={active.image}
           alt={active.title}
@@ -195,180 +189,131 @@ export default function PromoCarousel({
             height: '100%',
             objectFit: 'cover',
             objectPosition: 'center',
-            filter: 'brightness(0.92)',
-            transition: 'opacity 0.5s ease-in-out',
-            display: 'block'
+            display: 'block',
+            transition: 'opacity 0.4s ease-in-out'
           }}
         />
 
-        {/* Gradient Overlay for Text Readability */}
+        {/* Floating Pill CTA Aksi di Pojok Bawah */}
         <div
           style={{
             position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(90deg, rgba(15, 23, 42, 0.85) 0%, rgba(15, 23, 42, 0.4) 55%, rgba(15, 23, 42, 0.1) 100%)',
+            bottom: 'clamp(8px, 2.5vw, 16px)',
+            right: 'clamp(8px, 2.5vw, 16px)',
             display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            padding: '24px 32px',
-            color: 'white',
-            maxWidth: '65%'
+            alignItems: 'center',
+            gap: 8,
+            zIndex: 5
           }}
         >
-          {/* Badge Promo */}
-          <div
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAction(active);
+            }}
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '6px 14px',
+              padding: 'clamp(6px, 1.5vw, 10px) clamp(12px, 2vw, 20px)',
               borderRadius: 30,
-              background: active.badgeColor,
-              fontSize: 11,
-              fontWeight: 900,
-              letterSpacing: 0.5,
-              textTransform: 'uppercase',
-              marginBottom: 10,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-              width: 'fit-content'
+              border: 'none',
+              background: 'linear-gradient(135deg, #00B4D8 0%, #0077B6 100%)',
+              color: '#FFFFFF',
+              fontSize: 'clamp(11px, 1.4vw, 13px)',
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              backdropFilter: 'blur(8px)',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
             }}
           >
-            {active.badge}
-          </div>
-
-          {/* Title */}
-          <h2
-            style={{
-              margin: '0 0 6px',
-              fontSize: 'clamp(18px, 3vw, 26px)',
-              fontWeight: 900,
-              lineHeight: 1.2,
-              textShadow: '0 2px 8px rgba(0,0,0,0.5)',
-              color: '#FFFFFF'
-            }}
-          >
-            {active.title}
-          </h2>
-
-          {/* Subtitle / Description */}
-          <p
-            style={{
-              margin: '0 0 16px',
-              fontSize: 'clamp(11px, 1.6vw, 13px)',
-              opacity: 0.95,
-              lineHeight: 1.4,
-              textShadow: '0 1px 4px rgba(0,0,0,0.4)',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden'
-            }}
-          >
-            {active.description}
-          </p>
-
-          {/* CTA Action Button */}
-          <div>
-            <button
-              onClick={() => handleAction(active)}
-              style={{
-                padding: '10px 22px',
-                borderRadius: 14,
-                border: 'none',
-                background: 'linear-gradient(135deg, #00B4D8 0%, #0077B6 100%)',
-                color: 'white',
-                fontSize: 13,
-                fontWeight: 800,
-                cursor: 'pointer',
-                boxShadow: '0 4px 16px rgba(0, 180, 216, 0.4)',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.04)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-            >
-              {active.ctaText}
-            </button>
-          </div>
+            <span>{active.ctaText}</span>
+            <span style={{ fontSize: '1.1em' }}>➔</span>
+          </button>
         </div>
 
-        {/* Slide Navigation Arrows */}
+        {/* Tombol Panah Kiri (Responsive) */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             handlePrev();
           }}
-          aria-label="Previous Slide"
+          aria-label="Slide Sebelumnya"
           style={{
             position: 'absolute',
-            left: 12,
+            left: 'clamp(6px, 1.5vw, 14px)',
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 36,
-            height: 36,
+            width: 'clamp(28px, 4vw, 40px)',
+            height: 'clamp(28px, 4vw, 40px)',
             borderRadius: '50%',
             border: 'none',
-            background: 'rgba(255, 255, 255, 0.75)',
-            backdropFilter: 'blur(8px)',
-            color: '#1E293B',
-            fontSize: 18,
+            background: 'rgba(255, 255, 255, 0.85)',
+            backdropFilter: 'blur(6px)',
+            color: '#0F172A',
+            fontSize: 'clamp(16px, 2.2vw, 22px)',
             fontWeight: 900,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 10
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+            zIndex: 10,
+            transition: 'background 0.2s ease, transform 0.2s ease'
           }}
         >
           ‹
         </button>
 
+        {/* Tombol Panah Kanan (Responsive) */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             handleNext();
           }}
-          aria-label="Next Slide"
+          aria-label="Slide Berikutnya"
           style={{
             position: 'absolute',
-            right: 12,
+            right: 'clamp(6px, 1.5vw, 14px)',
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 36,
-            height: 36,
+            width: 'clamp(28px, 4vw, 40px)',
+            height: 'clamp(28px, 4vw, 40px)',
             borderRadius: '50%',
             border: 'none',
-            background: 'rgba(255, 255, 255, 0.75)',
-            backdropFilter: 'blur(8px)',
-            color: '#1E293B',
-            fontSize: 18,
+            background: 'rgba(255, 255, 255, 0.85)',
+            backdropFilter: 'blur(6px)',
+            color: '#0F172A',
+            fontSize: 'clamp(16px, 2.2vw, 22px)',
             fontWeight: 900,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 10
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+            zIndex: 10,
+            transition: 'background 0.2s ease, transform 0.2s ease'
           }}
         >
           ›
         </button>
       </div>
 
-      {/* Dot Indicators */}
+      {/* Titik Navigasi Slide (Dots Indicators) */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          gap: 8,
-          marginTop: 12
+          gap: 'clamp(6px, 1.2vw, 10px)',
+          marginTop: 10
         }}
       >
         {PROMO_SLIDES.map((slide, idx) => (
@@ -377,8 +322,8 @@ export default function PromoCarousel({
             onClick={() => setCurrentSlide(idx)}
             aria-label={`Slide ${idx + 1}`}
             style={{
-              width: currentSlide === idx ? 28 : 8,
-              height: 8,
+              width: currentSlide === idx ? 'clamp(22px, 3.5vw, 32px)' : 'clamp(6px, 1vw, 8px)',
+              height: 'clamp(6px, 1vw, 8px)',
               borderRadius: 10,
               border: 'none',
               background: currentSlide === idx ? 'var(--am-primary, #0077B6)' : '#CBD5E1',
