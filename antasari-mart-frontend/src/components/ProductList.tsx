@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Product, CartItem, Campus, ThemeMode } from '../types';
 import { CATEGORIES, formatRupiah, MOCK_PRODUCTS } from '../data';
 import { getProductsApi } from '../lib/api';
+import PromoCarousel from './PromoCarousel';
 
 interface ProductListProps {
   theme: ThemeMode;
@@ -10,6 +11,7 @@ interface ProductListProps {
   onAddToCart: (product: Product, qty: number) => void;
   onChat: (sellerId: string, sellerName: string, productName: string) => void;
   onNavigateCheckout?: () => void;
+  onOpenVending?: () => void;
 }
 
 export default function ProductList({ theme, campus, cartItems: _cartItems, onAddToCart, onChat, onNavigateCheckout }: ProductListProps) {
@@ -108,7 +110,16 @@ export default function ProductList({ theme, campus, cartItems: _cartItems, onAd
     <div style={{ padding: '16px 16px 80px', maxWidth: 1200, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
       <style>{successModalStyles}</style>
 
-      {/* Banner Utama */}
+      {/* 🌟 5 Landscape Promotional Brosur Carousel (Auto & Manual Slide) */}
+      <PromoCarousel
+        theme={theme}
+        onAddToCart={onAddToCart}
+        onFilterCategory={setCategory}
+        onFilterType={setFilter}
+        onOpenVending={onOpenVending}
+      />
+
+      {/* Banner Header Kampus */}
       <div
         className="am-card"
         style={{
@@ -116,21 +127,21 @@ export default function ProductList({ theme, campus, cartItems: _cartItems, onAd
             ? 'linear-gradient(135deg, #FFCAD4 0%, #B5E2FA 50%, #EDF6F9 100%)'
             : 'linear-gradient(135deg, #03045E 0%, #0077B6 50%, #00B4D8 100%)',
           color: isAesthetic ? '#2D3748' : '#ffffff',
-          padding: '24px 20px',
-          borderRadius: 24,
+          padding: '20px 20px',
+          borderRadius: 20,
           marginBottom: 20,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.06)'
+          boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: isAesthetic ? '#E56B6F' : '#90E0EF', marginBottom: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: isAesthetic ? '#E56B6F' : '#90E0EF', marginBottom: 4 }}>
               🌸 Antasari Mart Campus Hub
             </div>
-            <h1 style={{ margin: '0 0 6px', fontSize: 24, fontWeight: 900 }}>
+            <h1 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 900 }}>
               Katalog Produk Kampus {campus === 'banjarmasin' ? 'Banjarmasin' : 'Banjarbaru'}
             </h1>
-            <p style={{ margin: 0, fontSize: 13, opacity: 0.9 }}>
+            <p style={{ margin: 0, fontSize: 12, opacity: 0.9 }}>
               Dukung wirausaha mahasiswa & koperasi kampus dengan belanja mudah dan aman!
             </p>
           </div>

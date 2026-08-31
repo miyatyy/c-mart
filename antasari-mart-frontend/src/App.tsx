@@ -464,6 +464,7 @@ function MainAppContent() {
               onAddToCart={addToCart}
               onChat={handleOpenChat}
               onNavigateCheckout={() => setActiveTab('checkout')}
+              onOpenVending={() => setActiveTab('vending')}
             />
           )}
           {activeTab === 'cart' && (
