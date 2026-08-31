@@ -11,8 +11,8 @@ void main() {
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: Color(0xFF0077B6),
-      systemNavigationBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
 
@@ -29,9 +29,9 @@ class AntasariMartApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0077B6),
-          primary: const Color(0xFF0077B6),
-          secondary: const Color(0xFFFF4D6D),
+          seedColor: const Color(0xFF5FA874),
+          primary: const Color(0xFF5FA874),
+          secondary: const Color(0xFFF4AEC2),
         ),
         useMaterial3: true,
         fontFamily: 'Roboto',
@@ -137,13 +137,13 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: const Color(0xFFFAFDFB),
         body: SafeArea(
           child: Stack(
             children: [
               // 🌐 Webview Utama Campus Mart
               RefreshIndicator(
-                color: const Color(0xFF0077B6),
+                color: const Color(0xFF5FA874),
                 onRefresh: () async {
                   await _controller.reload();
                 },
@@ -160,7 +160,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
                     value: _loadingProgress / 100.0,
                     backgroundColor: Colors.transparent,
                     valueColor: const AlwaysStoppedAnimation<Color>(
-                      Color(0xFFFF4D6D),
+                      Color(0xFFF4AEC2),
                     ),
                     minHeight: 3,
                   ),
@@ -169,7 +169,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
               // 🚀 Splash Loading Overlay saat pertama kali buka
               if (_isLoading && _loadingProgress < 60)
                 Container(
-                  color: const Color(0xFF0F172A),
+                  color: const Color(0xFFFAFDFB),
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -181,7 +181,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
                             borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF00B4D8).withOpacity(0.4),
+                                color: const Color(0xFF5FA874).withOpacity(0.25),
                                 blurRadius: 30,
                                 offset: const Offset(0, 10),
                               ),
@@ -201,7 +201,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
                           style: TextStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.w900,
-                            color: Color(0xFFFFFFFF),
+                            color: Color(0xFF243329),
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -210,7 +210,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
                           'Smart IoT Campus Hub & Vending Machine',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF94A3B8),
+                            color: Color(0xFF687D70),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -221,7 +221,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              Color(0xFF00B4D8),
+                              Color(0xFF5FA874),
                             ),
                           ),
                         ),
@@ -246,7 +246,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A),
+                            color: Color(0xFF243329),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -255,7 +255,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 13,
-                            color: Color(0xFF64748B),
+                            color: Color(0xFF687D70),
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -276,7 +276,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0077B6),
+                            backgroundColor: const Color(0xFF5FA874),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 24,
                               vertical: 12,

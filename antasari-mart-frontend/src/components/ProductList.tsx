@@ -174,24 +174,25 @@ export default function ProductList({
         className="am-card"
         style={{
           background: isAesthetic
-            ? 'linear-gradient(135deg, #FFCAD4 0%, #B5E2FA 50%, #EDF6F9 100%)'
-            : 'linear-gradient(135deg, #243329 0%, #5FA874 50%, #5FA874 100%)',
-          color: isAesthetic ? '#2D3748' : '#ffffff',
+            ? 'linear-gradient(135deg, #FCE7EE 0%, #F4FAF6 50%, #FAFDFB 100%)'
+            : 'linear-gradient(135deg, #1E2E24 0%, #293D30 50%, #131E17 100%)',
+          color: isAesthetic ? '#243329' : '#ffffff',
           padding: '20px 20px',
           borderRadius: 20,
           marginBottom: 20,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
+          boxShadow: '0 4px 16px rgba(0,0,0,0.03)',
+          border: '1px solid var(--am-border)'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: isAesthetic ? '#E56B6F' : '#90E0EF', marginBottom: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: '#E68FA5', marginBottom: 4 }}>
               🌸 Antasari Mart Campus Hub
             </div>
             <h1 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 900 }}>
               Katalog Produk Kampus {campus === 'banjarmasin' ? 'Banjarmasin' : 'Banjarbaru'}
             </h1>
-            <p style={{ margin: 0, fontSize: 12, opacity: 0.9 }}>
+            <p style={{ margin: 0, fontSize: 12, opacity: 0.9, color: 'var(--am-text-muted)' }}>
               Dukung wirausaha mahasiswa & koperasi kampus dengan belanja mudah dan aman!
             </p>
           </div>
@@ -348,13 +349,13 @@ export default function ProductList({
                       position: 'absolute',
                       top: 6,
                       left: 6,
-                      background: 'rgba(3, 4, 94, 0.85)',
+                      background: '#4D9562',
                       color: 'white',
                       fontSize: 9.5,
                       fontWeight: 800,
-                      padding: '2px 6px',
+                      padding: '2px 7px',
                       borderRadius: 6,
-                      backdropFilter: 'blur(4px)'
+                      boxShadow: '0 2px 6px rgba(77, 149, 98, 0.35)'
                     }}
                   >
                     🏛️ Koperasi

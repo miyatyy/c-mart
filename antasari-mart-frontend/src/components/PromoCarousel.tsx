@@ -36,7 +36,7 @@ const PROMO_SLIDES: PromoSlide[] = [
       promo: 'Rp 35.000'
     },
     subtitle: 'Ganci pipe cleaner suvenir kejutan handmade eksklusif. Siap ambil instan di Vending Machine!',
-    bgGradient: 'linear-gradient(135deg, #FF4D6D 0%, #C9184A 50%, #800F2F 100%)',
+    bgGradient: 'linear-gradient(135deg, #F4AEC2 0%, #E68FA5 50%, #B85872 100%)',
     image: '/banners/banner_blindbag.jpg',
     ctaText: '🎁 Beli Promo Rp 35.000',
     ctaAction: 'blind_bag'
@@ -50,7 +50,7 @@ const PROMO_SLIDES: PromoSlide[] = [
       promo: 'Mulai Rp 15.000'
     },
     subtitle: 'Gantungan kunci kawat bulu pipe cleaner & bando estetik karya mahasiswi UIN Antasari.',
-    bgGradient: 'linear-gradient(135deg, #7B2CBF 0%, #5A189A 50%, #3C096C 100%)',
+    bgGradient: 'linear-gradient(135deg, #5FA874 0%, #4D9562 50%, #F4AEC2 100%)',
     image: '/banners/banner_ganci.jpg',
     ctaText: '🎀 Lihat Katalog Aksesoris',
     ctaAction: 'category_aksesoris'
@@ -78,7 +78,7 @@ const PROMO_SLIDES: PromoSlide[] = [
       promo: 'Lengkap & Bergaransi'
     },
     subtitle: 'Dapatkan almamater resmi UIN Antasari, buku teks syariah, & perlengkapan akademik.',
-    bgGradient: 'linear-gradient(135deg, #15803D 0%, #166534 50%, #14532D 100%)',
+    bgGradient: 'linear-gradient(135deg, #4D9562 0%, #3B7E50 50%, #243329 100%)',
     image: '/banners/banner_koperasi.jpg',
     ctaText: '🏛️ Buka Lapak Koperasi',
     ctaAction: 'filter_koperasi'
@@ -92,7 +92,7 @@ const PROMO_SLIDES: PromoSlide[] = [
       promo: 'Antar Sampai Kelas!'
     },
     subtitle: 'Pesan makan siang, kue banjar, & minuman segar antar gedung kampus 1 & 2.',
-    bgGradient: 'linear-gradient(135deg, #EA580C 0%, #C2410C 50%, #9A3412 100%)',
+    bgGradient: 'linear-gradient(135deg, #E68FA5 0%, #F4AEC2 50%, #5FA874 100%)',
     image: '/banners/banner_delivery.jpg',
     ctaText: '🍱 Pesan Kuliner Kampus',
     ctaAction: 'category_makanan'
