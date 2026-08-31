@@ -218,6 +218,17 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
   }, []);
 
   useEffect(() => {
+    if (activeRoom) {
+      document.body.classList.add('in-active-chat');
+    } else {
+      document.body.classList.remove('in-active-chat');
+    }
+    return () => {
+      document.body.classList.remove('in-active-chat');
+    };
+  }, [activeRoom]);
+
+  useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
@@ -455,17 +466,32 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           position: relative;
         }
 
+        body.in-active-chat .am-bottom-navbar-root {
+          display: none !important;
+        }
+        body.in-active-chat main {
+          padding-bottom: 0 !important;
+        }
+
         @media (max-width: 768px) {
           .am-chat-page-root {
-            height: calc(100vh - 120px);
+            height: 100dvh;
+            max-height: 100dvh;
             border-radius: 0;
             border: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: #FFFFFF;
           }
           .am-chat-sidebar-pane {
             width: 100%;
+            height: 100%;
             display: ${activeRoom ? 'none' : 'flex'};
           }
           .am-chat-content-pane {
+            width: 100%;
+            height: 100%;
             display: ${activeRoom ? 'flex' : 'none'};
           }
         }
@@ -968,13 +994,18 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
             <form
               onSubmit={handleSendMessage}
               style={{
-                padding: '8px 12px',
-                background: 'var(--am-surface, #ffffff)',
+                position: 'sticky',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                zIndex: 60,
+                padding: '10px 14px calc(10px + env(safe-area-inset-bottom, 0px))',
+                background: '#FFFFFF',
                 borderTop: '1px solid var(--am-border, #e8e1d5)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                zIndex: 20
+                boxShadow: '0 -2px 10px rgba(0,0,0,0.04)'
               }}
             >
               <input
@@ -982,12 +1013,19 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                 placeholder={isCurrentRoomHandedOver ? `Tulis pesan untuk Admin ${activeRoom.otherName}...` : `Tulis pesan untuk ${activeRoom.otherName}...`}
                 value={messageInput}
                 onChange={e => setMessageInput(e.target.value)}
+                onFocus={() => {
+                  setTimeout(() => {
+                    if (chatScrollRef.current) {
+                      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+                    }
+                  }, 250);
+                }}
                 style={{
                   flex: 1,
-                  padding: '10px 14px',
-                  borderRadius: 22,
+                  padding: '11px 16px',
+                  borderRadius: 24,
                   border: '1px solid var(--am-border, #e8e1d5)',
-                  fontSize: 13,
+                  fontSize: 13.5,
                   outline: 'none',
                   background: 'var(--am-bg2, #f3ece2)',
                   color: 'var(--am-text, #2D3748)',
@@ -998,14 +1036,14 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                 type="submit"
                 disabled={!messageInput.trim()}
                 style={{
-                  width: 38,
-                  height: 38,
+                  width: 40,
+                  height: 40,
                   borderRadius: '50%',
                   border: 'none',
                   background: messageInput.trim() ? 'linear-gradient(135deg, #4A8FE7 0%, #3B77CC 100%)' : '#CBD5E0',
                   color: 'white',
                   fontWeight: 800,
-                  fontSize: 15,
+                  fontSize: 16,
                   cursor: messageInput.trim() ? 'pointer' : 'default',
                   display: 'flex',
                   alignItems: 'center',
