@@ -59,13 +59,6 @@ function speakVoice(text: string) {
   } catch (_e) {}
 }
 
-const MYSTERY_KEYCHAINS = [
-  { name: 'Ganci Bunga Sakura Pipe Cleaner 🌸', icon: '🌸✨', rarity: 'Super Rare ✨' },
-  { name: 'Ganci Strawberry Tulip Pipe Cleaner 🍓', icon: '🍓🎀', rarity: 'Special Edition 💎' },
-  { name: 'Ganci Boneka Kawat Bulu Karakter 🧸', icon: '🧸💖', rarity: 'Ultra Rare 👑' },
-  { name: 'Ganci Kaktus Senyum Antasari 🌵', icon: '🌵✨', rarity: 'Limited Edition 🎁' }
-];
-
 export default function Checkout({ theme: _theme, campus, items, onConfirmOrder, onBack }: CheckoutProps) {
   const isVendingItem = (p: any) => {
     if (!p) return false;
@@ -113,7 +106,6 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   const [step, setStep] = useState<'form' | 'searching_driver' | 'success' | 'vending_qr' | 'vending_dispensing' | 'vending_done' | 'receipt_pickup'>('form');
   const [countdown, setCountdown] = useState(10);
   const [loadingPayment, setLoadingPayment] = useState(false);
-  const [revealedMystery, setRevealedMystery] = useState<{ name: string; icon: string; rarity: string } | null>(null);
 
   const [vendingData, setVendingResult] = useState<{
     vendingToken: string;
@@ -178,20 +170,9 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
       localStorage.removeItem('am_active_vending_qr');
       setStep('vending_dispensing');
       setTimeout(() => {
-        const rand = MYSTERY_KEYCHAINS[Math.floor(Math.random() * MYSTERY_KEYCHAINS.length)];
-        setRevealedMystery(rand);
         setStep('vending_done');
-
         playCelebrationFanfare();
-        const hasBlindBag = items.some(i => 
-          i.product.name.toLowerCase().includes('blind bag') || 
-          i.product.name.toLowerCase().includes('ganci') || 
-          i.product.price === 35000
-        );
-        const speechMsg = hasBlindBag
-          ? 'Yaaay! Selamat Kakak berhasil mendapatkan Blind Bag Keychain Myammiy seharga tiga puluh lima ribu rupiah! Silakan ambil gantungan kunci imut di slot mesin vending yaa!'
-          : 'Yaaay! Pesanan berhasil dikeluarkan dari mesin vending kampus! Silakan ambil barang Anda di slot boks yaa!';
-        
+        const speechMsg = 'Yaaay! Selamat Kakak! Paket Blind Bag Mystery kamu berhasil dikeluarkan! Silakan ambil di boks mesin vending yaa!';
         setTimeout(() => speakVoice(speechMsg), 400);
       }, 2500);
     }
@@ -631,38 +612,36 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
       )}
 
       {step === 'vending_done' && (
-        <div className="am-card" style={{ padding: 30, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
-          <div style={{ fontSize: 54, marginBottom: 8, animation: 'floatCute 2s ease-in-out infinite' }}>🎁✨</div>
-          <h2 style={{ margin: '0 0 6px', color: '#16A34A', fontSize: 22, fontWeight: 900 }}>Barang Berhasil Diambil! 🎉</h2>
+        <div className="am-card" style={{ padding: 32, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
+          <div style={{ fontSize: 60, marginBottom: 10, animation: 'floatCute 2s ease-in-out infinite' }}>🎁🎉</div>
+          <h2 style={{ margin: '0 0 6px', color: '#16A34A', fontSize: 22, fontWeight: 900 }}>Selamat! Paket Berhasil Dikeluarkan! 🎉</h2>
           
-          {revealedMystery && (
-            <div style={{
-              margin: '16px auto 20px',
-              padding: '20px',
-              borderRadius: 20,
-              background: 'linear-gradient(135deg, #FFF0F5 0%, #FFE4E6 100%)',
-              border: '2px dashed #FF6B8B',
-              maxWidth: 360,
-              animation: 'bounceIn 0.5s ease-out'
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#FF6B8B', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
-                ✨ UNBOXING BLIND BAG KEYCHAIN ✨
-              </div>
-              <div style={{ fontSize: 48, margin: '8px 0' }}>{revealedMystery.icon}</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#9F1239', marginBottom: 4 }}>
-                {revealedMystery.name}
-              </div>
-              <div style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 20, background: '#FF4D6D', color: 'white', fontSize: 11, fontWeight: 800 }}>
-                {revealedMystery.rarity}
-              </div>
-              <div style={{ fontSize: 12, color: '#881337', marginTop: 10, fontWeight: 600 }}>
-                Harga: Rp 35.000 (Lunas via Antasari Mart)
-              </div>
+          <div style={{
+            margin: '18px auto 22px',
+            padding: '22px 20px',
+            borderRadius: 20,
+            background: 'linear-gradient(135deg, #FFF0F5 0%, #FFE4E6 100%)',
+            border: '2px dashed #FF6B8B',
+            maxWidth: 380,
+            animation: 'bounceIn 0.5s ease-out'
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#FF6B8B', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 }}>
+              ✨ MYSTERY BLIND BAG KEYCHAIN ✨
             </div>
-          )}
+            <div style={{ fontSize: 48, margin: '8px 0' }}>🛍️❓🎁</div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: '#9F1239', marginBottom: 6 }}>
+              Paket Blind Bag Misteri Siap Diambil!
+            </div>
+            <p style={{ fontSize: 12.5, color: '#881337', margin: '0 0 10px', lineHeight: 1.5 }}>
+              Silakan ambil kantong Blind Bag fisikmu di boks pengambilan mesin vending, lalu buka bungkusnya langsung untuk melihat kejutan karakter di dalamnya! 🥰
+            </p>
+            <div style={{ display: 'inline-block', padding: '5px 16px', borderRadius: 20, background: '#FF4D6D', color: 'white', fontSize: 11, fontWeight: 800 }}>
+              100% Mystery Surprise 🔒
+            </div>
+          </div>
 
           <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 20 }}>
-            Terima kasih telah berbelanja produk Myammiy Craft & Vending Machine UIN Antasari!
+            Terima kasih telah berbelanja produk Myammiy Craft di Campus Mart & Vending Machine UIN Antasari!
           </p>
           <button
             onClick={() => onConfirmOrder('pickup', payment, finalLocation)}
