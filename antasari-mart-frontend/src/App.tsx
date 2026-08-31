@@ -17,6 +17,7 @@ import { ProfileModal, SuccessPopup, InfoModal, LoginPromptModal } from './compo
 import SuperAdminPanel from './components/SuperAdminPanel';
 import VendingSimulator from './components/VendingSimulator';
 import MyammiyVoiceAssistant from './components/MyammiyVoiceAssistant';
+import BottomNavBar from './components/BottomNavBar';
 import { getChatsApi, sendChatApi } from './lib/api';
 
 const PRESET_AVATARS = [
@@ -462,7 +463,7 @@ function MainAppContent() {
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
         />
 
-        <main style={{ flex: 1, paddingBottom: 40 }}>
+        <main style={{ flex: 1, paddingBottom: activeTab === 'chat' ? 0 : 72, minHeight: 'calc(100vh - 60px)' }}>
           {activeTab === 'home' && (
             <ProductList
               theme={theme}
@@ -645,6 +646,28 @@ function MainAppContent() {
         <MyammiyVoiceAssistant
           onAddToCart={addToCart}
           onNavigateTab={(targetTab) => setActiveTab(targetTab as AppTab)}
+        />
+      )}
+
+      {/* 📱 MODERN FIXED BOTTOM NAVIGATION BAR */}
+      {activeTab !== 'login_page' && (
+        <BottomNavBar
+          activeTab={activeTab}
+          setActiveTab={handleSetActiveTab}
+          cartItems={cart}
+          chatUnread={chatUnread}
+          isGuest={isGuest}
+          onRequireLogin={() => setShowLoginModal(true)}
+          userRoles={currentUser.roles || ['buyer']}
+          isSuperAdmin={currentUser.email === 'miyya@gmail.com' || role === 'super_admin'}
+          hasActiveOrder={hasActiveOrder}
+          onOpenProfileModal={() => {
+            if (isGuest) {
+              setShowLoginModal(true);
+            } else {
+              setShowProfileModal(true);
+            }
+          }}
         />
       )}
     </div>

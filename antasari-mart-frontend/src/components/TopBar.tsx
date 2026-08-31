@@ -203,62 +203,6 @@ export default function TopBar({
           </button>
         </div>
       </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 12px 2px 12px', fontSize: 10, color: 'var(--am-text-muted)', gap: 3, fontWeight: 600, opacity: 0.85 }}>
-        <span>Geser menu</span>
-        <span style={{ animation: 'pulseArrow 1.5s infinite', display: 'inline-block' }}>➔</span>
-      </div>
-
-      <style>{`
-        @keyframes pulseArrow {
-          0%, 100% { transform: translateX(0); opacity: 0.5; }
-          50% { transform: translateX(3px); opacity: 1; }
-        }
-      `}</style>
-
-      {/* Bottom nav tabs */}
-      <nav style={{ display: 'flex', borderTop: '1px solid var(--am-border)', overflowX: 'auto' }} className="scroll-hide">
-        {visibleTabs.map(tab => {
-          const isActive = activeTab === tab.key
-          const badge = tab.key === 'cart' ? cartCount : tab.key === 'chat' ? chatUnread : 0
-          return (
-            <button
-              key={tab.key}
-              onClick={() => {
-                if (isGuest && (tab.key === 'cart' || tab.key === 'chat' || tab.key === 'tracker' || tab.key === 'seller' || tab.key === 'driver')) {
-                  if (onRequireLogin) onRequireLogin();
-                  return;
-                }
-                setActiveTab(tab.key);
-              }}
-              style={{
-                flex: '1 0 auto', minWidth: 60, padding: '8px 4px',
-                border: 'none', background: 'transparent', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                position: 'relative',
-                borderBottom: isActive ? '2.5px solid var(--am-primary)' : '2.5px solid transparent',
-                transition: 'border-color 0.2s',
-              }}
-            >
-              <span style={{ fontSize: 18 }}>{tab.icon}</span>
-              <span style={{
-                fontSize: 10, fontWeight: isActive ? 700 : 400,
-                color: isActive ? 'var(--am-primary)' : 'var(--am-text-muted)',
-                fontFamily: 'var(--am-font-body)',
-              }}>{tab.label}</span>
-              {badge > 0 && (
-                <span style={{
-                  position: 'absolute', top: 4, right: 'calc(50% - 18px)',
-                  background: '#EF4444', color: 'white', borderRadius: 999,
-                  fontSize: 9, fontWeight: 700, padding: '1px 5px', minWidth: 16, textAlign: 'center',
-                }}>
-                  {badge > 9 ? '9+' : badge}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </nav>
     </header>
   )
 }
