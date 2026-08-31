@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { CartItem, DeliveryMethod, PaymentMethod, ThemeMode, Campus } from '../types';
 import { formatRupiah } from '../data';
 import { QRCodeSVG } from 'qrcode.react';
-import { checkoutApi, MIDTRANS_CLIENT_KEY } from '../lib/api';
+import { checkoutApi, deductStockApi, MIDTRANS_CLIENT_KEY } from '../lib/api';
 
 declare global {
   interface Window {
@@ -185,11 +185,12 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
       const stockOverrides: Record<string, number> = JSON.parse(localStorage.getItem('am_stock_overrides') || '{}');
       orderItems.forEach(item => {
         const pId = item.product.id;
-        const current = stockOverrides[pId] !== undefined ? stockOverrides[pId] : (item.product.stock || 50);
+        const current = stockOverrides[pId] !== undefined ? stockOverrides[pId] : (item.product.stock !== undefined ? item.product.stock : 50);
         stockOverrides[pId] = Math.max(0, current - item.quantity);
       });
       localStorage.setItem('am_stock_overrides', JSON.stringify(stockOverrides));
       window.dispatchEvent(new Event('storage'));
+      deductStockApi(orderItems).catch(() => {});
     } catch (_e) {}
   }
 
@@ -310,6 +311,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   }
 
   function processOrderSuccess(selectedDelivery: DeliveryMethod) {
+    deductOrderedStock(items);
     if (selectedDelivery === 'pickup') {
       const newReceipt = {
         orderId: `ANTASARI-${Date.now()}`,

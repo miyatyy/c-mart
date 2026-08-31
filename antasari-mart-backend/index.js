@@ -225,7 +225,7 @@ async function initDB() {
         }
       }
 
-      // 📦 Inisialisasi Produk Awal Katalog jika database masih kosong
+      // 📦 Inisialisasi Produk Awal Katalog jika database masih kosong (Semua Stok Awal 50)
       const productCount = await Product.count();
       if (productCount === 0) {
         await Product.bulkCreate([
@@ -233,7 +233,7 @@ async function initDB() {
             nama_produk: 'Almamater UIN Antasari',
             deskripsi: 'Jaket almamater resmi UIN Antasari Banjarmasin. Bahan tebal, bordir logo, tersedia size S–XXL.',
             harga: 185000,
-            stok: 42,
+            stok: 50,
             kategori: 'pakaian',
             kampus: 'banjarmasin',
             sellerId: 's1',
@@ -247,7 +247,7 @@ async function initDB() {
             nama_produk: 'Ganci Myammiy Craft (Vending)',
             deskripsi: 'Gantungan kunci pipe cleaner / kawat bulu handmade buatan mahasiswi, siap diambil instan di Vending Machine Kampus.',
             harga: 15000,
-            stok: 25,
+            stok: 50,
             kategori: 'aksesoris',
             kampus: 'banjarmasin',
             sellerId: 'seller_1',
@@ -262,7 +262,7 @@ async function initDB() {
             nama_produk: 'Nasi Kuning Koperasi',
             deskripsi: 'Nasi kuning + ayam goreng + sambal + kerupuk. Makanan andalan kantin koperasi, tersedia setiap hari.',
             harga: 15000,
-            stok: 30,
+            stok: 50,
             kategori: 'makanan',
             kampus: 'banjarmasin',
             sellerId: 's1',
@@ -276,7 +276,7 @@ async function initDB() {
             nama_produk: 'Paket ATK Lengkap',
             deskripsi: 'Ballpoint 3 warna, stabilo 4 warna, penggaris, penghapus & map folio. Cocok untuk awal semester.',
             harga: 32000,
-            stok: 55,
+            stok: 50,
             kategori: 'atk',
             kampus: 'banjarmasin',
             sellerId: 's1',
@@ -290,7 +290,7 @@ async function initDB() {
             nama_produk: 'Buku Fiqh Kontemporer',
             deskripsi: 'Referensi wajib Prodi Hukum Ekonomi Syariah. Edisi terbaru 2024, dilengkapi indeks & glosarium.',
             harga: 75000,
-            stok: 18,
+            stok: 50,
             kategori: 'buku',
             kampus: 'banjarmasin',
             sellerId: 's1',
@@ -304,7 +304,7 @@ async function initDB() {
             nama_produk: 'Hijab Segi Empat Premium',
             deskripsi: 'Bahan voal lasercut anti-lusuh. Tersedia 12 warna netral cocok untuk kegiatan kampus & formal.',
             harga: 45000,
-            stok: 24,
+            stok: 50,
             kategori: 'pakaian',
             kampus: 'banjarmasin',
             sellerId: 's2',
@@ -315,7 +315,7 @@ async function initDB() {
             sold: 145
           }
         ]);
-        console.log('📦 Produk awal katalog berhasil diisi ke database!');
+        console.log('📦 Produk awal katalog berhasil diisi ke database (Semua Stok 50)!');
       }
 
       // Pastikan produk Blind Bag Keychain Mystery 50 stok selalu terdaftar di database
@@ -672,6 +672,31 @@ app.delete('/api/products/:id', async (req, res) => {
     }
     await product.destroy();
     res.json({ success: true, message: 'Produk berhasil dihapus!' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 📉 KURANGI STOK PRODUK SECARA OTOMATIS SAAT DIBELI
+app.post('/api/products/deduct-stock', async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (items && Array.isArray(items)) {
+      for (const cartItem of items) {
+        const productId = cartItem.product?.id || cartItem.productId || cartItem.id;
+        const buyQty = cartItem.quantity || 1;
+        if (productId) {
+          const product = await Product.findByPk(productId);
+          if (product) {
+            await product.update({
+              stok: Math.max(0, product.stok - buyQty),
+              sold: (product.sold || 0) + buyQty
+            });
+          }
+        }
+      }
+    }
+    res.json({ success: true, message: 'Stok produk berhasil dikurangi sesuai pesanan!' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -90,6 +90,18 @@ export async function registerApi(payload: {
 // ==========================================
 // 📦 PRODUCTS API
 // ==========================================
+export async function deductStockApi(items: any[]) {
+  try {
+    return await request<{ success: boolean; message: string }>('/api/products/deduct-stock', {
+      method: 'POST',
+      body: JSON.stringify({ items })
+    });
+  } catch (e) {
+    console.warn("Backend deductStock offline:", e);
+    return { success: false, message: 'Offline mode' };
+  }
+}
+
 export async function getProductsApi(sellerId?: string): Promise<{ success: boolean; products: Product[] }> {
   let customProducts: Product[] = [];
   try {
@@ -97,6 +109,8 @@ export async function getProductsApi(sellerId?: string): Promise<{ success: bool
   } catch (e) {
     customProducts = [];
   }
+
+  const stockOverrides: Record<string, number> = JSON.parse(localStorage.getItem('am_stock_overrides') || '{}');
 
   try {
     const query = sellerId ? `?sellerId=${encodeURIComponent(sellerId)}` : '';
@@ -107,13 +121,19 @@ export async function getProductsApi(sellerId?: string): Promise<{ success: bool
     if (data.success && Array.isArray(data.products)) {
       const serverProducts = data.products.map(mapBackendProductToFrontend);
       const combined = [...customProducts, ...serverProducts.filter(sp => !customProducts.some(cp => cp.id === sp.id))];
+      
+      const mapped = combined.map(p => ({
+        ...p,
+        stock: stockOverrides[p.id] !== undefined ? stockOverrides[p.id] : (p.stock !== undefined ? p.stock : 50)
+      }));
+
       if (sellerId) {
-        const filtered = combined.filter(p => p.sellerId === sellerId || p.sellerName === sellerId);
+        const filtered = mapped.filter(p => p.sellerId === sellerId || p.sellerName === sellerId);
         return { success: true, products: filtered };
       }
       return {
         success: true,
-        products: combined
+        products: mapped
       };
     }
   } catch (err) {
@@ -121,13 +141,17 @@ export async function getProductsApi(sellerId?: string): Promise<{ success: bool
   }
 
   if (customProducts.length > 0) {
+    const mapped = customProducts.map(p => ({
+      ...p,
+      stock: stockOverrides[p.id] !== undefined ? stockOverrides[p.id] : (p.stock !== undefined ? p.stock : 50)
+    }));
     if (sellerId) {
-      const filtered = customProducts.filter(p => p.sellerId === sellerId || p.sellerName === sellerId);
+      const filtered = mapped.filter(p => p.sellerId === sellerId || p.sellerName === sellerId);
       return { success: true, products: filtered };
     }
     return {
       success: true,
-      products: customProducts
+      products: mapped
     };
   }
   return { success: false, products: [] };
