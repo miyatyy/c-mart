@@ -415,3 +415,18 @@ export async function uploadImageApi(file: File): Promise<{ success: boolean; me
     message: 'Gagal memproses file foto produk.'
   };
 }
+
+// ==========================================
+// 🤖 MYAMMIY VOICE AI (DEEPSEEK AI INTEGRATION)
+// ==========================================
+export async function askMyammiyAIApi(message: string, history?: any[]): Promise<{ success: boolean; reply: string }> {
+  try {
+    return await request<{ success: boolean; reply: string }>('/api/ai/myammiy-chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, history })
+    });
+  } catch (err: any) {
+    console.warn("DeepSeek API request fallback to local knowledge base:", err);
+    return { success: false, reply: '' };
+  }
+}

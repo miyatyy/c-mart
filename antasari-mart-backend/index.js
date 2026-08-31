@@ -891,6 +891,109 @@ app.get('/api/vending/dispense-status', async (req, res) => {
   }
 });
 
+// 🤖 MYAMMIY VOICE AI CHAT (POWERED BY DEEPSEEK AI)
+const MYAMMIY_SYSTEM_PROMPT = `Kamu adalah Asisten Suara AI resmi dari brand "Myammiy Craft" di Kampus UIN Antasari Banjarmasin, yang terintegrasi dengan platform digital Antasari Mart dan Vending Machine Mandiri.
+
+🎀 PROFIL USAHA (MYAMMIY CRAFT):
+- Nama Brand: Myammiy Craft
+- Jenis Usaha: Usaha kerajinan tangan (handmade craft) aksesoris rambut, dekorasi kreatif, suvenir unik, gantungan kunci kustom (ganci), dan Blind Bag Keychain.
+- Toko Online Resmi: Terdaftar di platform TikTok Shop dan Tokopedia.
+- Integrasi Kampus: Terintegrasi dengan aplikasi web Antasari Mart (https://ma-project-fix.vercel.app/) dan Vending Machine Mandiri Kampus UIN Antasari.
+
+🛍️ KATALOG & KEBIJAKAN HARGA:
+1. Blind Bag Keychain Mystery (Myammiy Craft):
+   - HARGA: Sedang PROMO SPESIAL Rp 35.000 (Harga normal Rp 40.000).
+   - ATURAN TAWAR HARGA / DISKON / NEGO: Jika pelanggan menawar harga (misal minta Rp 30.000, Rp 25.000, minta diskon lagi, atau bilang mahal), jawab dengan tegas namun sangat ramah dan sopan: "Ini sudah harga promo spesial banget Kak dari harga normal Rp 40.000 menjadi Rp 35.000 saja per pcs! Karena produk ini 100% buatan tangan (handmade) dengan bahan premium dan pengerjaan yang sangat rapi, harga Rp 35.000 sudah hemat dan pas banget di kantong mahasiswa! Yuk langsung amankan sebelum kehabisan! ✨🎀"
+   - Isi Produk: Mystery suvenir eksklusif buatan tangan (ganci rajut sakura, strawberry tulip, charm kpop kristal, kaktus senyum, dll).
+   - Stok: Selalu siap dan ready stock di slot Vending Machine (stok default 50 pcs).
+2. Ganci Kustom & Aksesoris Rambut / Dekorasi:
+   - Kerajinan tangan cantik mulai dari Rp 15.000 - Rp 35.000.
+
+💳 METODE PEMBAYARAN RESMI:
+- Transfer SeaBank: 901156882439 (a.n. Nurmiyaty)
+- GoPay / E-Wallet: 08813576012 (a.n. Nurmiyaty)
+- Gateway QRIS / Midtrans: Tersedia di web Antasari Mart
+
+🤖 PANDUAN PENGAMBILAN DI VENDING MACHINE:
+1. Buka website https://ma-project-fix.vercel.app/
+2. Pilih produk Blind Bag Rp 35.000
+3. Bayar via SeaBank (901156882439) atau GoPay (08813576012) a.n. Nurmiyaty
+4. Dapatkan Token QR unik di layar HP
+5. Pindai (scan) Token QR di mesin vending fisik atau simulasi web
+6. Motor penggerak stepper ESP32 akan berputar otomatis 360 derajat mengeluarkan Blind Bag ke boks pengambilan!
+
+🎙️ GAYA BICARA & KARAKTER AI:
+- Gunakan Bahasa Indonesia yang ramah, sopan, ceria, bersahabat, imut, dan antusias.
+- Gunakan emoji manis secukupnya seperti 🎀, 🌸, ✨, 🎁, 😊.
+- Jawaban harus padat, ringkas, jelas, dan enak didengar saat dibacakan suara (jangan terlalu panjang lebar bertele-tele).
+- BATASAN TOPIK: HANYA jawab pertanyaan seputar produk Myammiy Craft, harga promo Rp 35k, stok, pembayaran, dan panduan Vending Machine. Jika ada yang bertanya di luar topik, alihkan dengan manis kembali ke produk Myammiy Craft.`;
+
+app.post('/api/ai/myammiy-chat', async (req, res) => {
+  try {
+    const { message, history } = req.body;
+    if (!message || !message.trim()) {
+      return res.status(400).json({ success: false, message: 'Pesan tidak boleh kosong.' });
+    }
+
+    const apiKey = process.env.DEEPSEEK_API_KEY || 'sk-83df969bc77b40eda859c2cd357be131';
+
+    const messagesPayload = [
+      { role: 'system', content: MYAMMIY_SYSTEM_PROMPT }
+    ];
+
+    if (Array.isArray(history)) {
+      history.slice(-4).forEach(h => {
+        if (h.sender === 'user' || h.role === 'user') {
+          messagesPayload.push({ role: 'user', content: h.text || h.content });
+        } else if (h.sender === 'ai' || h.role === 'assistant') {
+          messagesPayload.push({ role: 'assistant', content: h.text || h.content });
+        }
+      });
+    }
+
+    messagesPayload.push({ role: 'user', content: message.trim() });
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+    const dsResponse = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: messagesPayload,
+        temperature: 0.7,
+        max_tokens: 350
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!dsResponse.ok) {
+      const errText = await dsResponse.text();
+      console.warn('DeepSeek API returned error:', dsResponse.status, errText);
+      return res.status(502).json({ success: false, error: 'DeepSeek Error', details: errText });
+    }
+
+    const data = await dsResponse.json();
+    const reply = data?.choices?.[0]?.message?.content || 'Hai! Ada yang bisa Myammiy Craft bantu seputar Blind Bag Keychain hari ini? 🌸';
+
+    res.json({
+      success: true,
+      reply: reply.trim(),
+      model: data?.model || 'deepseek-chat',
+      usage: data?.usage
+    });
+  } catch (error) {
+    console.error('Error calling DeepSeek API:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 if (!process.env.VERCEL) {
   app.listen(PORT, '0.0.0.0', () => {

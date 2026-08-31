@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Product } from '../types';
+import { askMyammiyAIApi } from '../lib/api';
 
 interface MyammiyVoiceAssistantProps {
   onAddToCart?: (product: Product, quantity?: number) => void;
@@ -131,7 +132,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
     }
   };
 
-  const handleUserQuery = (query: string) => {
+  const handleUserQuery = async (query: string) => {
     if (!query.trim()) return;
 
     const userMsg: ChatMessage = {
@@ -140,18 +141,70 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
       text: query
     };
 
+    const currentHistory = [...messages, userMsg];
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
 
-    // AI Knowledge Base Engine untuk Myammiy Store
-    setTimeout(() => {
-      const response = generateAIResponse(query);
-      setMessages(prev => [...prev, response]);
+    // Tampilkan pesan loading berpikir halus
+    const loadingId = `loading_${Date.now()}`;
+    const loadingMsg: ChatMessage = {
+      id: loadingId,
+      sender: 'ai',
+      text: 'Sedang berpikir... 🌸✨'
+    };
+    setMessages(prev => [...prev, loadingMsg]);
+
+    try {
+      // 1. Panggil DeepSeek AI via Backend
+      const apiResult = await askMyammiyAIApi(query, currentHistory);
+      
+      let replyText = '';
+      if (apiResult && apiResult.success && apiResult.reply) {
+        replyText = apiResult.reply;
+      } else {
+        // Fallback jika API sedang offline / timeout
+        const localFallback = generateAIResponse(query);
+        replyText = localFallback.text;
+      }
+
+      // Deteksi apakah pesan terkait Blind Bag / Vending untuk memunculkan tombol aksi
+      const lowerReply = replyText.toLowerCase() + ' ' + query.toLowerCase();
+      let attachedAction: ChatMessage['action'] = undefined;
+
+      if (lowerReply.includes('blind bag') || lowerReply.includes('keychain') || lowerReply.includes('35.000') || lowerReply.includes('35000') || lowerReply.includes('beli')) {
+        attachedAction = {
+          type: 'add_blind_bag',
+          label: '🎁 Beli Blind Bag Promo Rp 35.000'
+        };
+      } else if (lowerReply.includes('vending') || lowerReply.includes('mesin') || lowerReply.includes('ambil')) {
+        attachedAction = {
+          type: 'go_vending',
+          label: '🤖 Buka Mesin Vending'
+        };
+      }
+
+      const finalResponse: ChatMessage = {
+        id: `ai_${Date.now()}`,
+        sender: 'ai',
+        text: replyText,
+        action: attachedAction
+      };
+
+      // Gantikan pesan loading dengan respon nyata
+      setMessages(prev => prev.filter(m => m.id !== loadingId).concat(finalResponse));
       playCuteChime();
-      speakMyammiyVoice(response.text);
+      speakMyammiyVoice(replyText);
+      setIsSpeaking(true);
+      setTimeout(() => setIsSpeaking(false), 5000);
+    } catch (_err) {
+      // Fallback lokal jika terjadi error
+      const localResponse = generateAIResponse(query);
+      setMessages(prev => prev.filter(m => m.id !== loadingId).concat(localResponse));
+      playCuteChime();
+      speakMyammiyVoice(localResponse.text);
       setIsSpeaking(true);
       setTimeout(() => setIsSpeaking(false), 4000);
-    }, 600);
+    }
   };
 
   const getLiveBlindBagStock = (): number => {
