@@ -640,8 +640,8 @@ function MainAppContent() {
         />
       )}
 
-      {/* Floating AI Voice Assistant Myammiy */}
-      {activeTab !== 'login_page' && (
+      {/* Floating AI Voice Assistant Myammiy (Disembunyikan di tab chat agar tidak menghalangi) */}
+      {activeTab !== 'login_page' && activeTab !== 'chat' && (
         <MyammiyVoiceAssistant
           onAddToCart={addToCart}
           onNavigateTab={(targetTab) => setActiveTab(targetTab as AppTab)}
