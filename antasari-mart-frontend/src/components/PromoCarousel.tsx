@@ -3,9 +3,14 @@ import type { Product, ThemeMode } from '../types';
 
 interface PromoSlide {
   id: string;
-  title: string;
   badge: string;
-  badgeColor: string;
+  badgeBg: string;
+  title: string;
+  priceHighlight?: {
+    original?: string;
+    promo: string;
+  };
+  subtitle: string;
   bgGradient: string;
   image: string;
   ctaText: string;
@@ -23,52 +28,73 @@ interface PromoCarouselProps {
 const PROMO_SLIDES: PromoSlide[] = [
   {
     id: 'slide_blind_bag',
-    title: 'Blind Bag Keychain Mystery Promo',
-    badge: '🔥 DISKON 40K ➔ 35K',
-    badgeColor: '#FF3366',
-    bgGradient: 'linear-gradient(135deg, #FFCAD4 0%, #B5E2FA 100%)',
+    badge: '🔥 PROMO SPESIAL MYAMMIY CRAFT',
+    badgeBg: 'rgba(255, 255, 255, 0.25)',
+    title: 'Blind Bag Keychain Mystery',
+    priceHighlight: {
+      original: 'Rp 40.000',
+      promo: 'Rp 35.000'
+    },
+    subtitle: 'Ganci rajut suvenir kejutan handmade eksklusif. Siap ambil instan di Vending Machine!',
+    bgGradient: 'linear-gradient(135deg, #FF4D6D 0%, #C9184A 50%, #800F2F 100%)',
     image: '/banners/banner_blindbag.jpg',
     ctaText: '🎁 Beli Promo Rp 35.000',
     ctaAction: 'blind_bag'
   },
   {
     id: 'slide_custom_ganci',
+    badge: '🌸 HANDMADE CRAFT CANTIK',
+    badgeBg: 'rgba(255, 255, 255, 0.25)',
     title: 'Custom Ganci & Aksesoris Rambut',
-    badge: '🌸 HANDMADE CRAFT',
-    badgeColor: '#8B5CF6',
-    bgGradient: 'linear-gradient(135deg, #E0AAFF 0%, #C77DFF 100%)',
+    priceHighlight: {
+      promo: 'Mulai Rp 15.000'
+    },
+    subtitle: 'Gantungan kunci rajut kustom & bando estetik karya mahasiswi UIN Antasari.',
+    bgGradient: 'linear-gradient(135deg, #7B2CBF 0%, #5A189A 50%, #3C096C 100%)',
     image: '/banners/banner_ganci.jpg',
-    ctaText: '🎀 Lihat Koleksi',
+    ctaText: '🎀 Lihat Katalog Aksesoris',
     ctaAction: 'category_aksesoris'
   },
   {
     id: 'slide_vending',
+    badge: '🤖 INOVASI KAMPUS 24 JAM',
+    badgeBg: 'rgba(255, 255, 255, 0.25)',
     title: 'Smart Vending Machine Kampus',
-    badge: '🤖 BUKA 24 JAM',
-    badgeColor: '#0284C7',
-    bgGradient: 'linear-gradient(135deg, #BAE6FD 0%, #7DD3FC 100%)',
+    priceHighlight: {
+      promo: 'Scan QR • Langsung Keluar!'
+    },
+    subtitle: 'Belanja mandiri cepat tanpa antre! Support transfer SeaBank & GoPay a.n. Nurmiyaty.',
+    bgGradient: 'linear-gradient(135deg, #0077B6 0%, #023E8A 50%, #03045E 100%)',
     image: '/banners/banner_vending.jpg',
-    ctaText: '🤖 Coba Vending',
+    ctaText: '🤖 Coba Vending Machine',
     ctaAction: 'vending'
   },
   {
     id: 'slide_koperasi',
-    title: 'Koperasi Mahasiswa UIN Antasari',
-    badge: '🎓 MERCHANDISE RESMI',
-    badgeColor: '#16A34A',
-    bgGradient: 'linear-gradient(135deg, #BBF7D0 0%, #86EFAC 100%)',
+    badge: '🎓 KOPERASI MAHASISWA RESMI',
+    badgeBg: 'rgba(255, 255, 255, 0.25)',
+    title: 'Jas Almamater & Buku Kuliah',
+    priceHighlight: {
+      promo: 'Lengkap & Bergaransi'
+    },
+    subtitle: 'Dapatkan almamater resmi UIN Antasari, buku teks syariah, & perlengkapan akademik.',
+    bgGradient: 'linear-gradient(135deg, #15803D 0%, #166534 50%, #14532D 100%)',
     image: '/banners/banner_koperasi.jpg',
     ctaText: '🏛️ Buka Lapak Koperasi',
     ctaAction: 'filter_koperasi'
   },
   {
     id: 'slide_delivery',
+    badge: '🛵 CEPAT • FRESH • RAMAH',
+    badgeBg: 'rgba(255, 255, 255, 0.25)',
     title: 'Antasari Food & Snack Express',
-    badge: '🛵 DELIVERY KAMPUS',
-    badgeColor: '#EA580C',
-    bgGradient: 'linear-gradient(135deg, #FED7AA 0%, #FDBA74 100%)',
+    priceHighlight: {
+      promo: 'Antar Sampai Kelas!'
+    },
+    subtitle: 'Pesan makan siang, kue banjar, & minuman segar antar gedung kampus 1 & 2.',
+    bgGradient: 'linear-gradient(135deg, #EA580C 0%, #C2410C 50%, #9A3412 100%)',
     image: '/banners/banner_delivery.jpg',
-    ctaText: '🍱 Pesan Kuliner',
+    ctaText: '🍱 Pesan Kuliner Kampus',
     ctaAction: 'category_makanan'
   }
 ];
@@ -167,20 +193,21 @@ export default function PromoCarousel({
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 📱💻 Carousel Viewport (Ukuran Ramping & Proporsional) */}
+      {/* 📱💻 Frame Banner Full-Width Responsif (Tanpa Ruang Kosong / Blur) */}
       <div
+        className="am-card"
         style={{
           position: 'relative',
           width: '100%',
-          height: 'clamp(140px, 20vw, 210px)',
+          height: 'clamp(160px, 22vw, 210px)',
           maxHeight: 210,
-          borderRadius: 18,
+          borderRadius: 20,
           overflow: 'hidden',
           boxShadow: '0 6px 20px rgba(0, 0, 0, 0.08)',
           backgroundColor: '#0F172A'
         }}
       >
-        {/* 🚀 Silky Smooth Sliding Track (Animasi Geser Mulus) */}
+        {/* 🚀 Silky Smooth Horizontal Sliding Track */}
         <div
           style={{
             display: 'flex',
@@ -201,90 +228,171 @@ export default function PromoCarousel({
                 position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
+                justifyContent: 'space-between',
+                padding: 'clamp(12px, 2.5vw, 20px) clamp(16px, 3.5vw, 32px)',
+                background: slide.bgGradient,
                 cursor: 'pointer',
                 overflow: 'hidden',
-                background: '#0F172A'
+                color: '#FFFFFF',
+                boxSizing: 'border-box'
               }}
             >
-              {/* Layer 1: Ambient Backdrop Blur (Mengisi layar lebar dengan elegan tanpa hitam kosong) */}
-              <img
-                src={slide.image}
-                alt=""
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  filter: 'blur(16px) brightness(0.7) saturate(1.2)',
-                  transform: 'scale(1.15)',
-                  opacity: 0.85
-                }}
-              />
-
-              {/* Layer 2: Gambar Brosur 100% Utuh Tanpa Terpotong (object-fit: contain) */}
-              <img
-                src={slide.image}
-                alt={slide.title}
-                style={{
-                  position: 'relative',
-                  maxHeight: '100%',
-                  maxWidth: '100%',
-                  width: 'auto',
-                  height: '100%',
-                  objectFit: 'contain',
-                  zIndex: 2,
-                  display: 'block'
-                }}
-              />
-
-              {/* Floating Action Button (Pojok Kanan Bawah) */}
+              {/* SISI KIRI: Teks Promo Tajam, Jelas & Mudah Dibaca */}
               <div
                 style={{
-                  position: 'absolute',
-                  bottom: 10,
-                  right: 12,
-                  zIndex: 6
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  zIndex: 3,
+                  maxWidth: '62%',
+                  paddingRight: 10
                 }}
               >
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleAction(slide);
-                  }}
+                {/* Badge Tag */}
+                <div
                   style={{
-                    padding: '6px 14px',
-                    borderRadius: 20,
-                    border: 'none',
-                    background: 'rgba(0, 119, 182, 0.92)',
-                    color: '#FFFFFF',
-                    fontSize: 12,
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.35)',
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 5,
-                    backdropFilter: 'blur(8px)',
-                    transition: 'transform 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.05)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)';
+                    padding: '4px 10px',
+                    borderRadius: 20,
+                    background: slide.badgeBg,
+                    backdropFilter: 'blur(6px)',
+                    fontSize: 'clamp(9px, 1.2vw, 11px)',
+                    fontWeight: 900,
+                    letterSpacing: 0.5,
+                    marginBottom: 6,
+                    width: 'fit-content'
                   }}
                 >
-                  <span>{slide.ctaText}</span>
-                  <span style={{ fontSize: '1em' }}>➔</span>
-                </button>
+                  {slide.badge}
+                </div>
+
+                {/* Judul Utama */}
+                <h2
+                  style={{
+                    margin: '0 0 4px',
+                    fontSize: 'clamp(15px, 2.3vw, 22px)',
+                    fontWeight: 900,
+                    lineHeight: 1.15,
+                    color: '#FFFFFF',
+                    textShadow: '0 2px 4px rgba(0,0,0,0.25)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                >
+                  {slide.title}
+                </h2>
+
+                {/* Highlight Harga / Diskon */}
+                {slide.priceHighlight && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    {slide.priceHighlight.original && (
+                      <span
+                        style={{
+                          fontSize: 'clamp(11px, 1.5vw, 14px)',
+                          textDecoration: 'line-through',
+                          opacity: 0.8,
+                          fontWeight: 600
+                        }}
+                      >
+                        {slide.priceHighlight.original}
+                      </span>
+                    )}
+                    <span
+                      style={{
+                        fontSize: 'clamp(13px, 1.8vw, 18px)',
+                        fontWeight: 900,
+                        color: '#FFE600',
+                        textShadow: '0 1px 4px rgba(0,0,0,0.4)'
+                      }}
+                    >
+                      {slide.priceHighlight.promo}
+                    </span>
+                  </div>
+                )}
+
+                {/* Subtitle Deskripsi */}
+                <p
+                  style={{
+                    margin: '0 0 10px',
+                    fontSize: 'clamp(10px, 1.3vw, 12px)',
+                    opacity: 0.92,
+                    lineHeight: 1.3,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {slide.subtitle}
+                </p>
+
+                {/* Tombol CTA */}
+                <div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAction(slide);
+                    }}
+                    style={{
+                      padding: 'clamp(6px, 1.2vw, 8px) clamp(12px, 2vw, 18px)',
+                      borderRadius: 14,
+                      border: 'none',
+                      background: '#FFFFFF',
+                      color: '#0F172A',
+                      fontSize: 'clamp(10px, 1.3vw, 12px)',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      boxShadow: '0 3px 12px rgba(0,0,0,0.2)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.05)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                  >
+                    <span>{slide.ctaText}</span>
+                    <span style={{ color: '#FF3366', fontWeight: 900 }}>➔</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* SISI KANAN: Visual Produk High-Res Pas & Menonjol */}
+              <div
+                style={{
+                  width: '38%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  position: 'relative'
+                }}
+              >
+                <img
+                  src={slide.image}
+                  alt={slide.title}
+                  style={{
+                    maxHeight: '100%',
+                    maxWidth: '100%',
+                    objectFit: 'cover',
+                    borderRadius: 14,
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
+                    border: '2px solid rgba(255, 255, 255, 0.4)',
+                    display: 'block'
+                  }}
+                />
               </div>
             </div>
           ))}
         </div>
 
-        {/* Tombol Panah Kiri (Kompak & Elegan) */}
+        {/* Tombol Panah Kiri */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -296,12 +404,12 @@ export default function PromoCarousel({
             left: 8,
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 32,
-            height: 32,
+            width: 30,
+            height: 30,
             borderRadius: '50%',
             border: 'none',
             background: 'rgba(255, 255, 255, 0.9)',
-            backdropFilter: 'blur(6px)',
+            backdropFilter: 'blur(4px)',
             color: '#0F172A',
             fontSize: 18,
             fontWeight: 900,
@@ -309,14 +417,14 @@ export default function PromoCarousel({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
             zIndex: 10
           }}
         >
           ‹
         </button>
 
-        {/* Tombol Panah Kanan (Kompak & Elegan) */}
+        {/* Tombol Panah Kanan */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -328,12 +436,12 @@ export default function PromoCarousel({
             right: 8,
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 32,
-            height: 32,
+            width: 30,
+            height: 30,
             borderRadius: '50%',
             border: 'none',
             background: 'rgba(255, 255, 255, 0.9)',
-            backdropFilter: 'blur(6px)',
+            backdropFilter: 'blur(4px)',
             color: '#0F172A',
             fontSize: 18,
             fontWeight: 900,
@@ -341,7 +449,7 @@ export default function PromoCarousel({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
             zIndex: 10
           }}
         >
