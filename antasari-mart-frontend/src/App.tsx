@@ -437,6 +437,7 @@ function MainAppContent() {
         }}
         isOpenExternal={isMobileSidebarOpen}
         onCloseExternal={() => setIsMobileSidebarOpen(false)}
+        onToggleTheme={() => setTheme(t => t === 'aesthetic' ? 'modern' : 'aesthetic')}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -655,7 +656,7 @@ function MainAppContent() {
       )}
 
       {/* 📱 MODERN FIXED BOTTOM NAVIGATION BAR */}
-      {activeTab !== 'login_page' && (
+      {activeTab !== 'login_page' && activeTab !== 'chat' && (
         <BottomNavBar
           activeTab={activeTab}
           setActiveTab={handleSetActiveTab}

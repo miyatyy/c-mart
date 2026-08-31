@@ -19,6 +19,7 @@ interface SidebarProps {
   onOpenProModal?: () => void
   isOpenExternal?: boolean
   onCloseExternal?: () => void
+  onToggleTheme?: () => void
 }
 
 const PRESET_AVATARS = [
@@ -35,7 +36,7 @@ const PRESET_AVATARS = [
 ];
 
 export default function Sidebar({
-  theme: _theme,
+  theme,
   role,
   activeTab,
   setActiveTab,
@@ -51,7 +52,8 @@ export default function Sidebar({
   hasActiveOrder = false,
   onOpenProModal,
   isOpenExternal = false,
-  onCloseExternal
+  onCloseExternal,
+  onToggleTheme
 }: SidebarProps) {
   // Sinkronkan state buka/tutup desktop dengan tombol burger di TopBar (isOpenExternal)
   const [isOpen, setIsOpen] = useState(true)
@@ -394,10 +396,46 @@ export default function Sidebar({
             </button>
           )}
 
-          {effectiveIsOpen && !isGuest && (
+          {effectiveIsOpen && (
             <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--am-text-muted)', paddingLeft: 8, marginTop: 16, marginBottom: 4, letterSpacing: 1 }}>
-              PENGATURAN
+              PENGATURAN TAMPILAN
             </div>
+          )}
+
+          {/* ☀️ / 🌙 TOMBOL GANTI TEMA MODE SIANG / MODE MALAM */}
+          {onToggleTheme && (
+            <button
+              onClick={() => {
+                onToggleTheme();
+                if (window.innerWidth <= 768 && onCloseExternal) onCloseExternal();
+              }}
+              title={theme === 'modern' ? "Ganti ke Mode Siang" : "Ganti ke Mode Malam"}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                padding: effectiveIsOpen ? '10px 14px' : '10px 0', 
+                justifyContent: effectiveIsOpen ? 'space-between' : 'center',
+                borderRadius: 10, border: '1.5px solid var(--am-border)', cursor: 'pointer',
+                background: 'var(--am-bg2)', color: 'var(--am-text)', fontWeight: 600, fontSize: 13,
+                transition: 'background 0.2s', marginBottom: 6
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 18 }}>{theme === 'modern' ? '🌙' : '☀️'}</span>
+                {effectiveIsOpen && (
+                  <span style={{ whiteSpace: 'nowrap' }}>
+                    {theme === 'modern' ? 'Mode Malam' : 'Mode Siang'}
+                  </span>
+                )}
+              </div>
+              {effectiveIsOpen && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 8,
+                  background: theme === 'modern' ? '#3B82F6' : '#F59E0B', color: 'white'
+                }}>
+                  {theme === 'modern' ? '🌙 Malam' : '☀️ Siang'}
+                </span>
+              )}
+            </button>
           )}
 
           {!isGuest && (

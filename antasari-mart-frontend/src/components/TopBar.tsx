@@ -156,20 +156,8 @@ export default function TopBar({
           </div>
         </div>
 
-        {/* Right: theme toggle + avatar + LOGOUT / LOGIN */}
+        {/* Right: avatar + LOGOUT / LOGIN */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            onClick={onToggleTheme}
-            title={isAesthetic ? 'Mode Modern' : 'Mode Aesthetic'}
-            style={{
-              width: 32, height: 32, borderRadius: isAesthetic ? '50%' : 6,
-              border: '1.5px solid var(--am-border)', background: 'var(--am-bg2)',
-              cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            {isAesthetic ? '🌸' : '⚡'}
-          </button>
-
           <div 
             onClick={handleProfileClick}
             title="Klik untuk Edit Profil"

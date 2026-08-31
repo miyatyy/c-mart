@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
-/* ── Aesthetic theme (Pastel Cream & Soft Baby Blue) ── */
+/* ── Aesthetic theme: MODE SIANG (Pastel Cream & Soft Baby Blue) ── */
 .theme-aesthetic {
   --am-bg: #FAF7F2;
   --am-bg2: #F3ECE2;
@@ -21,24 +21,24 @@
   --am-shadow: 0 4px 20px rgba(74, 143, 231, 0.08);
 }
 
-/* ── Modern theme (Pastel Soft Slate & Powder Blue) ── */
+/* ── Modern theme: MODE MALAM (Dark Midnight Slate & Pastel Blue) ── */
 .theme-modern {
-  --am-bg: #F5EFE6;
-  --am-bg2: #EAE2D5;
-  --am-surface: #FFFFFF;
-  --am-primary: #3B82F6;
-  --am-primary-dark: #2563EB;
-  --am-primary-light: #EFF6FF;
-  --am-secondary: #E0EBF7;
-  --am-accent: #60A5FA;
-  --am-text: #1F2937;
-  --am-text-muted: #6B7280;
-  --am-border: #E2D9CC;
-  --am-badge-koperasi: #3B82F6;
-  --am-radius: 12px;
+  --am-bg: #0F172A;
+  --am-bg2: #1E293B;
+  --am-surface: #1E293B;
+  --am-primary: #60A5FA;
+  --am-primary-dark: #3B82F6;
+  --am-primary-light: rgba(96, 165, 250, 0.15);
+  --am-secondary: #334155;
+  --am-accent: #93C5FD;
+  --am-text: #F8FAFC;
+  --am-text-muted: #94A3B8;
+  --am-border: #334155;
+  --am-badge-koperasi: #60A5FA;
+  --am-radius: 16px;
   --am-font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
   --am-font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --am-shadow: 0 4px 20px rgba(59, 130, 246, 0.08);
+  --am-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
