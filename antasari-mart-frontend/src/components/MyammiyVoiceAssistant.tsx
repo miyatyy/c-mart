@@ -40,12 +40,53 @@ export function playCuteChime() {
   } catch (_e) {}
 }
 
+const INDO_DIGITS: Record<string, string> = {
+  '0': 'nol',
+  '1': 'satu',
+  '2': 'dua',
+  '3': 'tiga',
+  '4': 'empat',
+  '5': 'lima',
+  '6': 'enam',
+  '7': 'tujuh',
+  '8': 'delapan',
+  '9': 'sembilan'
+};
+
+function formatTextForVoiceSpeech(rawText: string): string {
+  if (!rawText) return '';
+
+  let t = rawText
+    .replace(/[*#_~`]/g, '')
+    .replace(/https?:\/\/\S+/g, 'website antasari mart');
+
+  // 1. Konversi format harga menjadi bahasa Indonesia alami
+  t = t.replace(/(?:Rp\.?|rp\.?)\s*35\.?000\b/gi, 'tiga puluh lima ribu rupiah');
+  t = t.replace(/(?:Rp\.?|rp\.?)\s*40\.?000\b/gi, 'empat puluh ribu rupiah');
+  t = t.replace(/(?:Rp\.?|rp\.?)\s*15\.?000\b/gi, 'lima belas ribu rupiah');
+  t = t.replace(/(?:Rp\.?|rp\.?)\s*30\.?000\b/gi, 'tiga puluh ribu rupiah');
+  t = t.replace(/(?:Rp\.?|rp\.?)\s*25\.?000\b/gi, 'dua puluh lima ribu rupiah');
+  t = t.replace(/(?:Rp\.?|rp\.?)\s*50\.?000\b/gi, 'lima puluh ribu rupiah');
+  t = t.replace(/\b35k\b/gi, 'tiga puluh lima ribu rupiah');
+  t = t.replace(/\b40k\b/gi, 'empat puluh ribu rupiah');
+
+  // 2. Baca nomor rekening dan nomor HP satu per satu (bukan dibaca jutaan/miliaran)
+  t = t.replace(/\b\d{6,16}\b/g, (match) => {
+    return match
+      .split('')
+      .map(d => INDO_DIGITS[d] || d)
+      .join(' ');
+  });
+
+  return t;
+}
+
 // Text to Speech Suara Imut Myammiy
 export function speakMyammiyVoice(text: string) {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
 
-  const cleanText = text.replace(/[*#_~`]/g, '').replace(/https?:\/\/\S+/g, 'website antasari mart');
+  const cleanText = formatTextForVoiceSpeech(text);
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = 'id-ID';
   utterance.rate = 1.05;
