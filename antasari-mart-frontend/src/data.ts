@@ -416,15 +416,15 @@ export const MOCK_TENANTS: Tenant[] = [
 ]
 
 export const CATEGORIES = [
-  { key: 'all', label: 'Semua' },
-  { key: 'makanan', label: 'Makanan' },
-  { key: 'minuman', label: 'Minuman' },
-  { key: 'pakaian', label: 'Pakaian' },
-  { key: 'atk', label: 'ATK' },
-  { key: 'buku', label: 'Buku' },
-  { key: 'aksesoris', label: 'Aksesoris' },
-  { key: 'kerajinan', label: 'Kerajinan' },
-  { key: 'jasa', label: 'Jasa' },
+  { id: 'all', key: 'all', label: 'Semua', icon: '✨' },
+  { id: 'makanan', key: 'makanan', label: 'Makanan', icon: '🍱' },
+  { id: 'minuman', key: 'minuman', label: 'Minuman', icon: '🧋' },
+  { id: 'pakaian', key: 'pakaian', label: 'Pakaian', icon: '👕' },
+  { id: 'atk', key: 'atk', label: 'ATK', icon: '✏️' },
+  { id: 'buku', key: 'buku', label: 'Buku', icon: '📚' },
+  { id: 'aksesoris', key: 'aksesoris', label: 'Aksesoris', icon: '🎀' },
+  { id: 'kerajinan', key: 'kerajinan', label: 'Kerajinan', icon: '🧶' },
+  { id: 'jasa', key: 'jasa', label: 'Jasa', icon: '🛠️' },
 ]
 
 export function formatRupiah(amount: number): string {

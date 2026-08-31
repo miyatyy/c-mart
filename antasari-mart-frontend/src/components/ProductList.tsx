@@ -236,42 +236,45 @@ export default function ProductList({
         </div>
 
         {/* Categories Bar */}
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6 }}>
-          <button
-            onClick={() => setCategory('all')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 20,
-              border: 'none',
-              background: category === 'all' ? 'var(--am-primary)' : 'var(--am-surface)',
-              color: category === 'all' ? 'white' : 'var(--am-text)',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            Semua Kategori
-          </button>
-          {CATEGORIES.map(c => (
-            <button
-              key={c.id}
-              onClick={() => setCategory(c.id)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 20,
-                border: 'none',
-                background: category === c.id ? 'var(--am-primary)' : 'var(--am-surface)',
-                color: category === c.id ? 'white' : 'var(--am-text)',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {c.icon} {c.label}
-            </button>
-          ))}
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            overflowX: 'auto',
+            paddingBottom: 6,
+            scrollbarWidth: 'none',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          {CATEGORIES.map(c => {
+            const catId = c.id || c.key || 'all';
+            const isSelected = category === catId;
+            return (
+              <button
+                key={catId}
+                onClick={() => setCategory(catId)}
+                style={{
+                  padding: '7px 15px',
+                  borderRadius: 20,
+                  border: isSelected ? '1.5px solid var(--am-primary)' : '1px solid var(--am-border)',
+                  background: isSelected ? 'var(--am-primary)' : 'var(--am-surface)',
+                  color: isSelected ? '#FFFFFF' : 'var(--am-text)',
+                  fontSize: 12,
+                  fontWeight: isSelected ? 800 : 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.2s ease',
+                  boxShadow: isSelected ? '0 3px 10px rgba(0, 119, 182, 0.3)' : '0 1px 3px rgba(0,0,0,0.03)'
+                }}
+              >
+                <span>{c.icon}</span>
+                <span>{c.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
