@@ -430,3 +430,23 @@ export async function askMyammiyAIApi(message: string, history?: any[]): Promise
     return { success: false, reply: '' };
   }
 }
+
+// 🤖 SMART AI SELLER AGENT (DEEPSEEK AI SELLER REPRESENTATIVE)
+export async function askSellerAIApi(payload: {
+  sellerId: string;
+  sellerName: string;
+  sellerRole?: string;
+  buyerName: string;
+  message: string;
+  history?: any[];
+}): Promise<{ success: boolean; reply: string }> {
+  try {
+    return await request<{ success: boolean; reply: string }>('/api/ai/seller-chat', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  } catch (err: any) {
+    console.warn("DeepSeek Seller AI API request fallback to local smart generator:", err);
+    return { success: false, reply: '' };
+  }
+}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { ThemeMode, Campus } from '../types';
-import { getChatsApi, sendChatApi, getContactsApi, type BackendChatMessage } from '../lib/api';
+import { getChatsApi, sendChatApi, getContactsApi, askSellerAIApi, type BackendChatMessage } from '../lib/api';
 
 interface ChatPageProps {
   theme: ThemeMode;
@@ -24,7 +24,7 @@ interface RoomInfo {
 
 const ROLE_LABEL: Record<string, string> = {
   buyer: 'Pembeli',
-  seller: 'Penjual',
+  seller: 'Penjual (AI Ready)',
   driver: 'Driver',
   admin: 'Admin',
   super_admin: 'Super Admin',
@@ -74,6 +74,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
   const [inAppToast, setInAppToast] = useState<{ title: string; desc: string } | null>(null);
+  const [isOtherTyping, setIsOtherTyping] = useState(false);
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const prevChatsLengthRef = useRef<number>(0);
@@ -166,7 +167,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-  }, [chats, activeRoomId]);
+  }, [chats, activeRoomId, isOtherTyping]);
 
   const rooms = useMemo(() => {
     if (!currentUser) return [];
@@ -259,11 +260,58 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     if (pendingContact) setPendingContact(null);
     setActiveRoomId(activeRoom.roomId);
 
-    // Smart simulated auto-reply from seller after 1.8 seconds
+    // 🤖 SMART AI SELLER AGENT PROCESSING (DEEPSEEK AI INTEGRATION)
     const otherId = activeRoom.otherId;
     const otherName = activeRoom.otherName;
     const otherRole = activeRoom.otherRole;
-    setTimeout(() => {
+    const buyerName = currentUser.nama || currentUser.name || 'Kakak';
+
+    setIsOtherTyping(true);
+
+    setTimeout(async () => {
+      let aiReplyText = '';
+
+      try {
+        const aiRes = await askSellerAIApi({
+          sellerId: otherId,
+          sellerName: otherName,
+          sellerRole: otherRole,
+          buyerName: buyerName,
+          message: textToSend,
+          history: activeRoom.messages
+        });
+
+        if (aiRes && aiRes.success && aiRes.reply && aiRes.reply.trim()) {
+          aiReplyText = aiRes.reply.trim();
+        }
+      } catch (_e) {
+        console.warn('DeepSeek AI response failed, fallback to store catalog generator.');
+      }
+
+      // 🌸 Smart Contextual Fallback based on Store Catalog
+      if (!aiReplyText) {
+        const lowerText = textToSend.toLowerCase();
+        const isMyammiy = otherName.toLowerCase().includes('myammiy') || otherId.includes('seller_1');
+
+        if (isMyammiy) {
+          if (lowerText.includes('bahan') || lowerText.includes('rajut') || lowerText.includes('kawat') || lowerText.includes('pipe cleaner')) {
+            aiReplyText = `Hai Kak ${buyerName}! 🌸 Untuk gantungan kunci di Myammiy Craft kami buat 100% HANDMADE DARI PIPE CLEANER (KAWAT BULU CHENILLE) premium yaa, bukan rajut! Bahannya lembut, padat, dan dibentuk sangat rapi! 🥰✨`;
+          } else if (lowerText.includes('harga') || lowerText.includes('diskon') || lowerText.includes('berapa') || lowerText.includes('tawar')) {
+            aiReplyText = `Hai Kak ${buyerName}! 🌸 Blind Bag Keychain Mystery kami harganya Rp 35.000 (lagi diskon spesial dari harga normal Rp 40.000 lho!). Sudah dapat ganci pipe cleaner aesthetic dan siap ambil di Vending Machine! 🎁✨`;
+          } else if (lowerText.includes('vending') || lowerText.includes('mesin') || lowerText.includes('ambil') || lowerText.includes('bayar') || lowerText.includes('beli') || lowerText.includes('order')) {
+            aiReplyText = `Bisa langsung order di aplikasi ya Kak ${buyerName}! Pembayaran transfer SeaBank atau GoPay a.n. Nurmiyaty, lalu Kakak langsung dapat kode QR untuk ambil instan di Vending Machine Kampus! 🤖🛍️`;
+          } else if (lowerText.includes('stok') || lowerText.includes('ready') || lowerText.includes('ada')) {
+            aiReplyText = `Stok Blind Bag Keychain Pipe Cleaner kami masih ready banget Kak ${buyerName}! Boleh langsung di-checkout sebelum kehabisan yaa! 🌸🥰`;
+          } else {
+            aiReplyText = `Hai Kak ${buyerName}! 🌸 Selamat datang di ${otherName}. Semua produk handmade pipe cleaner & aksesoris kami siap dipesan. Ada yang mau ditanyakan seputar stok atau pemesanan? 😊✨`;
+          }
+        } else {
+          aiReplyText = `Halo Kak ${buyerName}! Terima kasih sudah menghubungi ${otherName}. Pesan Anda sudah kami terima dan katalog produk kami siap dipesan yaa! 😊🛍️`;
+        }
+      }
+
+      setIsOtherTyping(false);
+
       const replyMsg: BackendChatMessage = {
         id: Date.now() + 1,
         roomId: activeRoom.roomId,
@@ -273,7 +321,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
         receiverId: currentUser.email,
         receiverName: currentUser.nama || currentUser.name || 'Pengguna',
         receiverRole: currentUser.role || 'buyer',
-        text: `Halo Kak ${currentUser.nama || ''}! Terima kasih sudah menghubungi kami. Pesan Anda sudah kami terima dan stok siap dipesan! 😊✨`,
+        text: aiReplyText,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         createdAt: new Date().toISOString()
       };
@@ -291,7 +339,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
         desc: replyMsg.text
       });
       setTimeout(() => setInAppToast(null), 4500);
-    }, 1800);
+    }, 1200);
   };
 
   const filteredContacts = contacts.filter(c =>
@@ -428,6 +476,21 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
         .am-chat-room-card.is-active {
           background: rgba(0, 119, 182, 0.08);
           border-left: 4px solid #0077B6;
+        }
+
+        .am-chat-typing-bubble {
+          align-self: flex-start;
+          padding: 8px 14px;
+          border-radius: 16px 16px 16px 2px;
+          background: var(--am-surface, #ffffff);
+          color: #64748b;
+          border: 1px solid var(--am-border, #e2e8f0);
+          font-size: 12px;
+          font-style: italic;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          animation: pulse 1.5s infinite;
         }
       `}</style>
 
@@ -596,8 +659,8 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                       <span style={{ fontSize: 12, color: 'var(--am-text-muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {lastMsg?.text || 'Mulai percakapan...'}
                       </span>
-                      <span style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 6, background: 'var(--am-bg2, #f1f5f9)', color: '#64748b', fontWeight: 700, flexShrink: 0, marginLeft: 6 }}>
-                        {ROLE_LABEL[r.otherRole] || r.otherRole}
+                      <span style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 6, background: 'var(--am-bg2, #f1f5f9)', color: '#0077B6', fontWeight: 800, flexShrink: 0, marginLeft: 6 }}>
+                        🤖 AI Ready
                       </span>
                     </div>
                   </div>
@@ -659,7 +722,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                 <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <span>● Online</span>
                   <span style={{ color: '#94a3b8' }}>•</span>
-                  <span style={{ color: '#64748b' }}>{ROLE_LABEL[activeRoom.otherRole] || activeRoom.otherRole}</span>
+                  <span style={{ color: '#0077B6', fontWeight: 800 }}>🤖 AI Agent Penjual</span>
                 </div>
               </div>
             </div>
@@ -681,7 +744,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                 <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--am-text-muted, #64748b)', padding: '20px' }}>
                   <div style={{ fontSize: 40, marginBottom: 8 }}>👋</div>
                   <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--am-text, #1e293b)' }}>Mulai Percakapan</div>
-                  <p style={{ fontSize: 12, margin: '4px 0 0' }}>Kirim pesan pertamamu ke <strong>{activeRoom.otherName}</strong>!</p>
+                  <p style={{ fontSize: 12, margin: '4px 0 0' }}>Tanyakan stok, bahan handmade, atau pemesanan ke <strong>{activeRoom.otherName}</strong>!</p>
                 </div>
               ) : (
                 activeRoom.messages.map((m, idx) => {
@@ -709,6 +772,13 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                   );
                 })
               )}
+
+              {/* Typing Indicator */}
+              {isOtherTyping && (
+                <div className="am-chat-typing-bubble">
+                  <span>✍️ {activeRoom.otherName} sedang mengetik balasan...</span>
+                </div>
+              )}
             </div>
 
             {/* WhatsApp Style Bottom Message Input Bar */}
@@ -726,7 +796,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
             >
               <input
                 type="text"
-                placeholder={`Ketik pesan untuk ${activeRoom.otherName}...`}
+                placeholder={`Tulis pertanyaan / pesan untuk ${activeRoom.otherName}...`}
                 value={messageInput}
                 onChange={e => setMessageInput(e.target.value)}
                 style={{
@@ -772,7 +842,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--am-text-muted, #64748b)', padding: '30px' }}>
             <div style={{ fontSize: 54, marginBottom: 12 }}>💬</div>
             <h3 style={{ margin: '0 0 6px', fontSize: 18, color: 'var(--am-text, #1e293b)' }}>Pesan Kampus UIN Antasari</h3>
-            <p style={{ fontSize: 13, margin: 0 }}>Pilih salah satu percakapan dari daftar di sebelah kiri untuk mulai mengobrol.</p>
+            <p style={{ fontSize: 13, margin: 0 }}>Pilih salah satu percakapan dari daftar di sebelah kiri untuk mulai mengobrol dengan Penjual/AI Agent.</p>
           </div>
         )}
       </div>

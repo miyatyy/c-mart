@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { Sequelize, DataTypes } = require('sequelize');
+const { Sequelize, DataTypes, Op } = require('sequelize');
 const midtransClient = require('midtrans-client');
 const multer = require('multer');
 const upload = require('./uploadMiddleware');
@@ -965,6 +965,113 @@ app.post('/api/ai/myammiy-chat', async (req, res) => {
     });
   } catch (error) {
     console.error('Error calling DeepSeek API:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 🤖 SMART AI SELLER REPRESENTATIVE (POWERED BY DEEPSEEK AI WITH LIVE CATALOG)
+app.post('/api/ai/seller-chat', async (req, res) => {
+  try {
+    const { sellerId, sellerName, sellerRole, buyerName, message, history } = req.body;
+    if (!message || !message.trim()) {
+      return res.status(400).json({ success: false, message: 'Pesan tidak boleh kosong.' });
+    }
+
+    const apiKey = process.env.DEEPSEEK_API_KEY || 'sk-83df969bc77b40eda859c2cd357be131';
+
+    let sellerProducts = [];
+    try {
+      if (Product) {
+        sellerProducts = await Product.findAll({
+          where: {
+            [Op.or]: [
+              { sellerId: sellerId || '' },
+              { sellerName: sellerName || '' }
+            ]
+          },
+          limit: 10
+        });
+      }
+    } catch (_dbErr) {}
+
+    let productCatalogText = '';
+    if (sellerProducts && sellerProducts.length > 0) {
+      productCatalogText = sellerProducts.map(p => 
+        `- ${p.nama_produk} (Harga: Rp ${Number(p.harga || 0).toLocaleString('id-ID')}, Stok: ${p.stok}, Kategori: ${p.kategori}, Deskripsi: ${p.deskripsi})`
+      ).join('\n');
+    } else {
+      productCatalogText = `- Blind Bag Keychain Mystery (Harga: Rp 35.000 diskon dari Rp 40.000, Stok: Ready, Bahan: 100% Handmade Pipe Cleaner / Kawat Bulu Chenille, Slot: Vending Machine Kampus & Delivery Kurir)
+- Custom Keychain Pipe Cleaner (Harga: Rp 25.000, Stok: Ready/Bisa Request)
+- Bando Karakter Kawat Bulu (Harga: Rp 30.000, Stok: Ready)`;
+    }
+
+    const SELLER_SYSTEM_PROMPT = `Kamu adalah Asisten AI Toko Resmi dari Toko/Penjual "${sellerName || 'Penjual Campus Mart'}" (${sellerRole || 'Penjual'}) di aplikasi Campus Mart UIN Antasari Banjarmasin!
+Nama pembeli yang sedang mengobrol denganmu adalah "${buyerName || 'Kakak'}".
+
+📦 KATALOG PRODUK & STATUS STOK TOKO SAAT INI:
+${productCatalogText}
+
+✨ KEPRIBADIAN & GAYA BICARA SELLER AI (SANGAT PENTING):
+1. BAHASA MANUSIA NORMAL, RAMAH, MANIS & SOLUTIF: Bicaralah seperti pemilik toko / admin online shop yang sangat ramah, ramah tamah, dan solutif. Jangan kaku dan jangan seperti robot. Gunakan sapaan manis seperti "Hai Kak ${buyerName || ''}! 🌸", "Wah, siap Kak! 😊", "Boleh banget Kak! 🥰".
+2. SELALU PAKAI EMOTIKON EKSPRESIF: Selalu sisipkan emoji lucu & bersahabat di setiap jawaban (🌸, ✨, 😊, 🛍️, 🎁, 🥰, 🎀, 💖, 🛵, 🤖) agar obrolan terasa hidup dan menyenangkan.
+3. KETEPATAN STATUS PRODUK & BAHAN:
+   - Jika toko adalah "Myammiy Craft", tegaskan bahwa produk gantungan kunci dibuat dari 100% HANDMADE PIPE CLEANER / KAWAT BULU CHENILLE (bukan rajut). Harganya Rp 35.000 diskon dari Rp 40.000. Tersedia instan di Vending Machine Kampus atau diantar kurir.
+   - Pembayaran transfer via SeaBank & GoPay a.n. Nurmiyaty.
+   - Jawab pertanyaan seputar stok, harga, warna, varian, estimasi pengiriman, atau cara pemesanan dengan akurat.
+4. JAWAB RINGKAS & JELAS: Jawab dalam 2 sampai 4 kalimat yang ramah dan langsung menjawab pertanyaan pembeli.`;
+
+    const messagesPayload = [
+      { role: 'system', content: SELLER_SYSTEM_PROMPT }
+    ];
+
+    if (Array.isArray(history)) {
+      history.slice(-6).forEach(h => {
+        if (h.senderId === sellerId || h.senderRole === 'seller' || h.role === 'assistant') {
+          messagesPayload.push({ role: 'assistant', content: h.text || h.content });
+        } else {
+          messagesPayload.push({ role: 'user', content: h.text || h.content });
+        }
+      });
+    }
+
+    messagesPayload.push({ role: 'user', content: message.trim() });
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+    const dsResponse = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: messagesPayload,
+        temperature: 0.7,
+        max_tokens: 380
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!dsResponse.ok) {
+      const errText = await dsResponse.text();
+      console.warn('DeepSeek Seller Chat Error:', dsResponse.status, errText);
+      return res.status(502).json({ success: false, error: 'DeepSeek Error', details: errText });
+    }
+
+    const data = await dsResponse.json();
+    const reply = data?.choices?.[0]?.message?.content || `Halo Kak ${buyerName || ''}! Terima kasih sudah menghubungi ${sellerName}. Pesan Anda sudah kami terima dan stok produk kami siap dipesan! 😊✨`;
+
+    res.json({
+      success: true,
+      reply: reply.trim(),
+      model: data?.model || 'deepseek-chat'
+    });
+  } catch (error) {
+    console.error('Error in Seller AI Chat:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
