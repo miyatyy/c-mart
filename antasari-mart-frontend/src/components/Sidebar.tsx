@@ -176,13 +176,14 @@ export default function Sidebar({
       z-index: 1000;
     }
 
-    /* 📱 MOBILE HP: Sidebar Tampil Ramping di Sisi Kiri (58px), Bisa Melebar saat Menu Dibuka */
+    /* 📱 MOBILE HP: Sidebar Tersembunyi Rapi di Luar Layar (Tidak Menghalangi Beranda), Muncul Saat Menu Diklik */
     @media screen and (max-width: 768px) {
       .desktop-sidebar-spacer {
-        width: 58px !important;
-        flex-shrink: 0 !important;
-        display: block !important;
-        transition: none !important;
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
       .am-sidebar-main {
         position: fixed !important;
@@ -191,22 +192,19 @@ export default function Sidebar({
         bottom: 0 !important;
         height: 100vh !important;
         height: 100dvh !important;
-        width: 58px !important;
-        background: var(--am-surface) !important;
-        border-right: 1px solid var(--am-border) !important;
-        transform: translateX(0) !important;
-        transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.3s ease !important;
-        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05) !important;
-        z-index: 1000 !important;
+        width: min(82vw, 290px) !important;
+        background: #FFFFFF !important;
+        transform: translateX(-105%) !important;
+        transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1) !important;
+        box-shadow: 10px 0 35px rgba(0, 0, 0, 0.35) !important;
+        z-index: 999999 !important;
         display: flex !important;
         flex-direction: column !important;
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch !important;
       }
       .am-sidebar-main.mobile-open {
-        width: 280px !important;
-        box-shadow: 15px 0 35px rgba(0, 0, 0, 0.3) !important;
-        z-index: 999999 !important;
+        transform: translateX(0) !important;
       }
       .am-mobile-backdrop {
         position: fixed !important;
@@ -225,8 +223,8 @@ export default function Sidebar({
     }
   `;
 
-  // Di layar HP saat isOpenExternal true -> sidebar tampil penuh; saat false -> tampil mini 58px
-  const effectiveIsOpen = typeof window !== 'undefined' && window.innerWidth <= 768 ? isOpenExternal : isOpen;
+  // Di layar HP saat dibuka, sidebar selalu tampil penuh dengan label & profil
+  const effectiveIsOpen = typeof window !== 'undefined' && window.innerWidth <= 768 ? true : isOpen;
 
   return (
     <>
