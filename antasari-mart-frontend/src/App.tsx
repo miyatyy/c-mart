@@ -34,14 +34,14 @@ const PRESET_AVATARS = [
 
 import { Component, type ReactNode } from 'react';
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; errorText?: string }> {
   constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, errorText: error?.message || error?.toString() || 'Pembaruan komponen' };
   }
 
   componentDidCatch(error: any, errorInfo: any) {
@@ -53,16 +53,23 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
       return (
         <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: 'system-ui, sans-serif' }}>
           <div style={{ fontSize: 54, marginBottom: 12 }}>🌸 Antasari Mart</div>
-          <h2 style={{ color: '#0077B6' }}>Memuat Ulang Tampilan...</h2>
-          <p style={{ color: '#64748B', marginBottom: 20 }}>Terjadi pembaruan sistem. Silakan klik tombol di bawah:</p>
+          <h2 style={{ color: '#0077B6', margin: '0 0 8px' }}>Memuat Ulang Tampilan...</h2>
+          <p style={{ color: '#64748B', marginBottom: 16 }}>Sistem baru saja diperbarui. Silakan klik tombol di bawah untuk menyinkronkan:</p>
+          {this.state.errorText && (
+            <div style={{ margin: '0 auto 20px', padding: '8px 16px', background: '#F1F5F9', color: '#475569', borderRadius: 8, fontSize: 12, maxWidth: 500, fontFamily: 'monospace' }}>
+              Info: {this.state.errorText}
+            </div>
+          )}
           <button
             onClick={() => {
               localStorage.removeItem('am_tab');
+              localStorage.removeItem('am_stock_overrides');
+              this.setState({ hasError: false });
               window.location.reload();
             }}
-            style={{ padding: '12px 24px', borderRadius: 12, border: 'none', background: '#0077B6', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
+            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)', color: 'white', fontWeight: 'bold', fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,180,216,0.3)' }}
           >
-            Muat Ulang Halaman 🔄
+            Buka Halaman Sekarang 🚀
           </button>
         </div>
       );
