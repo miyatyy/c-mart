@@ -474,3 +474,26 @@ export async function askSellerAIApi(payload: {
     return { success: false, reply: '' };
   }
 }
+
+// ✨ AI PRODUCT DESCRIPTION GENERATOR
+export async function generateProductDescriptionApi(payload: {
+  name: string;
+  category?: string;
+  price?: number | string;
+  sellerName?: string;
+}): Promise<{ success: boolean; description: string }> {
+  try {
+    const res = await request<{ success: boolean; description: string }>('/api/ai/generate-description', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    if (res && res.success && res.description) {
+      return res;
+    }
+  } catch (err: any) {
+    console.warn("AI Description API fallback:", err);
+  }
+
+  const fallback = `${payload.name} berkualitas premium siap dipesan di Antasari Mart! Dibuat dengan bahan terbaik, higienis, dan pas untuk kebutuhan mahasiswa kampus. Tersedia stok ready! 🌸✨`;
+  return { success: true, description: fallback };
+}

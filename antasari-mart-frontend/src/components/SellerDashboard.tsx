@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ThemeMode, Campus, Product, ProductCategory } from '../types';
 import { MOCK_ORDERS, formatRupiah, CATEGORIES } from '../data';
-import { getProductsApi, createProductApi, updateProductApi, deleteProductApi, uploadImageApi } from '../lib/api';
+import { getProductsApi, createProductApi, updateProductApi, deleteProductApi, uploadImageApi, generateProductDescriptionApi } from '../lib/api';
 
 interface SellerDashboardProps {
   theme: ThemeMode;
@@ -30,6 +30,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
   // State untuk Modal Edit Produk
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [isGeneratingAiDesc, setIsGeneratingAiDesc] = useState(false);
   
   // Custom Alert Popup Beranimasi
   const [alertPopup, setAlertPopup] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -47,6 +48,51 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
     targetCampus: 'semua'
   });
   const [imageFile, setImageFile] = useState<string>(''); 
+
+  const handleGenerateAiDescriptionForNew = async () => {
+    if (!newProd.name || !newProd.name.trim()) {
+      setAlertPopup({ message: '⚠️ Ketik nama produk terlebih dahulu!', type: 'error' });
+      return;
+    }
+    setIsGeneratingAiDesc(true);
+    try {
+      const res = await generateProductDescriptionApi({
+        name: newProd.name,
+        category: newProd.category,
+        price: newProd.price,
+        sellerName
+      });
+      if (res && res.description) {
+        setNewProd(prev => ({ ...prev, description: res.description }));
+        setAlertPopup({ message: '✨ Deskripsi produk otomatis berhasil dibuat oleh AI DeepSeek!', type: 'success' });
+      }
+    } catch (_err) {
+      setAlertPopup({ message: 'Gagal membuat deskripsi AI', type: 'error' });
+    } finally {
+      setIsGeneratingAiDesc(false);
+    }
+  };
+
+  const handleGenerateAiDescriptionForEdit = async () => {
+    if (!editingProduct?.name) return;
+    setIsGeneratingAiDesc(true);
+    try {
+      const res = await generateProductDescriptionApi({
+        name: editingProduct.name,
+        category: editingProduct.category,
+        price: editingProduct.price,
+        sellerName
+      });
+      if (res && res.description) {
+        setEditingProduct((prev: any) => ({ ...prev, description: res.description }));
+        setAlertPopup({ message: '✨ Deskripsi produk berhasil diperbarui oleh AI DeepSeek!', type: 'success' });
+      }
+    } catch (_err) {
+      setAlertPopup({ message: 'Gagal membuat deskripsi AI', type: 'error' });
+    } finally {
+      setIsGeneratingAiDesc(false);
+    }
+  };
 
   const loadProducts = () => {
     setLoading(true);
@@ -413,12 +459,37 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Deskripsi Produk</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Deskripsi Produk</label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateAiDescriptionForNew}
+                    disabled={isGeneratingAiDesc || !newProd.name}
+                    style={{
+                      background: 'linear-gradient(135deg, #7C3AED 0%, #9333EA 50%, #C084FC 100%)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '4px 10px',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: newProd.name ? 'pointer' : 'not-allowed',
+                      opacity: newProd.name ? 1 : 0.6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      boxShadow: '0 2px 6px rgba(124, 58, 237, 0.3)'
+                    }}
+                    title="Buat deskripsi produk otomatis yang menarik dengan AI DeepSeek"
+                  >
+                    {isGeneratingAiDesc ? '⏳ Menulis...' : '✨ Buat dengan AI'}
+                  </button>
+                </div>
                 <textarea
-                  placeholder="Jelaskan detail produk, bahan, atau porsi..."
+                  placeholder="Jelaskan detail produk, bahan, atau klik '✨ Buat dengan AI' di atas..."
                   value={newProd.description}
                   onChange={e => setNewProd({ ...newProd, description: e.target.value })}
-                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', height: 70 }}
+                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 2, boxSizing: 'border-box', height: 80, fontSize: 12.5 }}
                 />
               </div>
 
@@ -483,11 +554,36 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Deskripsi</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Deskripsi</label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateAiDescriptionForEdit}
+                    disabled={isGeneratingAiDesc || !editingProduct.name}
+                    style={{
+                      background: 'linear-gradient(135deg, #7C3AED 0%, #9333EA 50%, #C084FC 100%)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '4px 10px',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: editingProduct.name ? 'pointer' : 'not-allowed',
+                      opacity: editingProduct.name ? 1 : 0.6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      boxShadow: '0 2px 6px rgba(124, 58, 237, 0.3)'
+                    }}
+                    title="Buat deskripsi produk otomatis yang menarik dengan AI DeepSeek"
+                  >
+                    {isGeneratingAiDesc ? '⏳ Menulis...' : '✨ Buat dengan AI'}
+                  </button>
+                </div>
                 <textarea
                   value={editingProduct.description}
                   onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })}
-                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', height: 70 }}
+                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 2, boxSizing: 'border-box', height: 80, fontSize: 12.5 }}
                 />
               </div>
 

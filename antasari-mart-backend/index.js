@@ -1281,6 +1281,73 @@ ${productCatalogText}
   }
 });
 
+// ✨ AI PRODUCT DESCRIPTION GENERATOR (POWERED BY DEEPSEEK AI)
+app.post('/api/ai/generate-description', async (req, res) => {
+  try {
+    const { name, category, price, sellerName } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Nama produk harus diisi terlebih dahulu!' });
+    }
+
+    const apiKey = process.env.DEEPSEEK_API_KEY || 'sk-83df969bc77b40eda859c2cd357be131';
+
+    const systemPrompt = `Kamu adalah Copywriter E-Commerce Profesional untuk aplikasi kampus Antasari Mart (UIN Antasari Banjarmasin).
+Tugasmu adalah membuat deskripsi produk yang sangat menarik, detail, persuasif, estetis, dan rapi untuk penjual mahasiswa / toko koperasi.
+Format deskripsi produk yang baik:
+1. Kalimat pembuka yang memikat & menjelaskan produk.
+2. Detail bahan baku, kelezatan rasa / kualitas material, dan keunikan produk.
+3. Rekomendasi penggunaan (misal: cocok untuk teman nugas, kegiatan kuliah, hadiah wisuda, atau camilan santai).
+4. Catatan ketersediaan stok & kemudahan pemesanan (siap ambil di Vending Machine atau diantar kurir).
+5. Berikan emotikon yang relevan dan cantik (🌸, ✨, 🛍️, 📦, 🎀, 🎁, 🥰).
+Panjang deskripsi: 2 sampai 4 kalimat padat & informatif. Jangan gunakan tanda kutip di awal atau akhir jawaban.`;
+
+    const userPrompt = `Buatkan deskripsi produk menarik untuk:
+Nama Produk: ${name}
+Kategori: ${category || 'Umum'}
+Perkiraan Harga: ${price ? 'Rp ' + Number(price).toLocaleString('id-ID') : 'Terjangkau'}
+Nama Toko/Penjual: ${sellerName || 'Penjual Kampus'}`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+    const dsResponse = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 350
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (dsResponse.ok) {
+      const data = await dsResponse.json();
+      const desc = data?.choices?.[0]?.message?.content?.trim();
+      if (desc) {
+        return res.json({ success: true, description: desc });
+      }
+    }
+
+    // Fallback otomatis
+    const fallbackDesc = `${name} berkualitas premium siap dipesan di Antasari Mart! Dibuat dengan bahan terbaik, higienis, dan pas untuk kebutuhan mahasiswa kampus. Siap pesan & ambil langsung! 🌸✨`;
+    res.json({ success: true, description: fallbackDesc });
+  } catch (error) {
+    console.error('Error in AI Description Generator:', error);
+    const fallbackDesc = `${req.body.name || 'Produk'} berkualitas premium siap dipesan di Antasari Mart! Dibuat dengan bahan terbaik dan pas untuk kebutuhan mahasiswa kampus. Tersedia stok ready! 🌸✨`;
+    res.json({ success: true, description: fallbackDesc });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 if (!process.env.VERCEL) {
   app.listen(PORT, '0.0.0.0', () => {

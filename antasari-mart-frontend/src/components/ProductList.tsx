@@ -292,7 +292,7 @@ export default function ProductList({
         </div>
       </div>
 
-      {/* Product Grid */}
+      {/* Product Grid (2 Kotak 2 Kotak Layout Standar E-Commerce) */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--am-text-muted)' }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>🔄</div>
@@ -305,25 +305,38 @@ export default function ProductList({
           <p style={{ margin: 0, fontSize: 13 }}>Tidak ada produk yang cocok dengan pencarian atau filter saat ini.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+        <div className="am-product-grid-container">
+          <style>{`
+            .am-product-grid-container {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 12px;
+            }
+            @media (min-width: 768px) {
+              .am-product-grid-container {
+                grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+                gap: 16px;
+              }
+            }
+          `}</style>
           {products.map(p => (
             <div
               key={p.id}
               className="am-card"
               style={{
-                borderRadius: 18,
+                borderRadius: 16,
                 background: 'var(--am-surface)',
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.04)',
+                boxShadow: '0 3px 12px rgba(0,0,0,0.04)',
                 border: '1px solid var(--am-border)',
                 transition: 'transform 0.2s',
                 cursor: 'pointer'
               }}
               onClick={() => setSelectedProduct(p)}
             >
-              <div style={{ width: '100%', height: 160, position: 'relative', overflow: 'hidden' }}>
+              <div style={{ width: '100%', height: 145, position: 'relative', overflow: 'hidden', background: 'var(--am-bg2)' }}>
                 <img
                   src={p.image}
                   alt={p.name}
@@ -333,13 +346,13 @@ export default function ProductList({
                   <span
                     style={{
                       position: 'absolute',
-                      top: 8,
-                      left: 8,
+                      top: 6,
+                      left: 6,
                       background: 'rgba(3, 4, 94, 0.85)',
                       color: 'white',
-                      fontSize: 10,
+                      fontSize: 9.5,
                       fontWeight: 800,
-                      padding: '3px 8px',
+                      padding: '2px 6px',
                       borderRadius: 6,
                       backdropFilter: 'blur(4px)'
                     }}
@@ -352,13 +365,13 @@ export default function ProductList({
                     style={{
                       position: 'absolute',
                       inset: 0,
-                      background: 'rgba(0,0,0,0.5)',
+                      background: 'rgba(0,0,0,0.55)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       color: 'white',
                       fontWeight: 800,
-                      fontSize: 14
+                      fontSize: 13
                     }}
                   >
                     Habis
@@ -366,15 +379,15 @@ export default function ProductList({
                 )}
               </div>
 
-              <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '10px 12px', flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 4 }}>
-                  <span style={{ fontSize: 11, color: 'var(--am-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '60%' }}>
+                  <span style={{ fontSize: 10.5, color: 'var(--am-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '58%' }}>
                     {p.sellerName}
                   </span>
                   <span style={{
-                    fontSize: 10,
+                    fontSize: 9.5,
                     fontWeight: 800,
-                    padding: '2px 6px',
+                    padding: '2px 5px',
                     borderRadius: 6,
                     background: p.stock > 10 ? 'rgba(34, 197, 94, 0.12)' : (p.stock > 0 ? 'rgba(234, 179, 8, 0.15)' : 'rgba(239, 68, 68, 0.12)'),
                     color: p.stock > 10 ? '#16a34a' : (p.stock > 0 ? '#b45309' : '#dc2626'),
@@ -383,10 +396,27 @@ export default function ProductList({
                     {p.stock > 0 ? `📦 Sisa ${p.stock}` : '❌ Habis'}
                   </span>
                 </div>
-                <h4 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--am-text)', lineHeight: 1.3 }}>
+
+                <h4 style={{ margin: '0 0 4px', fontSize: 13.5, fontWeight: 700, color: 'var(--am-text)', lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                   {p.name}
                 </h4>
-                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--am-primary)', marginTop: 'auto', marginBottom: 8 }}>
+
+                {/* 📝 Deskripsi Barang Detail (Preview) */}
+                <p style={{
+                  fontSize: 11,
+                  color: 'var(--am-text-muted)',
+                  margin: '0 0 6px',
+                  lineHeight: 1.35,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {p.description || 'Produk unggulan berkualitas kampus siap dipesan.'}
+                </p>
+
+                <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--am-primary)', marginTop: 'auto', marginBottom: 8 }}>
                   {formatRupiah(p.price)}
                 </div>
 
