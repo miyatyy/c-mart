@@ -164,23 +164,24 @@ export default function PromoCarousel({
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 📱💻 Frame Brosur Responsif (Aspect-Ratio 16:9 Landscape Alami) */}
+      {/* 📱💻 Frame Brosur Ramping & Elegan (Compact E-commerce Hero Slider) */}
       <div
         className="am-card"
         onClick={() => handleAction(active)}
         style={{
           position: 'relative',
           width: '100%',
-          aspectRatio: '16 / 9',
-          borderRadius: 20,
+          height: 'clamp(140px, 20vw, 210px)',
+          maxHeight: 210,
+          borderRadius: 16,
           overflow: 'hidden',
           cursor: 'pointer',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.06)',
           backgroundColor: '#0F172A',
-          transition: 'transform 0.3s ease, box-shadow 0.3s ease'
+          transition: 'transform 0.2s ease, box-shadow 0.2s ease'
         }}
       >
-        {/* Gambar Brosur Asli Tanpa Tertutup Blok Teks Besar */}
+        {/* Gambar Brosur Proporsional Ramping */}
         <img
           src={active.image}
           alt={active.title}
@@ -190,7 +191,7 @@ export default function PromoCarousel({
             objectFit: 'cover',
             objectPosition: 'center',
             display: 'block',
-            transition: 'opacity 0.4s ease-in-out'
+            transition: 'opacity 0.3s ease-in-out'
           }}
         />
 
@@ -198,11 +199,11 @@ export default function PromoCarousel({
         <div
           style={{
             position: 'absolute',
-            bottom: 'clamp(8px, 2.5vw, 16px)',
-            right: 'clamp(8px, 2.5vw, 16px)',
+            bottom: 10,
+            right: 12,
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
+            gap: 6,
             zIndex: 5
           }}
         >
@@ -212,34 +213,34 @@ export default function PromoCarousel({
               handleAction(active);
             }}
             style={{
-              padding: 'clamp(6px, 1.5vw, 10px) clamp(12px, 2vw, 20px)',
-              borderRadius: 30,
+              padding: '6px 14px',
+              borderRadius: 20,
               border: 'none',
-              background: 'linear-gradient(135deg, #00B4D8 0%, #0077B6 100%)',
+              background: 'rgba(0, 119, 182, 0.9)',
               color: '#FFFFFF',
-              fontSize: 'clamp(11px, 1.4vw, 13px)',
+              fontSize: 12,
               fontWeight: 800,
               cursor: 'pointer',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.35)',
+              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)',
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              backdropFilter: 'blur(8px)',
-              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+              gap: 5,
+              backdropFilter: 'blur(6px)',
+              transition: 'transform 0.2s ease'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.transform = 'scale(1.04)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'scale(1)';
             }}
           >
             <span>{active.ctaText}</span>
-            <span style={{ fontSize: '1.1em' }}>➔</span>
+            <span style={{ fontSize: '1em' }}>➔</span>
           </button>
         </div>
 
-        {/* Tombol Panah Kiri (Responsive) */}
+        {/* Tombol Panah Kiri (Kompak & Elegan) */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -248,31 +249,30 @@ export default function PromoCarousel({
           aria-label="Slide Sebelumnya"
           style={{
             position: 'absolute',
-            left: 'clamp(6px, 1.5vw, 14px)',
+            left: 8,
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 'clamp(28px, 4vw, 40px)',
-            height: 'clamp(28px, 4vw, 40px)',
+            width: 30,
+            height: 30,
             borderRadius: '50%',
             border: 'none',
             background: 'rgba(255, 255, 255, 0.85)',
-            backdropFilter: 'blur(6px)',
+            backdropFilter: 'blur(4px)',
             color: '#0F172A',
-            fontSize: 'clamp(16px, 2.2vw, 22px)',
+            fontSize: 18,
             fontWeight: 900,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-            zIndex: 10,
-            transition: 'background 0.2s ease, transform 0.2s ease'
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+            zIndex: 10
           }}
         >
           ‹
         </button>
 
-        {/* Tombol Panah Kanan (Responsive) */}
+        {/* Tombol Panah Kanan (Kompak & Elegan) */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -281,25 +281,24 @@ export default function PromoCarousel({
           aria-label="Slide Berikutnya"
           style={{
             position: 'absolute',
-            right: 'clamp(6px, 1.5vw, 14px)',
+            right: 8,
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 'clamp(28px, 4vw, 40px)',
-            height: 'clamp(28px, 4vw, 40px)',
+            width: 30,
+            height: 30,
             borderRadius: '50%',
             border: 'none',
             background: 'rgba(255, 255, 255, 0.85)',
-            backdropFilter: 'blur(6px)',
+            backdropFilter: 'blur(4px)',
             color: '#0F172A',
-            fontSize: 'clamp(16px, 2.2vw, 22px)',
+            fontSize: 18,
             fontWeight: 900,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-            zIndex: 10,
-            transition: 'background 0.2s ease, transform 0.2s ease'
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+            zIndex: 10
           }}
         >
           ›
@@ -312,8 +311,8 @@ export default function PromoCarousel({
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          gap: 'clamp(6px, 1.2vw, 10px)',
-          marginTop: 10
+          gap: 6,
+          marginTop: 8
         }}
       >
         {PROMO_SLIDES.map((slide, idx) => (
@@ -322,13 +321,13 @@ export default function PromoCarousel({
             onClick={() => setCurrentSlide(idx)}
             aria-label={`Slide ${idx + 1}`}
             style={{
-              width: currentSlide === idx ? 'clamp(22px, 3.5vw, 32px)' : 'clamp(6px, 1vw, 8px)',
-              height: 'clamp(6px, 1vw, 8px)',
-              borderRadius: 10,
+              width: currentSlide === idx ? 20 : 6,
+              height: 6,
+              borderRadius: 6,
               border: 'none',
               background: currentSlide === idx ? 'var(--am-primary, #0077B6)' : '#CBD5E1',
               cursor: 'pointer',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              transition: 'all 0.25s ease',
               padding: 0
             }}
           />
