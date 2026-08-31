@@ -14,7 +14,15 @@ interface ProductListProps {
   onOpenVending?: () => void;
 }
 
-export default function ProductList({ theme, campus, cartItems: _cartItems, onAddToCart, onChat, onNavigateCheckout }: ProductListProps) {
+export default function ProductList({
+  theme,
+  campus,
+  cartItems: _cartItems,
+  onAddToCart,
+  onChat,
+  onNavigateCheckout,
+  onOpenVending
+}: ProductListProps) {
   const [category, setCategory] = useState('all');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'koperasi' | 'mahasiswa'>('all');
