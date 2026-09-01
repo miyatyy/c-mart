@@ -56,7 +56,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
   bool _hasError = false;
   int _loadingProgress = 0;
 
-  final String _initialUrl = 'https://ma-project-fix.vercel.app/';
+  final String _initialUrl = 'https://antasari-mart.web.app/';
 
   @override
   void initState() {
