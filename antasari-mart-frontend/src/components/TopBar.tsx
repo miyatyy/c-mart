@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import type { AppTab, Campus, ThemeMode, UserRole, CartItem } from '../types'
 
 interface TopBarProps {
@@ -30,6 +31,51 @@ export default function TopBar({
 }: TopBarProps) {
   const isAesthetic = theme === 'aesthetic'
   const cartCount = cartItems.reduce((acc, i) => acc + i.quantity, 0)
+
+  // 📡 Real-Time Live GPS Detection
+  const [gpsStatus, setGpsStatus] = useState<'detecting' | 'live' | 'error'>('detecting');
+  const [gpsLocationName, setGpsLocationName] = useState<string>('Mendeteksi GPS...');
+
+  const detectLocation = () => {
+    setGpsStatus('detecting');
+    setGpsLocationName('Mencari sinyal GPS...');
+
+    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+
+          // Koordinat Referensi Kampus UIN Antasari
+          // Kampus 1 Banjarmasin: ~ -3.3168, 114.5901
+          // Kampus 2 Banjarbaru: ~ -3.4478, 114.8322
+          const distBJM = Math.hypot(latitude - (-3.3168), longitude - 114.5901);
+          const distBJB = Math.hypot(latitude - (-3.4478), longitude - 114.8322);
+
+          if (distBJB < distBJM) {
+            setCampus('banjarbaru');
+            setGpsLocationName('Kampus 2 Banjarbaru');
+          } else {
+            setCampus('banjarmasin');
+            setGpsLocationName('Kampus 1 Banjarmasin');
+          }
+          setGpsStatus('live');
+        },
+        (err) => {
+          console.warn('GPS Geolocation info:', err.message);
+          setGpsStatus('live');
+          setGpsLocationName(campus === 'banjarbaru' ? 'Kampus 2 Banjarbaru' : 'Kampus 1 Banjarmasin');
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+      );
+    } else {
+      setGpsStatus('live');
+      setGpsLocationName(campus === 'banjarbaru' ? 'Kampus 2 Banjarbaru' : 'Kampus 1 Banjarmasin');
+    }
+  };
+
+  useEffect(() => {
+    detectLocation();
+  }, []);
 
   const deliveryMethod = typeof window !== 'undefined' ? localStorage.getItem('am_delivery_method') || 'delivery' : 'delivery'
   const isPickup = deliveryMethod === 'pickup' || deliveryMethod === 'ambil_sendiri'
@@ -121,38 +167,60 @@ export default function TopBar({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setActiveTab('home')}>
             <div style={{
               width: 34, height: 34, borderRadius: isAesthetic ? '50%' : 6,
-              background: 'var(--am-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'linear-gradient(135deg, #5FA874 0%, #F4AEC2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 16, fontWeight: 700, color: 'white', flexShrink: 0,
             }}>A</div>
             <div>
               <div className="am-heading" style={{ fontSize: isAesthetic ? 15 : 14, fontWeight: 700, color: 'var(--am-text)', lineHeight: 1.1 }}>
                 Antasari Mart
               </div>
-              <div style={{ fontSize: 10, color: 'var(--am-text-muted)', lineHeight: 1 }}>
-                {campus === 'banjarmasin' ? '📍 Banjarmasin' : '📍 Banjarbaru'}
+              <div style={{ fontSize: 10, color: 'var(--am-text-muted)', lineHeight: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span>📍</span>
+                <span>{gpsLocationName}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Center: campus switcher */}
+        {/* Center: Real-time Live GPS Location Indicator (Otomatis GPS, Tanpa Tombol BJM/BJB) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center' }}>
-          <div style={{ display: 'flex', background: 'var(--am-bg2)', borderRadius: 999, padding: 3, gap: 2 }}>
-            {(['banjarmasin', 'banjarbaru'] as Campus[]).map(c => (
-              <button
-                key={c}
-                onClick={() => setCampus(c)}
-                style={{
-                  padding: '3px 10px', borderRadius: 999, border: 'none', cursor: 'pointer',
-                  fontSize: 11, fontWeight: 600, fontFamily: 'var(--am-font-body)',
-                  background: campus === c ? 'var(--am-primary)' : 'transparent',
-                  color: campus === c ? 'white' : 'var(--am-text-muted)',
-                  transition: 'all 0.2s',
-                }}
-              >
-                {c === 'banjarmasin' ? 'BJM' : 'BJB'}
-              </button>
-            ))}
+          <div
+            onClick={detectLocation}
+            title="Klik untuk Refresh Lokasi GPS Otomatis"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              background: 'var(--am-bg2)',
+              border: '1.5px solid var(--am-border)',
+              borderRadius: 999,
+              padding: '5px 12px',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(95, 168, 116, 0.08)',
+              transition: 'all 0.2s ease',
+              userSelect: 'none'
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: gpsStatus === 'detecting' ? '#F59E0B' : '#22C55E',
+                boxShadow: gpsStatus === 'detecting' ? '0 0 6px #F59E0B' : '0 0 8px rgba(34, 197, 94, 0.8)',
+                display: 'inline-block',
+                flexShrink: 0
+              }}
+            />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.1 }}>
+              <div style={{ fontSize: 8.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, color: '#5FA874' }}>
+                📍 GPS REAL-TIME
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--am-text)', whiteSpace: 'nowrap' }}>
+                {gpsLocationName}
+              </div>
+            </div>
+            <span style={{ fontSize: 10, opacity: 0.6 }}>🔄</span>
           </div>
         </div>
 

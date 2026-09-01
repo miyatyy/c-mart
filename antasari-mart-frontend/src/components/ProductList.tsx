@@ -194,7 +194,7 @@ export default function ProductList({
               🌸 Antasari Mart Campus Hub
             </div>
             <h1 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 900 }}>
-              Katalog Produk Kampus {campus === 'banjarmasin' ? 'Banjarmasin' : 'Banjarbaru'}
+              Katalog Produk {campus === 'banjarmasin' ? 'Kampus 1 Banjarmasin' : 'Kampus 2 Banjarbaru'}
             </h1>
             <p style={{ margin: 0, fontSize: 12, opacity: 0.9, color: 'var(--am-text-muted)' }}>
               Dukung wirausaha mahasiswa & koperasi kampus dengan belanja mudah dan aman!
