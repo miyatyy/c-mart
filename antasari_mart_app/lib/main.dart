@@ -67,8 +67,17 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
 
   Future<void> _requestPermissions() async {
     try {
-      await Permission.location.request();
-    } catch (_) {}
+      var status = await Permission.locationWhenInUse.status;
+      if (!status.isGranted) {
+        await Permission.locationWhenInUse.request();
+      }
+      var locStatus = await Permission.location.status;
+      if (!locStatus.isGranted) {
+        await Permission.location.request();
+      }
+    } catch (e) {
+      debugPrint('Gagal meminta izin lokasi: $e');
+    }
   }
 
   void _initWebView() async {
