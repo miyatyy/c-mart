@@ -174,7 +174,7 @@ export default function CourierTracker({
             ANTASARI MART KOPERASI
           </div>
           <div style={{ fontSize: 12, color: 'var(--am-primary)', fontWeight: 700, marginBottom: 16 }}>
-            Kampus {campus === 'banjarmasin' ? 'Banjarmasin (BJM)' : 'Banjarbaru (BJB)'}
+            Kampus {campus === 'banjarmasin' ? '1 Banjarmasin' : '2 Banjarbaru'}
           </div>
 
           <div style={{ padding: '6px 14px', background: 'rgba(74, 197, 108, 0.15)', color: '#16A34A', borderRadius: 999, fontSize: 12, fontWeight: 700, display: 'inline-block', marginBottom: 16 }}>

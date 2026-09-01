@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,7 +61,14 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
   @override
   void initState() {
     super.initState();
+    _requestPermissions();
     _initWebView();
+  }
+
+  Future<void> _requestPermissions() async {
+    try {
+      await Permission.location.request();
+    } catch (_) {}
   }
 
   void _initWebView() async {
@@ -114,6 +123,19 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
           },
         ),
       );
+
+    if (_controller.platform is AndroidWebViewController) {
+      AndroidWebViewController.enableDebugging(true);
+      (_controller.platform as AndroidWebViewController)
+          .setGeolocationPermissionsPromptCallbacks(
+        onShowPrompt: (request) async {
+          return const GeolocationPermissionsResponse(
+            allow: true,
+            retain: true,
+          );
+        },
+      );
+    }
 
     try {
       await _controller.clearCache();

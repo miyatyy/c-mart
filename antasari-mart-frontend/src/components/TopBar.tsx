@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+﻿import { useState } from 'react'
 import type { AppTab, Campus, ThemeMode, UserRole, CartItem } from '../types'
+import { useRealtimeLocation } from '../lib/useRealtimeLocation'
 
 interface TopBarProps {
   theme: ThemeMode
@@ -24,100 +25,25 @@ interface TopBarProps {
 }
 
 export default function TopBar({
-  theme, campus, setCampus, activeTab, setActiveTab,
-  role, userName, userEmail, userAvatar, cartItems, chatUnread, onToggleTheme,
-  onLogout, isGuest, onRequireLogin, hasActiveOrder = false, onOpenProfileModal,
-  onToggleMobileSidebar
+  theme, campus, setCampus, activeTab: _activeTab, setActiveTab,
+  role, userName, userEmail, userAvatar, isGuest, onRequireLogin,
+  onLogout, onOpenProfileModal, onToggleMobileSidebar
 }: TopBarProps) {
   const isAesthetic = theme === 'aesthetic'
-  const cartCount = cartItems.reduce((acc, i) => acc + i.quantity, 0)
 
-  // 📡 Real-Time Live GPS Detection
-  const [gpsStatus, setGpsStatus] = useState<'detecting' | 'live' | 'error'>('detecting');
-  const [gpsLocationName, setGpsLocationName] = useState<string>('Mendeteksi GPS...');
+  // 📡 Pelacakan GPS Real-Time dengan Reverse Geocoding
+  const {
+    status: gpsStatus,
+    locationName: gpsLocationName,
+    accuracy,
+    distanceKm,
+    refreshLocation
+  } = useRealtimeLocation(campus, setCampus);
 
-  const detectLocation = () => {
-    setGpsStatus('detecting');
-    setGpsLocationName('Mencari sinyal GPS...');
-
-    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
-
-          // Koordinat Referensi Kampus UIN Antasari
-          // Kampus 1 Banjarmasin: ~ -3.3168, 114.5901
-          // Kampus 2 Banjarbaru: ~ -3.4478, 114.8322
-          const distBJM = Math.hypot(latitude - (-3.3168), longitude - 114.5901);
-          const distBJB = Math.hypot(latitude - (-3.4478), longitude - 114.8322);
-
-          if (distBJB < distBJM) {
-            setCampus('banjarbaru');
-            setGpsLocationName('Kampus 2 Banjarbaru');
-          } else {
-            setCampus('banjarmasin');
-            setGpsLocationName('Kampus 1 Banjarmasin');
-          }
-          setGpsStatus('live');
-        },
-        (err) => {
-          console.warn('GPS Geolocation info:', err.message);
-          setGpsStatus('live');
-          setGpsLocationName(campus === 'banjarbaru' ? 'Kampus 2 Banjarbaru' : 'Kampus 1 Banjarmasin');
-        },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-      );
-    } else {
-      setGpsStatus('live');
-      setGpsLocationName(campus === 'banjarbaru' ? 'Kampus 2 Banjarbaru' : 'Kampus 1 Banjarmasin');
-    }
-  };
-
-  useEffect(() => {
-    detectLocation();
-  }, []);
-
-  const deliveryMethod = typeof window !== 'undefined' ? localStorage.getItem('am_delivery_method') || 'delivery' : 'delivery'
-  const isPickup = deliveryMethod === 'pickup' || deliveryMethod === 'ambil_sendiri'
-  const trackerLabel = isPickup ? 'Pick-Up' : 'Lacak'
-  const trackerIcon = isPickup ? '🎟️' : '📍'
+  const [showLocationTooltip, setShowLocationTooltip] = useState(false);
 
   const storedAvatar = typeof window !== 'undefined' ? localStorage.getItem('am_user_avatar') : null;
   const activeAvatar = storedAvatar || userAvatar || 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4';
-
-  const isSuperAdmin = userEmail === 'miyya@gmail.com' || role === 'super_admin';
-
-  // 🔒 Membaca Array Roles
-  const getSavedRoles = (): string[] => {
-    if (isSuperAdmin) return ['super_admin', 'buyer', 'seller', 'driver', 'admin'];
-    if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('am_user_session');
-      if (savedUser) {
-        try {
-          const parsed = JSON.parse(savedUser);
-          if (Array.isArray(parsed.roles)) return parsed.roles;
-        } catch (e) {
-          console.error("Gagal parse roles:", e);
-        }
-      }
-    }
-    return [role || 'buyer'];
-  };
-
-  const userRoles = getSavedRoles();
-
-  const navTabs: { key: AppTab; label: string; icon: string; roleCheck: boolean }[] = [
-    { key: 'home', label: 'Beranda', icon: '🏠', roleCheck: true },
-    { key: 'cart', label: 'Keranjang', icon: '🛒', roleCheck: true },
-    ...(hasActiveOrder ? [{ key: 'tracker' as AppTab, label: trackerLabel, icon: trackerIcon, roleCheck: true }] : []),
-    { key: 'chat', label: 'Pesan', icon: '💬', roleCheck: true },
-    { key: 'seller', label: 'Lapak', icon: '🏪', roleCheck: userRoles.includes('seller') || isSuperAdmin },
-    { key: 'driver', label: 'Tugas', icon: '🛵', roleCheck: userRoles.includes('driver') || isSuperAdmin },
-    { key: 'admin', label: 'Admin', icon: '⚙️', roleCheck: userRoles.includes('admin') || userRoles.includes('admin_reguler') || userRoles.includes('admin_pro') || isSuperAdmin },
-    { key: 'super_admin' as AppTab, label: 'Super Admin', icon: '👑', roleCheck: isSuperAdmin },
-  ]
-
-  const visibleTabs = navTabs.filter(t => t.roleCheck)
 
   const handleProfileClick = () => {
     if (isGuest) {
@@ -129,11 +55,29 @@ export default function TopBar({
 
   return (
     <header style={{ background: 'var(--am-surface)', borderBottom: '1px solid var(--am-border)', position: 'sticky', top: 0, zIndex: 100 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', gap: 8 }}>
+      <style>{`
+        @keyframes pulseGps {
+          0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+          70% { transform: scale(1); box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+          100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+        @keyframes pulseDetecting {
+          0% { opacity: 0.4; }
+          50% { opacity: 1; }
+          100% { opacity: 0.4; }
+        }
+        .gps-pulse-live {
+          animation: pulseGps 2s infinite;
+        }
+        .gps-pulse-detecting {
+          animation: pulseDetecting 1.2s infinite;
+        }
+      `}</style>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', gap: 8 }}>
         
-        {/* Logo & Tombol Menu HP */}
+        {/* Sisi Kiri: Tombol Hamburger Menu + Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          
           {/* 📱 Tombol Hamburger Menu Khusus HP */}
           <button
             onClick={(e) => {
@@ -146,13 +90,13 @@ export default function TopBar({
               background: 'var(--am-bg2)',
               border: '1px solid var(--am-border)',
               borderRadius: 10,
-              width: 38,
-              height: 38,
+              width: 36,
+              height: 36,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: 'bold',
               color: 'var(--am-primary)',
               boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
@@ -166,65 +110,157 @@ export default function TopBar({
           {/* Logo Antasari Mart */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setActiveTab('home')}>
             <div style={{
-              width: 34, height: 34, borderRadius: isAesthetic ? '50%' : 6,
+              width: 34, height: 34, borderRadius: isAesthetic ? '50%' : 8,
               background: 'linear-gradient(135deg, #5FA874 0%, #F4AEC2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, fontWeight: 700, color: 'white', flexShrink: 0,
+              fontSize: 16, fontWeight: 800, color: 'white', flexShrink: 0,
+              boxShadow: '0 2px 8px rgba(95, 168, 116, 0.25)'
             }}>A</div>
             <div>
-              <div className="am-heading" style={{ fontSize: isAesthetic ? 15 : 14, fontWeight: 700, color: 'var(--am-text)', lineHeight: 1.1 }}>
+              <div className="am-heading" style={{ fontSize: isAesthetic ? 14.5 : 14, fontWeight: 800, color: 'var(--am-text)', lineHeight: 1.1 }}>
                 Antasari Mart
               </div>
-              <div style={{ fontSize: 10, color: 'var(--am-text-muted)', lineHeight: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
-                <span>📍</span>
-                <span>{gpsLocationName}</span>
+              <div style={{ fontSize: 10.5, color: '#5FA874', fontWeight: 600, lineHeight: 1.1, display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                <span>✨</span>
+                <span>Campus Hub</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Center: Real-time Live GPS Location Indicator (Otomatis GPS, Tanpa Tombol BJM/BJB) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center' }}>
+        {/* Tengah: 🛰️ INDIKATOR GPS REAL-TIME (OTOMATIS TANPA TOMBOL BJM/BJB) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, position: 'relative' }}>
           <div
-            onClick={detectLocation}
-            title="Klik untuk Refresh Lokasi GPS Otomatis"
+            onClick={() => {
+              refreshLocation();
+              setShowLocationTooltip(prev => !prev);
+            }}
+            title="Lokasi terdeteksi otomatis melalui GPS. Klik untuk refresh sinyal GPS!"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 7,
-              background: 'var(--am-bg2)',
-              border: '1.5px solid var(--am-border)',
+              gap: 6,
+              background: gpsStatus === 'detecting' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(95, 168, 116, 0.1)',
+              border: `1.5px solid ${gpsStatus === 'detecting' ? '#F59E0B' : '#5FA874'}`,
               borderRadius: 999,
               padding: '5px 12px',
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(95, 168, 116, 0.08)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
               transition: 'all 0.2s ease',
-              userSelect: 'none'
+              userSelect: 'none',
+              maxWidth: '100%'
             }}
           >
+            {/* Titik Radar Pulse */}
             <span
+              className={gpsStatus === 'detecting' ? 'gps-pulse-detecting' : 'gps-pulse-live'}
               style={{
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
                 background: gpsStatus === 'detecting' ? '#F59E0B' : '#22C55E',
-                boxShadow: gpsStatus === 'detecting' ? '0 0 6px #F59E0B' : '0 0 8px rgba(34, 197, 94, 0.8)',
                 display: 'inline-block',
                 flexShrink: 0
               }}
             />
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.1 }}>
-              <div style={{ fontSize: 8.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, color: '#5FA874' }}>
-                📍 GPS REAL-TIME
+
+            {/* Teks Lokasi Otomatis GPS */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+              <div style={{ fontSize: 8, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.6, color: '#5FA874', lineHeight: 1 }}>
+                🛰️ GPS REAL-TIME
               </div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--am-text)', whiteSpace: 'nowrap' }}>
+              <div style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: 'var(--am-text)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '135px',
+                lineHeight: 1.2,
+                marginTop: 1
+              }}>
                 {gpsLocationName}
               </div>
             </div>
-            <span style={{ fontSize: 10, opacity: 0.6 }}>🔄</span>
+
+            {/* Ikon Refresh */}
+            <span
+              style={{
+                fontSize: 10,
+                opacity: 0.7,
+                marginLeft: 2,
+                transform: gpsStatus === 'detecting' ? 'rotate(180deg)' : 'none',
+                transition: 'transform 0.5s ease'
+              }}
+            >
+              🔄
+            </span>
           </div>
+
+          {/* Tooltip Info GPS Detail saat diklik */}
+          {showLocationTooltip && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '115%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'var(--am-surface)',
+                border: '1px solid var(--am-border)',
+                borderRadius: 14,
+                padding: '12px 16px',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                zIndex: 200,
+                width: 250,
+                textAlign: 'left',
+                fontFamily: 'var(--am-font-body)'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#5FA874' }}>📍 INFO LOKASI GPS</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowLocationTooltip(false);
+                  }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--am-text-muted)' }}
+                >
+                  ✕
+                </button>
+              </div>
+              <p style={{ fontSize: 11.5, color: 'var(--am-text)', margin: '0 0 6px', fontWeight: 600 }}>
+                {gpsLocationName}
+              </p>
+              <div style={{ fontSize: 10, color: 'var(--am-text-muted)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span>🎯 Kampus Aktif: <strong>{campus === 'banjarbaru' ? 'Kampus 2 Banjarbaru' : 'Kampus 1 Banjarmasin'}</strong></span>
+                {distanceKm !== null && <span>📏 Jarak Kampus: ±{distanceKm} km</span>}
+                {accuracy !== null && <span>📡 Akurasi GPS: ±{accuracy} meter</span>}
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  refreshLocation();
+                }}
+                style={{
+                  marginTop: 8,
+                  width: '100%',
+                  padding: '6px 0',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: 'var(--am-primary)',
+                  color: 'white',
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                🔄 Perbarui Lokasi Sekarang
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Right: avatar + LOGOUT / LOGIN */}
+        {/* Sisi Kanan: Foto Profil & Tombol Masuk/Keluar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div 
             onClick={handleProfileClick}
@@ -251,8 +287,8 @@ export default function TopBar({
           <button 
             onClick={onLogout}
             style={{ 
-              background: isGuest ? 'var(--am-primary)' : '#EF4444', color: 'white', border: 'none', borderRadius: 6, 
-              padding: '6px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' 
+              background: isGuest ? 'var(--am-primary)' : '#EF4444', color: 'white', border: 'none', borderRadius: 8, 
+              padding: '6px 10px', fontSize: 10.5, fontWeight: 800, cursor: 'pointer', letterSpacing: 0.3
             }}
           >
             {isGuest ? 'MASUK' : 'LOGOUT'}

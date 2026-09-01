@@ -219,8 +219,8 @@ export function ProfileModal({
               onChange={(e) => setSelectedCampus(e.target.value as Campus)}
               style={{ width: '100%', padding: '10px 12px', fontSize: 13, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', color: 'var(--am-text)', cursor: 'pointer' }}
             >
-              <option value="banjarmasin">📍 Banjarmasin (BJM)</option>
-              <option value="banjarbaru">📍 Banjarbaru (BJB)</option>
+              <option value="banjarmasin">📍 Kampus 1 Banjarmasin</option>
+              <option value="banjarbaru">📍 Kampus 2 Banjarbaru</option>
             </select>
           </div>
 

@@ -29,7 +29,7 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
 
   const [feedbacks] = useState([
     { id: 1, name: 'Ahmad (Mahasiswa)', text: 'Tolong tambahkan metode pembayaran Dana di menu checkout ya kak!', time: '10:45 AM' },
-    { id: 2, name: 'Siti (Tenant Koperasi)', text: 'Fitur broadcast promo sangat membantu jualan saya di kampus BJB.', time: 'Kemarin' },
+    { id: 2, name: 'Siti (Tenant Koperasi)', text: 'Fitur broadcast promo sangat membantu jualan saya di Kampus 2 Banjarbaru.', time: 'Kemarin' },
   ]);
 
   // Fungsi Toggle untuk Mengaktifkan / Menonaktifkan PRO secara manual oleh Super Admin
