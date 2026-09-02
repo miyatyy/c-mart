@@ -369,6 +369,21 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
     });
   };
 
+  const triggerEsp32Hardware = (orderId?: string, productName?: string, slot?: number) => {
+    try {
+      fetch('/api/vending/trigger-dispense', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: orderId || `ANTASARI-${Date.now()}`,
+          productName: productName || 'Blind Bag Mystery Ganci',
+          slotNumber: slot || 1,
+          buyerName: 'Pembeli Antasari Mart'
+        })
+      }).catch(e => console.warn('Trigger ESP32 cloud offline:', e));
+    } catch (_e) {}
+  };
+
   const handleSimulateClaim = async (tokenToUse?: string) => {
     const token = (tokenToUse || inputToken).trim();
     if (!token) {
@@ -383,6 +398,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
 
     setLoading(true);
     setDispenseData(null);
+    triggerEsp32Hardware(`ANTASARI-${Date.now()}`, 'Blind Bag Mystery Ganci', 1);
 
     try {
       // 1. Coba verifikasi dengan API Backend

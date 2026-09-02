@@ -24,8 +24,8 @@
 // ==========================================
 // 📶 KONFIGURASI WIFI & SERVER
 // ==========================================
-const char* WIFI_SSID = "Hokiku 5g";       // SSID WiFi/Tethering HP Kakak
-const char* WIFI_PASS = "Banjarmasin89";   // Password WiFi
+const char* WIFI_SSID = "huehehe";       // SSID WiFi/Tethering HP Kakak
+const char* WIFI_PASS = "banjarmasinpride2";   // Password WiFi
 
 // URL Server Antasari Mart (Vercel API)
 const char* SERVER_URL = "https://ma-project-fix.vercel.app/api/vending/dispense-status?claim=true";
