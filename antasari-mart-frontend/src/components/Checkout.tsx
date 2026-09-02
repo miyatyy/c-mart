@@ -173,6 +173,21 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     } catch (_e) {}
   }
 
+  function triggerEsp32Dispense(vendingObj?: any) {
+    try {
+      fetch('/api/vending/trigger-dispense', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: vendingObj?.orderId || `ANTASARI-${Date.now()}`,
+          productName: items[0]?.product?.name || "Blind Bag Keychain Mystery",
+          slotNumber: vendingObj?.slotNumber || 1,
+          buyerName: "Mahasiswa UIN Antasari"
+        })
+      }).catch(err => console.warn("Vending trigger error:", err));
+    } catch (_e) {}
+  }
+
   function showVendingQR(data: any, orderId?: string) {
     deductOrderedStock(items);
     if (delivery === 'vending') {
@@ -186,6 +201,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
       localStorage.setItem('am_active_vending_qr', JSON.stringify(vendingObj));
       setCountdown(10);
       setStep('vending_qr');
+      triggerEsp32Dispense(vendingObj);
     } else {
       processOrderSuccess(delivery as DeliveryMethod);
     }
@@ -377,17 +393,17 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                   style={{
                     padding: 14,
                     borderRadius: 14,
-                    border: `2px solid ${delivery === opt.id ? '#5FA874' : 'var(--am-border)'}`,
+                    border: `2px solid ${delivery === opt.id ? 'var(--am-primary)' : 'var(--am-border)'}`,
                     background: opt.disabled 
-                      ? '#f8fafc' 
-                      : (delivery === opt.id ? '#FCE7EE' : 'var(--am-surface)'),
+                      ? 'var(--am-bg2)' 
+                      : (delivery === opt.id ? 'var(--am-primary-light, rgba(95, 168, 116, 0.15))' : 'var(--am-surface)'),
                     opacity: opt.disabled ? 0.65 : 1,
                     cursor: opt.disabled ? 'not-allowed' : 'pointer',
                     transition: 'all 0.2s',
                     boxShadow: (!opt.disabled && delivery === opt.id) ? '0 4px 12px rgba(95, 168, 116, 0.15)' : 'none'
                   }}
                 >
-                  <div style={{ fontWeight: 800, fontSize: 13, color: opt.disabled ? '#94a3b8' : 'var(--am-text)', marginBottom: 2 }}>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: opt.disabled ? 'var(--am-text-muted)' : 'var(--am-text)', marginBottom: 2 }}>
                     {opt.title}
                   </div>
                   <div style={{ fontSize: 11, color: opt.disabled ? '#e11d48' : 'var(--am-text-muted)', fontWeight: opt.disabled ? 600 : 400 }}>
@@ -449,8 +465,8 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                   style={{
                     padding: 12,
                     borderRadius: 12,
-                    border: `2px solid ${payment === pm.id ? '#5FA874' : 'var(--am-border)'}`,
-                    background: payment === pm.id ? '#FCE7EE' : 'var(--am-surface)',
+                    border: `2px solid ${payment === pm.id ? 'var(--am-primary)' : 'var(--am-border)'}`,
+                    background: payment === pm.id ? 'var(--am-primary-light, rgba(95, 168, 116, 0.15))' : 'var(--am-surface)',
                     cursor: 'pointer',
                     fontWeight: 800,
                     fontSize: 12,
@@ -466,8 +482,8 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
 
             {/* Kotak Rincian Rekening SeaBank */}
             {payment === 'seabank' && (
-              <div style={{ padding: 18, borderRadius: 16, background: '#FAFDFB', border: '1.5px solid #5FA874', marginTop: 14, textAlign: 'center' }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: '#4D9562', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+              <div style={{ padding: 18, borderRadius: 16, background: 'var(--am-bg2)', border: '1.5px solid var(--am-primary)', marginTop: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--am-primary)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
                   🌊 QR & REKENING SEABANK INDONESIA
                 </div>
                 <div style={{ display: 'inline-block', padding: 12, background: 'white', borderRadius: 16, boxShadow: '0 4px 15px rgba(0,0,0,0.08)', marginBottom: 12 }}>
@@ -476,10 +492,10 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                 <div style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 2 }}>
                   Nomor Rekening SeaBank:
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#3A744C', letterSpacing: 2, marginBottom: 4 }}>
+                <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--am-primary)', letterSpacing: 2, marginBottom: 4 }}>
                   901156882439
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#4D9562', marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--am-text)', marginBottom: 12 }}>
                   Atas Nama: <strong>Nurmiyaty</strong>
                 </div>
                 <button
@@ -488,7 +504,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                     navigator.clipboard.writeText('901156882439');
                     alert('Nomor rekening SeaBank (901156882439) a.n. Nurmiyaty berhasil disalin! 📋');
                   }}
-                  style={{ padding: '8px 18px', borderRadius: 10, border: 'none', background: '#4D9562', color: 'white', fontSize: 12, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(95, 168, 116, 0.25)' }}
+                  style={{ padding: '8px 18px', borderRadius: 10, border: 'none', background: 'var(--am-primary)', color: 'white', fontSize: 12, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(95, 168, 116, 0.25)' }}
                 >
                   📋 Salin Nomor Rekening SeaBank
                 </button>
@@ -497,20 +513,20 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
 
             {/* Kotak Rincian GoPay */}
             {payment === 'gopay' && (
-              <div style={{ padding: 18, borderRadius: 16, background: '#ECFDF5', border: '1.5px solid #10B981', marginTop: 14, textAlign: 'center' }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: '#065F46', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+              <div style={{ padding: 18, borderRadius: 16, background: 'var(--am-bg2)', border: '1.5px solid var(--am-primary)', marginTop: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--am-primary)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
                   💚 QR & NOMOR GOPAY / QRIS
                 </div>
                 <div style={{ display: 'inline-block', padding: 12, background: 'white', borderRadius: 16, boxShadow: '0 4px 15px rgba(0,0,0,0.08)', marginBottom: 12 }}>
                   <QRCodeSVG value="https://gopay.co.id/pay?phone=08813576012" size={150} />
                 </div>
-                <div style={{ fontSize: 13, color: '#064E3B', marginBottom: 2 }}>
+                <div style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 2 }}>
                   Nomor Telepon GoPay:
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#047857', letterSpacing: 2, marginBottom: 4 }}>
+                <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--am-primary)', letterSpacing: 2, marginBottom: 4 }}>
                   08813576012
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#059669', marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--am-text)', marginBottom: 12 }}>
                   Atas Nama: <strong>Nurmiyaty</strong>
                 </div>
                 <button
@@ -570,39 +586,67 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
         </div>
       )}
 
-      {/* Tampilan Vending QR */}
+      {/* Tampilan Vending QR & IoT Synchronized Dispenser */}
       {step === 'vending_qr' && vendingData && (
-        <div className="am-card" style={{ padding: 30, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>🤖✨</div>
-          <h2 style={{ margin: '0 0 6px', fontSize: 22, color: 'var(--am-text)' }}>QR Klaim Vending Machine</h2>
-          <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 20 }}>
-            Scan kode QR di layar mesin vending kampus atau masukkan kode token untuk mengeluarkan barang.
+        <div className="am-card" style={{ padding: 26, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center', border: '1.5px solid var(--am-primary)' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#DCFCE7', color: '#166534', padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 800, marginBottom: 12 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
+            <span>📡 IoT Smart Locker Synchronized</span>
+          </div>
+
+          <div style={{ fontSize: 44, marginBottom: 6 }}>🎁🤖</div>
+          <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 900, color: 'var(--am-text)' }}>
+            Blind Bag Loker Siap Diambil!
+          </h2>
+          <p style={{ fontSize: 12.5, color: 'var(--am-text-muted)', marginBottom: 16 }}>
+            Scan kode QR ini di depan scanner loker kampus atau ketik kode token di bawah untuk membuka pintu.
           </p>
 
-          <div style={{ display: 'inline-block', padding: 16, background: 'white', borderRadius: 16, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', marginBottom: 16 }}>
-            <QRCodeSVG value={vendingData.vendingToken} size={200} />
+          <div style={{ display: 'inline-block', padding: 14, background: 'white', borderRadius: 16, boxShadow: '0 6px 20px rgba(0,0,0,0.08)', marginBottom: 14 }}>
+            <QRCodeSVG value={vendingData.vendingToken} size={180} />
           </div>
 
-          <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: 2, color: 'var(--am-primary)', marginBottom: 12 }}>
-            TOKEN: {vendingData.vendingToken}
-          </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#16A34A', marginBottom: 20 }}>
-            Slot Mesin: #{vendingData.slotNumber}
+          <div style={{
+            background: 'var(--am-bg2)',
+            padding: '12px 16px',
+            borderRadius: 14,
+            border: '1.5px dashed var(--am-primary)',
+            maxWidth: 340,
+            margin: '0 auto 16px'
+          }}>
+            <div style={{ fontSize: 11, color: 'var(--am-text-muted)', marginBottom: 2 }}>KODE TOKEN PENGAMBILAN:</div>
+            <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, color: 'var(--am-primary)' }}>
+              {vendingData.vendingToken}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#10B981', marginTop: 4 }}>
+              🚪 Loker: Slot #{vendingData.slotNumber || 1} (Kampus 1 & 2)
+            </div>
           </div>
 
-          <div style={{ fontSize: 12, color: '#DC2626', fontWeight: 700, marginBottom: 20 }}>
-            ⏳ Menghubungkan ke Mesin Vending dalam {countdown} detik...
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 340, margin: '0 auto' }}>
+            <button
+              onClick={() => {
+                setStep('vending_dispensing');
+                setTimeout(() => {
+                  playCelebrationFanfare();
+                  setStep('vending_done');
+                }, 2000);
+              }}
+              style={{
+                padding: '12px 20px',
+                borderRadius: 12,
+                border: 'none',
+                background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                color: 'white',
+                fontWeight: 800,
+                fontSize: 13.5,
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)'
+              }}
+            >
+              🚀 Buka Pintu Loker Sekarang (Kirim Sinyal IoT)
+            </button>
           </div>
-
-          <button
-            onClick={() => {
-              setStep('vending_dispensing');
-              setTimeout(() => setStep('vending_done'), 2000);
-            }}
-            style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 700, cursor: 'pointer' }}
-          >
-            Simulasikan Pengambilan Mesin Sekarang 📦
-          </button>
         </div>
       )}
 

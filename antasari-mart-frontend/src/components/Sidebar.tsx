@@ -32,8 +32,67 @@ const PRESET_AVATARS = [
   { id: 7, name: 'Alya (Kreatif Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=AlyaCheer&backgroundColor=ffcdec' },
   { id: 8, name: 'Zain (Pro Senyum)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=ZainPro&backgroundColor=00b4d8' },
   { id: 9, name: 'Zara (Pro Elegan)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=ZaraPro&backgroundColor=7209b7' },
-  { id: 10, name: 'Ken (Pro Stylish)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585' },
+  { id: 10, name: 'Ken (Pro Stylish)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585' }
 ];
+
+// 🎨 Standard SVG Vector Icons for Sidebar
+function renderSidebarIcon(key: string) {
+  switch (key) {
+    case 'home':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      );
+    case 'cart':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="8" cy="21" r="1"/>
+          <circle cx="19" cy="21" r="1"/>
+          <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
+        </svg>
+      );
+    case 'tracker':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
+      );
+    case 'chat':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      );
+    case 'seller':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <path d="M9 22V12h6v10"/>
+        </svg>
+      );
+    case 'driver':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="18.5" cy="17.5" r="3.5"/>
+          <circle cx="5.5" cy="17.5" r="3.5"/>
+          <path d="M15 6h4l3 6.5v5h-2"/>
+          <path d="M2 17.5V11l4-5h9v11.5"/>
+        </svg>
+      );
+    case 'admin':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
 
 export default function Sidebar({
   theme,
@@ -101,27 +160,27 @@ export default function Sidebar({
   const hasAdmin = userRoles.includes('admin') || userRoles.includes('admin_reguler') || userRoles.includes('admin_pro') || isSuperAdminUser;
 
   const getMenuByRole = () => {
-    const menus = [
-      { key: 'home', label: 'Beranda', icon: '🏠' },
-      { key: 'cart', label: 'Keranjang', icon: '🛒' },
+    const menus: { key: AppTab; label: string }[] = [
+      { key: 'home', label: 'Beranda' },
+      { key: 'cart', label: 'Keranjang' },
     ];
 
     if (hasActiveOrder) {
-      menus.push({ key: 'tracker', label: trackerLabel, icon: trackerIcon });
+      menus.push({ key: 'tracker', label: trackerLabel });
     }
 
-    menus.push({ key: 'chat', label: 'Pesan', icon: '💬' });
+    menus.push({ key: 'chat', label: 'Pesan' });
 
     if (hasSeller) {
-      menus.push({ key: 'seller', label: 'Lapak', icon: '🏪' });
+      menus.push({ key: 'seller', label: 'Lapak' });
     }
 
     if (hasDriver) {
-      menus.push({ key: 'driver', label: 'Tugas', icon: '🛵' });
+      menus.push({ key: 'driver', label: 'Tugas' });
     }
 
     if (hasAdmin) {
-      menus.push({ key: 'admin', label: 'Koperasi', icon: '⚙️' });
+      menus.push({ key: 'admin', label: 'Koperasi' });
     }
 
     return menus;
@@ -195,10 +254,12 @@ export default function Sidebar({
         height: 100vh !important;
         height: 100dvh !important;
         width: min(82vw, 290px) !important;
-        background: #FFFFFF !important;
+        background: var(--am-surface) !important;
+        color: var(--am-text) !important;
+        border-right: 1px solid var(--am-border) !important;
         transform: translateX(-105%) !important;
         transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1) !important;
-        box-shadow: 10px 0 35px rgba(0, 0, 0, 0.35) !important;
+        box-shadow: 10px 0 35px rgba(0, 0, 0, 0.4) !important;
         z-index: 999999 !important;
         display: flex !important;
         flex-direction: column !important;
@@ -214,7 +275,8 @@ export default function Sidebar({
         width: 100vw !important;
         height: 100vh !important;
         height: 100dvh !important;
-        background: rgba(15, 23, 42, 0.65) !important;
+        background: rgba(0, 0, 0, 0.65) !important;
+        backdrop-filter: blur(4px) !important;
         z-index: 999998 !important;
         animation: fadeInBackdrop 0.25s ease forwards;
       }
@@ -243,7 +305,7 @@ export default function Sidebar({
       <aside className={`am-sidebar-main ${isOpenExternal ? 'mobile-open' : ''}`}>
         
         {/* Header Sidebar dengan Judul & Tombol Tutup Khusus HP */}
-        <div style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--am-border)', height: 65 }}>
+        <div style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--am-border)', height: 65, background: 'var(--am-surface)' }}>
           {effectiveIsOpen ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 20 }}>🌸</span>
@@ -259,15 +321,15 @@ export default function Sidebar({
               onClick={onCloseExternal}
               aria-label="Tutup Menu"
               style={{
-                background: 'rgba(0,0,0,0.06)',
-                border: 'none',
+                background: 'var(--am-bg2)',
+                border: '1px solid var(--am-border)',
                 borderRadius: 8,
                 width: 32,
                 height: 32,
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: 'bold',
                 cursor: 'pointer',
-                color: '#334155',
+                color: 'var(--am-text)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -339,7 +401,9 @@ export default function Sidebar({
                   transition: 'all 0.2s',
                 }}
               >
-                <span style={{ fontSize: 18 }}>{item.icon}</span>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, flexShrink: 0 }}>
+                  {renderSidebarIcon(item.key)}
+                </span>
                 {effectiveIsOpen && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
               </button>
             )
@@ -491,10 +555,10 @@ export default function Sidebar({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 14, border: '1px solid var(--am-border)', textAlign: 'center' }}>
+              <div style={{ background: 'var(--am-bg2)', padding: 12, borderRadius: 14, border: '1px solid var(--am-border)', textAlign: 'center' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 'bold', color: '#334155' }}>Ganti Avatar Kartun / Foto:</span>
-                  <label style={{ fontSize: 10, color: '#5FA874', cursor: 'pointer', fontWeight: 700, background: '#E0F2FE', padding: '3px 8px', borderRadius: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--am-text)' }}>Ganti Avatar Kartun / Foto:</span>
+                  <label style={{ fontSize: 10, color: 'var(--am-primary)', cursor: 'pointer', fontWeight: 700, background: 'var(--am-primary-light, rgba(95, 168, 116, 0.15))', padding: '3px 8px', borderRadius: 6 }}>
                     📁 Upload Galeri
                     <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
                   </label>
@@ -504,12 +568,12 @@ export default function Sidebar({
                   <img 
                     src={currentAvatar} 
                     alt="Pratinjau Foto" 
-                    style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', background: '#e2e8f0', border: '3px solid var(--am-primary)' }} 
+                    style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', background: 'var(--am-bg2)', border: '3px solid var(--am-primary)' }} 
                   />
                 </div>
 
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', marginBottom: 6, textAlign: 'left' }}>Atau Pilih dari 10 Karakter Kartun Senyum Manis:</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, maxHeight: 100, overflowY: 'auto', padding: 2, background: '#ffffff', borderRadius: 10, border: '1px solid #CBD5E1' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--am-text-muted)', marginBottom: 6, textAlign: 'left' }}>Atau Pilih dari 10 Karakter Kartun Senyum Manis:</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, maxHeight: 100, overflowY: 'auto', padding: 4, background: 'var(--am-surface)', borderRadius: 10, border: '1px solid var(--am-border)' }}>
                   {PRESET_AVATARS.map(avatar => (
                     <div 
                       key={avatar.id}
@@ -517,9 +581,9 @@ export default function Sidebar({
                       title={avatar.name}
                       style={{
                         position: 'relative', cursor: 'pointer', borderRadius: '50%', overflow: 'hidden',
-                        background: '#f8fafc', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        border: currentAvatar === avatar.url ? '3px solid #5FA874' : '2px solid #CBD5E1',
-                        boxShadow: currentAvatar === avatar.url ? '0 0 8px rgba(244, 174, 194, 0.35)' : 'none',
+                        background: 'var(--am-bg2)', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        border: currentAvatar === avatar.url ? '3px solid var(--am-primary)' : '2px solid var(--am-border)',
+                        boxShadow: currentAvatar === avatar.url ? '0 0 8px rgba(95, 168, 116, 0.35)' : 'none',
                         transition: 'all 0.2s', transform: currentAvatar === avatar.url ? 'scale(1.08)' : 'scale(1)'
                       }}
                     >

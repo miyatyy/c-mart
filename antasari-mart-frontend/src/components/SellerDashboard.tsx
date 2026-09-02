@@ -22,6 +22,22 @@ interface NewProduct {
   targetCampus: string;
 }
 
+const PRODUCT_IMAGE_PRESETS = [
+  { name: 'Pentol Kuah UIN', category: 'makanan', url: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=500&auto=format&fit=crop' },
+  { name: 'Ayam Geprek Sambal', category: 'makanan', url: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=500&auto=format&fit=crop' },
+  { name: 'Nasi Bakar Kampus', category: 'makanan', url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop' },
+  { name: 'Es Teh Manis Segar', category: 'minuman', url: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=500&auto=format&fit=crop' },
+  { name: 'Kopi Susu Aren', category: 'minuman', url: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=500&auto=format&fit=crop' },
+  { name: 'Boba Milk Tea', category: 'minuman', url: 'https://images.unsplash.com/photo-1558857563-b371f31ca957?w=500&auto=format&fit=crop' },
+  { name: 'Ganci Rajut Cantik', category: 'aksesoris', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&auto=format&fit=crop' },
+  { name: 'Blind Bag Suvenir', category: 'aksesoris', url: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=500&auto=format&fit=crop' },
+  { name: 'Bunga Kawat Bulu', category: 'aksesoris', url: 'https://images.unsplash.com/photo-1508615039623-a25605d2b022?w=500&auto=format&fit=crop' },
+  { name: 'Keripik Pedas Renyah', category: 'snack', url: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=500&auto=format&fit=crop' },
+  { name: 'Kue Basah Tradisional', category: 'kue_banjar', url: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500&auto=format&fit=crop' },
+  { name: 'Jasa Print & Jilid', category: 'jasa', url: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=500&auto=format&fit=crop' },
+  { name: 'Kaos / Totebag Kampus', category: 'fashion', url: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop' },
+];
+
 export default function SellerDashboard({ theme: _theme, campus: _campus, sellerId, sellerName }: SellerDashboardProps) {
   const [tab, setTab] = useState<SellerTab>('products');
   const [productTab, setProductTab] = useState<ProductTab>('active');
@@ -38,6 +54,8 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [photoMode, setPhotoMode] = useState<'upload' | 'preset' | 'url'>('upload');
+  const [customImageUrl, setCustomImageUrl] = useState('');
 
   const [newProd, setNewProd] = useState<NewProduct>({ 
     name: '', 
@@ -399,7 +417,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
 
       {/* Modal Tambah Produk */}
       {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="am-card" style={{ width: '100%', maxWidth: 480, padding: 24, borderRadius: 20, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ margin: '0 0 14px', fontSize: 18, color: 'var(--am-text)' }}>Tambah Produk Baru</h3>
             <form onSubmit={handleCreateProduct} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -451,11 +469,250 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                 </select>
               </div>
 
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Foto Produk (Cloudinary)</label>
-                <input type="file" accept="image/*" onChange={handleFileUpload} style={{ width: '100%', marginTop: 4, fontSize: 12 }} />
-                {uploadingImage && <div style={{ fontSize: 11, color: 'var(--am-primary)', marginTop: 4 }}>Mengunggah gambar...</div>}
-                {imageFile && <img src={imageFile} alt="Preview" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, marginTop: 8 }} />}
+              {/* 📸 FOTO PRODUK DENGAN 3 PILIHAN PRAKTIS (UPLOAD GALERI, TEMPLATE CEPAT, ATAU LINK) */}
+              <div style={{ background: 'var(--am-bg2)', padding: 12, borderRadius: 12, border: '1px solid var(--am-border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text)' }}>Foto Produk</label>
+                  {imageFile && (
+                    <span style={{ fontSize: 11, color: 'var(--am-primary)', fontWeight: 700 }}>
+                      Foto Terpasang ✓
+                    </span>
+                  )}
+                </div>
+
+                {/* Tab Pilihan Metode Foto */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setPhotoMode('upload')}
+                    style={{
+                      flex: 1,
+                      padding: '6px 4px',
+                      borderRadius: 8,
+                      border: photoMode === 'upload' ? '1.5px solid var(--am-primary)' : '1px solid var(--am-border)',
+                      background: photoMode === 'upload' ? 'var(--am-primary-light, rgba(95,168,116,0.15))' : 'var(--am-surface)',
+                      color: photoMode === 'upload' ? 'var(--am-primary)' : 'var(--am-text-muted)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    📁 Galeri / HP
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPhotoMode('preset')}
+                    style={{
+                      flex: 1,
+                      padding: '6px 4px',
+                      borderRadius: 8,
+                      border: photoMode === 'preset' ? '1.5px solid var(--am-primary)' : '1px solid var(--am-border)',
+                      background: photoMode === 'preset' ? 'var(--am-primary-light, rgba(95,168,116,0.15))' : 'var(--am-surface)',
+                      color: photoMode === 'preset' ? 'var(--am-primary)' : 'var(--am-text-muted)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🎨 Template Foto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPhotoMode('url')}
+                    style={{
+                      flex: 1,
+                      padding: '6px 4px',
+                      borderRadius: 8,
+                      border: photoMode === 'url' ? '1.5px solid var(--am-primary)' : '1px solid var(--am-border)',
+                      background: photoMode === 'url' ? 'var(--am-primary-light, rgba(95,168,116,0.15))' : 'var(--am-surface)',
+                      color: photoMode === 'url' ? 'var(--am-primary)' : 'var(--am-text-muted)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🔗 Link / URL
+                  </button>
+                </div>
+
+                {/* MODE 1: UPLOAD FILE DARI HP / KAMERA */}
+                {photoMode === 'upload' && (
+                  <div>
+                    <label
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        padding: '14px',
+                        borderRadius: 10,
+                        border: '2px dashed var(--am-primary)',
+                        background: 'var(--am-surface)',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <span style={{ fontSize: 24 }}>📸</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-primary)' }}>
+                        {uploadingImage ? 'Sedang Memproses Foto...' : 'Klik untuk Pilih Foto dari Galeri / Kamera'}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--am-text-muted)' }}>Mendukung format JPG, PNG, WebP</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {/* MODE 2: PILIH TEMPLATE FOTO CEPAT */}
+                {photoMode === 'preset' && (
+                  <div>
+                    <div style={{ fontSize: 10.5, color: 'var(--am-text-muted)', marginBottom: 6 }}>
+                      Klik salah satu foto estetik yang cocok dengan produkmu:
+                    </div>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(4, 1fr)',
+                      gap: 6,
+                      maxHeight: 130,
+                      overflowY: 'auto',
+                      padding: 4,
+                      background: 'var(--am-surface)',
+                      borderRadius: 8,
+                      border: '1px solid var(--am-border)'
+                    }}>
+                      {PRODUCT_IMAGE_PRESETS.map((p, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            setImageFile(p.url);
+                            setAlertPopup({ message: `Foto template "${p.name}" dipilih! 📸`, type: 'success' });
+                          }}
+                          style={{
+                            cursor: 'pointer',
+                            borderRadius: 8,
+                            overflow: 'hidden',
+                            position: 'relative',
+                            border: imageFile === p.url ? '2.5px solid var(--am-primary)' : '1px solid var(--am-border)',
+                            aspectRatio: '1',
+                            boxShadow: imageFile === p.url ? '0 0 8px rgba(95,168,116,0.4)' : 'none'
+                          }}
+                          title={p.name}
+                        >
+                          <img src={p.url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <div style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            background: 'rgba(0,0,0,0.6)',
+                            color: 'white',
+                            fontSize: 8,
+                            padding: '2px',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {p.name}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* MODE 3: TEMPEL LINK / URL GAMBAR */}
+                {photoMode === 'url' && (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                      type="text"
+                      placeholder="https://images.unsplash.com/..."
+                      value={customImageUrl}
+                      onChange={e => setCustomImageUrl(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        border: '1px solid var(--am-border)',
+                        background: 'var(--am-surface)',
+                        color: 'var(--am-text)',
+                        fontSize: 12,
+                        outline: 'none'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (customImageUrl.trim()) {
+                          setImageFile(customImageUrl.trim());
+                          setAlertPopup({ message: 'URL Foto produk berhasil diterapkan! 🔗', type: 'success' });
+                        }
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: 'var(--am-primary)',
+                        color: 'white',
+                        fontWeight: 700,
+                        fontSize: 11.5,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Terapkan
+                    </button>
+                  </div>
+                )}
+
+                {/* PREVIEW GAMBAR TERPILIH */}
+                {imageFile && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginTop: 10,
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    background: 'var(--am-surface)',
+                    border: '1px solid var(--am-border)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <img
+                        src={imageFile}
+                        alt="Preview"
+                        style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1.5px solid var(--am-primary)' }}
+                      />
+                      <div>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--am-text)' }}>Foto Siap Dipublikasikan</div>
+                        <div style={{ fontSize: 10, color: 'var(--am-text-muted)' }}>Foto akan muncul di katalog pembeli</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageFile('');
+                        setCustomImageUrl('');
+                      }}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: 'none',
+                        color: '#EF4444',
+                        borderRadius: 6,
+                        padding: '4px 8px',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ✕ Hapus
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -515,7 +772,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
 
       {/* Modal Edit Produk */}
       {showEditModal && editingProduct && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="am-card" style={{ width: '100%', maxWidth: 480, padding: 24, borderRadius: 20, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ margin: '0 0 14px', fontSize: 18, color: 'var(--am-text)' }}>Edit Produk</h3>
             <form onSubmit={handleUpdateProduct} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -551,6 +808,106 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                     style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box' }}
                   />
                 </div>
+              </div>
+
+              {/* 📸 GANTI FOTO PRODUK */}
+              <div style={{ background: 'var(--am-bg2)', padding: 12, borderRadius: 12, border: '1px solid var(--am-border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text)' }}>Foto Produk</label>
+                  {editingProduct.image && (
+                    <span style={{ fontSize: 11, color: 'var(--am-primary)', fontWeight: 700 }}>
+                      Foto Terpasang ✓
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                  <label style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: 8,
+                    border: '1.5px dashed var(--am-primary)',
+                    background: 'var(--am-surface)',
+                    color: 'var(--am-primary)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    display: 'block'
+                  }}>
+                    📸 Upload dari HP
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setUploadingImage(true);
+                        try {
+                          const res = await uploadImageApi(file);
+                          if (res && res.imageUrl) {
+                            setEditingProduct({ ...editingProduct, image: res.imageUrl });
+                          } else {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setEditingProduct({ ...editingProduct, image: reader.result as string });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                          setAlertPopup({ message: 'Foto produk berhasil diganti! 📸', type: 'success' });
+                        } catch {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            setEditingProduct({ ...editingProduct, image: reader.result as string });
+                          };
+                          reader.readAsDataURL(file);
+                        } finally {
+                          setUploadingImage(false);
+                        }
+                      }}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                </div>
+
+                {/* Preset Cepat di Edit Modal */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: 6,
+                  maxHeight: 90,
+                  overflowY: 'auto',
+                  padding: 4,
+                  background: 'var(--am-surface)',
+                  borderRadius: 8,
+                  border: '1px solid var(--am-border)',
+                  marginBottom: 8
+                }}>
+                  {PRODUCT_IMAGE_PRESETS.map((p, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => setEditingProduct({ ...editingProduct, image: p.url })}
+                      style={{
+                        cursor: 'pointer',
+                        borderRadius: 6,
+                        overflow: 'hidden',
+                        position: 'relative',
+                        border: editingProduct.image === p.url ? '2px solid var(--am-primary)' : '1px solid var(--am-border)',
+                        aspectRatio: '1'
+                      }}
+                      title={p.name}
+                    >
+                      <img src={p.url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                  ))}
+                </div>
+
+                {editingProduct.image && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <img src={editingProduct.image} alt="Preview" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8, border: '1.5px solid var(--am-primary)' }} />
+                    <span style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Pratinjau foto produk aktif</span>
+                  </div>
+                )}
               </div>
 
               <div>

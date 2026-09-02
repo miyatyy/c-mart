@@ -75,8 +75,20 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
       if (!locStatus.isGranted) {
         await Permission.location.request();
       }
+      var cameraStatus = await Permission.camera.status;
+      if (!cameraStatus.isGranted) {
+        await Permission.camera.request();
+      }
+      var photosStatus = await Permission.photos.status;
+      if (!photosStatus.isGranted) {
+        await Permission.photos.request();
+      }
+      var storageStatus = await Permission.storage.status;
+      if (!storageStatus.isGranted) {
+        await Permission.storage.request();
+      }
     } catch (e) {
-      debugPrint('Gagal meminta izin lokasi: $e');
+      debugPrint('Gagal meminta izin: $e');
     }
   }
 

@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import type { AppTab, Campus, ThemeMode, UserRole, CartItem } from '../types'
 import { useRealtimeLocation } from '../lib/useRealtimeLocation'
 
@@ -27,20 +27,15 @@ interface TopBarProps {
 export default function TopBar({
   theme, campus, setCampus, activeTab: _activeTab, setActiveTab,
   role, userName, userEmail, userAvatar, isGuest, onRequireLogin,
-  onLogout, onOpenProfileModal, onToggleMobileSidebar
+  onLogout, onOpenProfileModal, onToggleMobileSidebar, onToggleTheme
 }: TopBarProps) {
   const isAesthetic = theme === 'aesthetic'
 
-  // 📡 Pelacakan GPS Real-Time dengan Reverse Geocoding
+  // 📡 Pelacakan GPS Real-Time dengan Reverse Geocoding & Webhook
   const {
     status: gpsStatus,
-    locationName: gpsLocationName,
-    accuracy,
-    distanceKm,
-    refreshLocation
+    cityName: gpsCityName,
   } = useRealtimeLocation(campus, setCampus);
-
-  const [showLocationTooltip, setShowLocationTooltip] = useState(false);
 
   const storedAvatar = typeof window !== 'undefined' ? localStorage.getItem('am_user_avatar') : null;
   const activeAvatar = storedAvatar || userAvatar || 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4';
@@ -96,15 +91,17 @@ export default function TopBar({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 18,
-              fontWeight: 'bold',
               color: 'var(--am-primary)',
               boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
               zIndex: 102
             }}
             title="Buka Sidebar Menu"
           >
-            ☰
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
           </button>
 
           {/* Logo Antasari Mart */}
@@ -115,153 +112,114 @@ export default function TopBar({
               fontSize: 16, fontWeight: 800, color: 'white', flexShrink: 0,
               boxShadow: '0 2px 8px rgba(95, 168, 116, 0.25)'
             }}>A</div>
-            <div>
-              <div className="am-heading" style={{ fontSize: isAesthetic ? 14.5 : 14, fontWeight: 800, color: 'var(--am-text)', lineHeight: 1.1 }}>
+            <div style={{ whiteSpace: 'nowrap' }}>
+              <div className="am-heading" style={{ fontSize: isAesthetic ? 14 : 13.5, fontWeight: 800, color: 'var(--am-text)', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
                 Antasari Mart
               </div>
-              <div style={{ fontSize: 10.5, color: '#5FA874', fontWeight: 600, lineHeight: 1.1, display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
-                <span>✨</span>
+              <div style={{ fontSize: 10, color: 'var(--am-primary)', fontWeight: 600, lineHeight: 1.1, display: 'flex', alignItems: 'center', gap: 3, marginTop: 2, whiteSpace: 'nowrap' }}>
                 <span>Campus Hub</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Tengah: 🛰️ INDIKATOR GPS REAL-TIME (OTOMATIS TANPA TOMBOL BJM/BJB) */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, position: 'relative' }}>
+        {/* Tengah: 📍 SIMBOL LOKASI DENGAN 1 KATA NAMA KOTA DI BAWAHNYA (REAL-TIME AUTO) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
           <div
-            onClick={() => {
-              refreshLocation();
-              setShowLocationTooltip(prev => !prev);
-            }}
-            title="Lokasi terdeteksi otomatis melalui GPS. Klik untuk refresh sinyal GPS!"
+            title={`Lokasi Aktif: ${gpsCityName || (campus === 'banjarbaru' ? 'Banjarbaru' : 'Banjarmasin')} (Terdeteksi Real-Time)`}
             style={{
               display: 'inline-flex',
+              flexDirection: 'column',
               alignItems: 'center',
-              gap: 6,
-              background: gpsStatus === 'detecting' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(95, 168, 116, 0.1)',
-              border: `1.5px solid ${gpsStatus === 'detecting' ? '#F59E0B' : '#5FA874'}`,
-              borderRadius: 999,
-              padding: '5px 12px',
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-              transition: 'all 0.2s ease',
-              userSelect: 'none',
-              maxWidth: '100%'
+              justifyContent: 'center',
+              padding: '2px 8px',
+              borderRadius: 12,
+              background: 'transparent',
+              userSelect: 'none'
             }}
           >
-            {/* Titik Radar Pulse */}
-            <span
-              className={gpsStatus === 'detecting' ? 'gps-pulse-detecting' : 'gps-pulse-live'}
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: gpsStatus === 'detecting' ? '#F59E0B' : '#22C55E',
-                display: 'inline-block',
-                flexShrink: 0
-              }}
-            />
-
-            {/* Teks Lokasi Otomatis GPS */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
-              <div style={{ fontSize: 8, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.6, color: '#5FA874', lineHeight: 1 }}>
-                🛰️ GPS REAL-TIME
-              </div>
-              <div style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: 'var(--am-text)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: '135px',
-                lineHeight: 1.2,
-                marginTop: 1
-              }}>
-                {gpsLocationName}
-              </div>
+            {/* Simbol Ikon Lokasi SVG dengan Radar Ringan */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', color: 'var(--am-primary)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/>
+                <circle cx="12" cy="10" r="2.8" fill="currentColor"/>
+              </svg>
+              {/* Titik Pulse Live Indikator */}
+              <span
+                className={gpsStatus === 'detecting' ? 'gps-pulse-detecting' : 'gps-pulse-live'}
+                style={{
+                  position: 'absolute',
+                  top: -1,
+                  right: -3,
+                  width: 5.5,
+                  height: 5.5,
+                  borderRadius: '50%',
+                  background: gpsStatus === 'detecting' ? '#F59E0B' : '#10B981'
+                }}
+              />
             </div>
 
-            {/* Ikon Refresh */}
+            {/* 1 Kata Keterangan Nama Kota di Bawah Simbol */}
             <span
               style={{
-                fontSize: 10,
-                opacity: 0.7,
-                marginLeft: 2,
-                transform: gpsStatus === 'detecting' ? 'rotate(180deg)' : 'none',
-                transition: 'transform 0.5s ease'
+                fontSize: 10.5,
+                fontWeight: 800,
+                color: 'var(--am-text)',
+                lineHeight: 1.1,
+                marginTop: 2,
+                letterSpacing: 0.2,
+                textTransform: 'capitalize',
+                whiteSpace: 'nowrap'
               }}
             >
-              🔄
+              {gpsCityName || (campus === 'banjarbaru' ? 'Banjarbaru' : 'Banjarmasin')}
             </span>
           </div>
-
-          {/* Tooltip Info GPS Detail saat diklik */}
-          {showLocationTooltip && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '115%',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                background: 'var(--am-surface)',
-                border: '1px solid var(--am-border)',
-                borderRadius: 14,
-                padding: '12px 16px',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
-                zIndex: 200,
-                width: 250,
-                textAlign: 'left',
-                fontFamily: 'var(--am-font-body)'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#5FA874' }}>📍 INFO LOKASI GPS</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowLocationTooltip(false);
-                  }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--am-text-muted)' }}
-                >
-                  ✕
-                </button>
-              </div>
-              <p style={{ fontSize: 11.5, color: 'var(--am-text)', margin: '0 0 6px', fontWeight: 600 }}>
-                {gpsLocationName}
-              </p>
-              <div style={{ fontSize: 10, color: 'var(--am-text-muted)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <span>🎯 Kampus Aktif: <strong>{campus === 'banjarbaru' ? 'Kampus 2 Banjarbaru' : 'Kampus 1 Banjarmasin'}</strong></span>
-                {distanceKm !== null && <span>📏 Jarak Kampus: ±{distanceKm} km</span>}
-                {accuracy !== null && <span>📡 Akurasi GPS: ±{accuracy} meter</span>}
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  refreshLocation();
-                }}
-                style={{
-                  marginTop: 8,
-                  width: '100%',
-                  padding: '6px 0',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: 'var(--am-primary)',
-                  color: 'white',
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                🔄 Perbarui Lokasi Sekarang
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Sisi Kanan: Foto Profil & Tombol Masuk/Keluar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Sisi Kanan: Toggle Mode Gelap/Terang + Foto Profil & Tombol Masuk/Keluar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Tombol Cepat Ganti Tema Terang/Gelap */}
+          <button
+            onClick={onToggleTheme}
+            title={theme === 'modern' ? "Ganti ke Mode Terang (Siang)" : "Ganti ke Mode Gelap (Malam)"}
+            aria-label="Ganti Tema Mode Gelap / Terang"
+            style={{
+              background: 'var(--am-bg2)',
+              border: '1px solid var(--am-border)',
+              borderRadius: 8,
+              width: 32,
+              height: 32,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--am-text)',
+              fontSize: 14,
+              transition: 'all 0.2s ease'
+            }}
+          >
+            {theme === 'modern' ? (
+              /* Sun Icon */
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+            ) : (
+              /* Moon Icon */
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--am-text)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            )}
+          </button>
+
           <div 
             onClick={handleProfileClick}
             title="Klik untuk Edit Profil"
@@ -273,13 +231,16 @@ export default function TopBar({
                 border: '2px solid var(--am-border)', display: 'flex', alignItems: 'center', 
                 justifyContent: 'center', fontSize: 14, flexShrink: 0, color: 'var(--am-text-muted)' 
               }}>
-                👤
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
               </div>
             ) : (
               <img 
                 src={activeAvatar} 
                 alt={userName} 
-                style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', background: '#e2e8f0', border: '2px solid var(--am-primary)', flexShrink: 0 }} 
+                style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', background: 'var(--am-bg2)', border: '2px solid var(--am-primary)', flexShrink: 0 }} 
               />
             )}
           </div>

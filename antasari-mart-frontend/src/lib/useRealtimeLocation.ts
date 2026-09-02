@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Campus } from '../types';
 
 export interface LocationState {
@@ -7,6 +7,7 @@ export interface LocationState {
   longitude: number | null;
   accuracy: number | null;
   locationName: string;
+  cityName: string; // ✨ 1 kata nama kota (misal: Banjarmasin / Banjarbaru / Martapura)
   campus: Campus;
   distanceKm: number | null;
   lastUpdated: Date | null;
@@ -14,8 +15,8 @@ export interface LocationState {
 }
 
 // Koordinat UIN Antasari
-const CAMPUS_1_BJM = { lat: -3.3168, lng: 114.5901, name: 'Kampus 1 Banjarmasin' };
-const CAMPUS_2_BJB = { lat: -3.4478, lng: 114.8322, name: 'Kampus 2 Banjarbaru' };
+const CAMPUS_1_BJM = { lat: -3.3168, lng: 114.5901, name: 'Banjarmasin' };
+const CAMPUS_2_BJB = { lat: -3.4478, lng: 114.8322, name: 'Banjarbaru' };
 
 // Haversine formula untuk menghitung jarak akurat dalam KM
 function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -32,6 +33,40 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
   return Math.round(R * c * 10) / 10;
 }
 
+// 🏷️ Ekstraksi 1 Kata Nama Kota Saja (misal: Banjarmasin, Banjarbaru, Martapura)
+function extractSingleWordCity(rawCity: string, nearestCampus: Campus): string {
+  if (!rawCity || !rawCity.trim()) {
+    return nearestCampus === 'banjarbaru' ? 'Banjarbaru' : 'Banjarmasin';
+  }
+
+  const clean = rawCity
+    .replace(/Kota\s+/gi, '')
+    .replace(/Kabupaten\s+/gi, '')
+    .replace(/Kecamatan\s+/gi, '')
+    .replace(/Kelurahan\s+/gi, '')
+    .trim();
+
+  const words = clean.split(/[\s,.-]+/);
+  let word = words[0] || '';
+
+  // Khusus penamaan gabungan 2 kata Banjar Baru -> Banjarbaru
+  if (words.length >= 2 && words[0].toLowerCase() === 'banjar' && words[1].toLowerCase() === 'baru') {
+    word = 'Banjarbaru';
+  } else if (words.length >= 2 && words[0].toLowerCase() === 'tanah' && words[1].toLowerCase() === 'bumbu') {
+    word = 'Batulicin';
+  } else if (words.length >= 2 && words[0].toLowerCase() === 'tanah' && words[1].toLowerCase() === 'laut') {
+    word = 'Pelaihari';
+  } else if (words.length >= 2 && words[0].toLowerCase() === 'hulu' && words[1].toLowerCase() === 'sungai') {
+    word = words[2] || 'Kandangan';
+  }
+
+  if (!word || word.length < 3) {
+    return nearestCampus === 'banjarbaru' ? 'Banjarbaru' : 'Banjarmasin';
+  }
+
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
 export function useRealtimeLocation(
   currentCampus: Campus,
   onCampusChange?: (newCampus: Campus) => void
@@ -41,7 +76,8 @@ export function useRealtimeLocation(
     latitude: null,
     longitude: null,
     accuracy: null,
-    locationName: 'Mendeteksi GPS...',
+    locationName: 'Mencari...',
+    cityName: currentCampus === 'banjarbaru' ? 'Banjarbaru' : 'Banjarmasin',
     campus: currentCampus,
     distanceKm: null,
     lastUpdated: null,
@@ -50,65 +86,55 @@ export function useRealtimeLocation(
 
   const watchIdRef = useRef<number | null>(null);
 
-  // Reverse geocode menggunakan OpenStreetMap Nominatim atau fallback cerdas
+  // 📡 Reverse Geocode Cepat CORS-Friendly
   const reverseGeocode = async (lat: number, lon: number, dist1: number, dist2: number) => {
+    const nearestCampus: Campus = dist2 < dist1 ? 'banjarbaru' : 'banjarmasin';
+    const defaultCity = nearestCampus === 'banjarbaru' ? 'Banjarbaru' : 'Banjarmasin';
+
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
 
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
-        {
-          headers: {
-            'Accept-Language': 'id,en',
-            'User-Agent': 'AntasariMart-CampusHub/1.0',
-          },
-          signal: controller.signal,
-        }
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=id`,
+        { signal: controller.signal }
       );
       clearTimeout(timeoutId);
 
       if (res.ok) {
         const data = await res.json();
-        const addr = data.address || {};
-        const road = addr.road || addr.street || addr.neighbourhood || addr.suburb || '';
-        const city = addr.city || addr.town || addr.county || addr.city_district || '';
+        const rawCity = data.city || data.locality || (data.localityInfo?.administrative && data.localityInfo.administrative[2]?.name) || '';
+        const singleWordCity = extractSingleWordCity(rawCity, nearestCampus);
 
-        // Tentukan kampus terdekat
-        const nearestCampus = dist2 < dist1 ? 'banjarbaru' : 'banjarmasin';
-        const campusLabel = nearestCampus === 'banjarbaru' ? 'Kampus 2 Banjarbaru' : 'Kampus 1 Banjarmasin';
-        const distMin = Math.min(dist1, dist2);
-
-        let finalName = '';
-        if (distMin <= 1.5) {
-          finalName = `${campusLabel} (Di Lokasi)`;
-        } else if (road && city) {
-          finalName = `${road}, ${city}`;
-        } else if (road) {
-          finalName = `${road} (${campusLabel})`;
-        } else if (city) {
-          finalName = `${city} (~${distMin} km dari ${campusLabel})`;
-        } else {
-          finalName = `${campusLabel} (~${distMin} km)`;
-        }
+        // 🛰️ Webhook Sinkronisasi Real-Time Otomatis
+        try {
+          fetch('/api/location/webhook', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              latitude: lat,
+              longitude: lon,
+              cityName: singleWordCity,
+              campus: nearestCampus,
+              timestamp: new Date().toISOString()
+            })
+          }).catch(() => {});
+        } catch (_) {}
 
         return {
-          locationName: finalName,
-          campus: nearestCampus as Campus,
+          locationName: singleWordCity,
+          cityName: singleWordCity,
+          campus: nearestCampus,
         };
       }
     } catch (_err) {
-      // Abaikan jika timeout / offline
+      // Offline fallback
     }
 
-    // Fallback jika API reverse geocoding tidak merespon
-    const nearestCampus = dist2 < dist1 ? 'banjarbaru' : 'banjarmasin';
-    const campusLabel = nearestCampus === 'banjarbaru' ? 'Kampus 2 Banjarbaru' : 'Kampus 1 Banjarmasin';
-    const distMin = Math.min(dist1, dist2);
-
     return {
-      locationName: distMin <= 1.5 ? `${campusLabel} (Di Lokasi)` : `${campusLabel} (~${distMin} km)`,
-      campus: nearestCampus as Campus,
+      locationName: defaultCity,
+      cityName: defaultCity,
+      campus: nearestCampus,
     };
   };
 
@@ -118,7 +144,6 @@ export function useRealtimeLocation(
 
       const dist1 = calculateDistanceKm(latitude, longitude, CAMPUS_1_BJM.lat, CAMPUS_1_BJM.lng);
       const dist2 = calculateDistanceKm(latitude, longitude, CAMPUS_2_BJB.lat, CAMPUS_2_BJB.lng);
-
       const minDistance = Math.min(dist1, dist2);
 
       const geocoded = await reverseGeocode(latitude, longitude, dist1, dist2);
@@ -128,7 +153,8 @@ export function useRealtimeLocation(
         latitude,
         longitude,
         accuracy: Math.round(accuracy),
-        locationName: geocoded.locationName,
+        locationName: geocoded.cityName,
+        cityName: geocoded.cityName,
         campus: geocoded.campus,
         distanceKm: minDistance,
         lastUpdated: new Date(),
@@ -144,13 +170,13 @@ export function useRealtimeLocation(
 
   const handleError = useCallback(
     (err: GeolocationPositionError) => {
-      console.warn('Geolocation error:', err.message);
-      const fallbackName = currentCampus === 'banjarbaru' ? 'Kampus 2 Banjarbaru' : 'Kampus 1 Banjarmasin';
+      const fallbackCity = currentCampus === 'banjarbaru' ? 'Banjarbaru' : 'Banjarmasin';
 
       setLocation((prev) => ({
         ...prev,
         status: err.code === 1 ? 'permission_denied' : 'live',
-        locationName: fallbackName,
+        locationName: fallbackCity,
+        cityName: fallbackCity,
         errorMsg: err.message,
         lastUpdated: new Date(),
       }));

@@ -5,6 +5,7 @@ import { getChatsApi, sendChatApi, getContactsApi, askSellerAIApi, type BackendC
 interface ChatPageProps {
   theme: ThemeMode;
   campus: Campus;
+  onBack?: () => void;
 }
 
 interface Contact {
@@ -72,7 +73,7 @@ const CLOSING_KEYWORDS = [
   'baik kak terima kasih', 'oke makasih'
 ];
 
-export default function ChatPage({ theme: _theme }: ChatPageProps) {
+export default function ChatPage({ theme: _theme, campus: _campus, onBack }: ChatPageProps) {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [chats, setChats] = useState<BackendChatMessage[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -217,22 +218,32 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     return () => clearInterval(interval);
   }, []);
 
+  // 📱 Sinkronisasi tinggi visual viewport saat virtual keyboard HP terbuka
   useEffect(() => {
-    if (activeRoom) {
-      document.body.classList.add('in-active-chat');
-    } else {
-      document.body.classList.remove('in-active-chat');
-    }
-    return () => {
-      document.body.classList.remove('in-active-chat');
+    const handleViewportResize = () => {
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        const height = window.visualViewport.height;
+        document.documentElement.style.setProperty('--am-chat-vh', `${height}px`);
+        if (chatScrollRef.current) {
+          chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+        }
+      }
     };
-  }, [activeRoom]);
 
-  useEffect(() => {
-    if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      handleViewportResize();
+      window.visualViewport.addEventListener('resize', handleViewportResize);
+      window.visualViewport.addEventListener('scroll', handleViewportResize);
     }
-  }, [chats, activeRoomId, isOtherTyping]);
+
+    return () => {
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResize);
+        window.visualViewport.removeEventListener('scroll', handleViewportResize);
+        document.documentElement.style.removeProperty('--am-chat-vh');
+      }
+    };
+  }, [activeRoomId]);
 
   // Kelompokkan room berdasarkan identitas lawan bicara secara tepat & terisolasi
   const rooms = useMemo(() => {
@@ -286,6 +297,23 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
     if (!activeRoomId) return null;
     return rooms.find(r => r.roomId === activeRoomId) || null;
   }, [rooms, activeRoomId, pendingContact, currentUser]);
+
+  useEffect(() => {
+    if (activeRoom) {
+      document.body.classList.add('in-active-chat');
+    } else {
+      document.body.classList.remove('in-active-chat');
+    }
+    return () => {
+      document.body.classList.remove('in-active-chat');
+    };
+  }, [activeRoom]);
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chats, activeRoomId, isOtherTyping]);
 
   const isCurrentRoomHandedOver = activeRoom ? Boolean(handovers[activeRoom.roomId]) : false;
 
@@ -475,24 +503,35 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
 
         @media (max-width: 768px) {
           .am-chat-page-root {
-            height: 100dvh;
-            max-height: 100dvh;
+            height: var(--am-chat-vh, 100dvh);
+            max-height: var(--am-chat-vh, 100dvh);
             border-radius: 0;
             border: none;
             position: fixed;
-            inset: 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: auto;
             z-index: 1000;
-            background: #FFFFFF;
+            background: var(--am-surface, #FFFFFF);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
           }
           .am-chat-sidebar-pane {
             width: 100%;
             height: 100%;
             display: ${activeRoom ? 'none' : 'flex'};
+            padding-bottom: 72px;
+            box-sizing: border-box;
           }
           .am-chat-content-pane {
             width: 100%;
             height: 100%;
+            max-height: 100%;
             display: ${activeRoom ? 'flex' : 'none'};
+            flex-direction: column;
+            overflow: hidden;
           }
         }
 
@@ -541,10 +580,10 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           max-width: 78%;
           padding: 10px 14px 6px 14px;
           border-radius: 18px 18px 18px 4px;
-          background: #FFFFFF;
-          color: #243329;
+          background: var(--am-surface, #ffffff);
+          color: var(--am-text, #243329);
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-          border: 1px solid #E1ECE4;
+          border: 1px solid var(--am-border, #E1ECE4);
           word-break: break-word;
           font-size: 13.5px;
           line-height: 1.45;
@@ -552,7 +591,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
 
         .am-chat-bubble-partner .am-chat-time {
           font-size: 10px;
-          color: #8FA596;
+          color: var(--am-text-muted, #8FA596);
           text-align: right;
           margin-top: 4px;
         }
@@ -562,10 +601,10 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           height: 40px;
           border-radius: 50%;
           background: var(--am-bg2, #F0F7F2);
+          color: var(--am-primary, #5FA874);
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 20px;
           flex-shrink: 0;
           position: relative;
         }
@@ -577,8 +616,8 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           width: 10px;
           height: 10px;
           border-radius: 50%;
-          background: #5FA874;
-          border: 2px solid white;
+          background: var(--am-primary, #5FA874);
+          border: 2px solid var(--am-surface, #ffffff);
         }
 
         .am-chat-room-card {
@@ -592,12 +631,12 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
         }
 
         .am-chat-room-card:hover {
-          background: #F0F7F2;
+          background: var(--am-bg2, #F0F7F2);
         }
 
         .am-chat-room-card.is-active {
-          background: #EAF5EE;
-          border-left: 4px solid #5FA874;
+          background: var(--am-primary-light, #EAF5EE);
+          border-left: 4px solid var(--am-primary, #5FA874);
         }
 
         .am-chat-typing-bubble {
@@ -606,9 +645,9 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           gap: 6px;
           padding: 8px 14px;
           border-radius: 16px 16px 16px 4px;
-          background: #FFFFFF;
-          color: #687D70;
-          border: 1px solid #E1ECE4;
+          background: var(--am-surface, #ffffff);
+          color: var(--am-text-muted, #687D70);
+          border: 1px solid var(--am-border, #E1ECE4);
           font-size: 12px;
           font-style: italic;
           margin-bottom: 8px;
@@ -622,17 +661,17 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           position: 'absolute',
           top: 14,
           right: 14,
-          background: '#FFFFFF',
-          color: '#243329',
+          background: 'var(--am-surface, #ffffff)',
+          color: 'var(--am-text, #243329)',
           padding: '12px 18px',
           borderRadius: 14,
-          boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
-          border: '1.5px solid #5FA874',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.25)',
+          border: '1.5px solid var(--am-primary, #5FA874)',
           zIndex: 9999,
           maxWidth: 320,
           animation: 'bounceIn 0.3s ease-out'
         }}>
-          <div style={{ fontWeight: 800, fontSize: 13, color: '#5FA874', marginBottom: 2 }}>{inAppToast.title}</div>
+          <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--am-primary, #5FA874)', marginBottom: 2 }}>{inAppToast.title}</div>
           <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.3 }}>{inAppToast.desc}</div>
         </div>
       )}
@@ -640,28 +679,85 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
       {/* 📋 PANE KIRI: DAFTAR OBROLAN (WHATSAPP LIST STYLE) */}
       <div className="am-chat-sidebar-pane">
         {/* Header Daftar Obrolan */}
-        <div style={{ padding: '14px 16px', background: 'var(--am-surface, #ffffff)', borderBottom: '1px solid var(--am-border, #e8e1d5)' }}>
+        <div style={{ padding: '12px 16px', background: 'var(--am-surface, #ffffff)', borderBottom: '1px solid var(--am-border, #e8e1d5)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 18 }}>💬</span>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--am-text, #2D3748)' }}>Pesan Kampus</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {onBack && (
+                <button
+                  onClick={onBack}
+                  aria-label="Kembali ke Beranda"
+                  style={{
+                    background: 'var(--am-primary-light, #EAF5EE)',
+                    border: '1.5px solid var(--am-primary, #5FA874)',
+                    borderRadius: 12,
+                    padding: '6px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: 'var(--am-primary, #5FA874)',
+                    cursor: 'pointer',
+                    fontWeight: 800,
+                    boxShadow: '0 2px 6px rgba(95, 168, 116, 0.15)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Kembali ke Halaman Beranda"
+                >
+                  <span style={{ fontSize: 14 }}>←</span>
+                  <span>Beranda</span>
+                </button>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 18 }}>💬</span>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--am-text, #2D3748)' }}>Pesan Kampus</h3>
+              </div>
             </div>
-            <button
-              onClick={() => setShowContactPicker(p => !p)}
-              style={{
-                padding: '5px 12px',
-                borderRadius: 16,
-                border: 'none',
-                background: showContactPicker ? '#687D70' : 'linear-gradient(135deg, #5FA874 0%, #4D9562 100%)',
-                color: 'white',
-                fontWeight: 700,
-                fontSize: 11.5,
-                cursor: 'pointer',
-                boxShadow: '0 2px 6px rgba(95, 168, 116, 0.25)'
-              }}
-            >
-              {showContactPicker ? '✕ Batal' : '+ Chat Baru'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button
+                onClick={() => {
+                  const sampleNotification = {
+                    id: `sim_${Date.now()}`,
+                    senderId: 'seller_1',
+                    senderName: 'Toko Myammiy Craft',
+                    senderRole: 'seller',
+                    senderAvatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MyammiyStore',
+                    roomId: 'room_simulasi_myammiy',
+                    text: 'Halo kak! Pesanan Ganci Rajut kawat bulu kamu sudah siap di loket, mau diantar sekarang? 🌸✨',
+                    time: 'Baru saja'
+                  };
+                  window.dispatchEvent(new CustomEvent('am_trigger_notification', { detail: sampleNotification }));
+                }}
+                title="Coba simulasi pop-up notifikasi masuk dan fitur balas cepat"
+                style={{
+                  padding: '5px 8px',
+                  borderRadius: 12,
+                  border: '1px solid var(--am-primary)',
+                  background: 'var(--am-primary-light, rgba(95,168,116,0.15))',
+                  color: 'var(--am-primary)',
+                  fontWeight: 700,
+                  fontSize: 10.5,
+                  cursor: 'pointer'
+                }}
+              >
+                🔔 Tes Pop-Up
+              </button>
+              <button
+                onClick={() => setShowContactPicker(p => !p)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 16,
+                  border: 'none',
+                  background: showContactPicker ? '#687D70' : 'linear-gradient(135deg, #5FA874 0%, #4D9562 100%)',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(95, 168, 116, 0.25)'
+                }}
+              >
+                {showContactPicker ? '✕ Batal' : '+ Chat Baru'}
+              </button>
+            </div>
           </div>
 
           {/* Search Box */}
@@ -689,7 +785,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
           {showContactPicker ? (
             /* Mode Pilih Kontak Baru */
             <div style={{ padding: '8px' }}>
-              <div style={{ fontSize: 10.5, fontWeight: 800, color: '#718096', padding: '6px 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--am-text-muted, #718096)', padding: '6px 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 PILIH KONTAK TUJUAN ({filteredContacts.length}):
               </div>
               {filteredContacts.map(c => (
@@ -708,7 +804,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
-                    background: '#FFFFFF',
+                    background: 'var(--am-surface, #FFFFFF)',
                     border: '1px solid var(--am-border, #e8e1d5)',
                     transition: 'all 0.15s'
                   }}
@@ -723,31 +819,51 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                       {ROLE_LABEL[c.role] || c.role} • {c.email}
                     </div>
                   </div>
-                  <span style={{ fontSize: 14, color: '#5FA874', fontWeight: 800 }}>→</span>
+                  <span style={{ fontSize: 14, color: 'var(--am-primary, #5FA874)', fontWeight: 800 }}>→</span>
                 </div>
               ))}
             </div>
           ) : rooms.length === 0 ? (
             /* Riwayat Kosong */
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#718096' }}>
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--am-text-muted, #718096)' }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>💬</div>
-              <div style={{ fontWeight: 700, fontSize: 13.5, color: '#2D3748', marginBottom: 4 }}>Belum ada obrolan</div>
-              <p style={{ fontSize: 11.5, margin: '0 0 14px' }}>Mulai pesan dengan Penjual atau Admin!</p>
-              <button
-                onClick={() => setShowContactPicker(true)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 10,
-                  border: 'none',
-                  background: '#5FA874',
-                  color: 'white',
-                  fontWeight: 700,
-                  fontSize: 12,
-                  cursor: 'pointer'
-                }}
-              >
-                + Mulai Obrolan
-              </button>
+              <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--am-text, #2D3748)', marginBottom: 4 }}>Belum ada obrolan</div>
+              <p style={{ fontSize: 11.5, margin: '0 0 16px', color: 'var(--am-text-muted)' }}>Mulai pesan dengan Penjual atau Admin!</p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setShowContactPicker(true)}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: 'var(--am-primary, #5FA874)',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(95, 168, 116, 0.25)'
+                  }}
+                >
+                  + Mulai Obrolan
+                </button>
+                {onBack && (
+                  <button
+                    onClick={onBack}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 10,
+                      border: '1px solid var(--am-border, #e8e1d5)',
+                      background: 'var(--am-bg2, #f3ece2)',
+                      color: 'var(--am-text, #2D3748)',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ← Kembali ke Beranda
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             /* Daftar Room Obrolan Aktif */
@@ -773,7 +889,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                       <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--am-text, #2D3748)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {r.otherName}
                       </span>
-                      <span style={{ fontSize: 10, color: '#A0AEC0', flexShrink: 0 }}>
+                      <span style={{ fontSize: 10, color: 'var(--am-text-muted, #A0AEC0)', flexShrink: 0 }}>
                         {lastMsg?.time || ''}
                       </span>
                     </div>
@@ -785,12 +901,12 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                         fontSize: 9,
                         padding: '1px 5px',
                         borderRadius: 6,
-                        background: isRoomHanded ? '#ECFDF5' : '#EAF5EE',
-                        color: isRoomHanded ? '#059669' : '#5FA874',
+                        background: isRoomHanded ? 'rgba(5, 150, 105, 0.12)' : 'var(--am-primary-light, #EAF5EE)',
+                        color: isRoomHanded ? '#10B981' : 'var(--am-primary, #5FA874)',
                         fontWeight: 800,
                         flexShrink: 0
                       }}>
-                        {isRoomHanded ? '🤝 Admin' : '🤖 AI Ready'}
+                        {isRoomHanded ? 'Admin' : 'AI Ready'}
                       </span>
                     </div>
                   </div>
@@ -816,8 +932,8 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
               gap: 8,
               zIndex: 20
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                {/* Back Button */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                {/* Back to Chat List Button */}
                 <button
                   onClick={() => {
                     setActiveRoomId(null);
@@ -826,82 +942,106 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                   style={{
                     background: 'var(--am-bg2, #f3ece2)',
                     border: '1px solid var(--am-border, #e8e1d5)',
-                    borderRadius: '50%',
-                    width: 34,
-                    height: 34,
+                    borderRadius: 10,
+                    padding: '6px 10px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 15,
+                    gap: 4,
+                    fontSize: 12,
                     color: 'var(--am-text, #2D3748)',
                     cursor: 'pointer',
-                    fontWeight: 800
+                    fontWeight: 800,
+                    flexShrink: 0
                   }}
                   title="Kembali ke daftar pesan"
                 >
-                  ←
+                  <span style={{ fontSize: 14 }}>←</span>
+                  <span style={{ fontSize: 11 }}>Pesan</span>
                 </button>
 
-                <div className="am-chat-avatar-circle" style={{ width: 38, height: 38, fontSize: 18 }}>
+                <div className="am-chat-avatar-circle" style={{ width: 36, height: 36, fontSize: 16, flexShrink: 0 }}>
                   {ROLE_EMOJI[activeRoom.otherRole] || '👤'}
                   <span className="am-chat-online-dot"></span>
                 </div>
 
                 <div style={{ minWidth: 0 }}>
-                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--am-text, #2D3748)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <h4 style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: 'var(--am-text, #2D3748)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {activeRoom.otherName}
                   </h4>
-                  <div style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
                     <span>● Online</span>
-                    <span style={{ color: '#CBD5E0' }}>•</span>
-                    <span style={{ color: isCurrentRoomHandedOver ? '#059669' : '#5FA874', fontWeight: 700 }}>
-                      {isCurrentRoomHandedOver ? '🤝 Admin Penjual' : '🤖 Asisten AI Toko'}
+                    <span style={{ color: 'var(--am-border)' }}>•</span>
+                    <span style={{ color: isCurrentRoomHandedOver ? '#10B981' : 'var(--am-primary, #5FA874)', fontWeight: 700 }}>
+                      {isCurrentRoomHandedOver ? 'Admin Penjual' : 'Asisten AI'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Handover Toggle Action Button */}
-              <div>
+              {/* Right Action Buttons in Chat Room */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                {onBack && (
+                  <button
+                    onClick={onBack}
+                    style={{
+                      padding: '5px 9px',
+                      borderRadius: 10,
+                      border: '1px solid var(--am-border, #e8e1d5)',
+                      background: 'var(--am-bg2, #f3ece2)',
+                      color: 'var(--am-text, #2D3748)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                    title="Kembali langsung ke Beranda Utama"
+                  >
+                    <span>🏠</span>
+                    <span>Beranda</span>
+                  </button>
+                )}
+
                 {isCurrentRoomHandedOver ? (
                   <button
                     onClick={() => setRoomHandover(activeRoom.roomId, false)}
                     style={{
-                      padding: '5px 10px',
-                      borderRadius: 12,
-                      border: '1px solid #5FA874',
-                      background: '#EAF5EE',
-                      color: '#5FA874',
+                      padding: '5px 8px',
+                      borderRadius: 10,
+                      border: '1px solid var(--am-primary, #5FA874)',
+                      background: 'var(--am-primary-light, #EAF5EE)',
+                      color: 'var(--am-primary, #5FA874)',
                       fontSize: 11,
                       fontWeight: 700,
                       cursor: 'pointer'
                     }}
                     title="Aktifkan kembali asisten AI"
                   >
-                    🤖 Bantuan AI
+                    Bantuan AI
                   </button>
                 ) : (
                   <button
                     onClick={() => {
                       setRoomHandover(activeRoom.roomId, true);
                       setInAppToast({
-                        title: '🤝 Dialihkan ke Admin Penjual',
+                        title: 'Dialihkan ke Admin Penjual',
                         desc: `Percakapan sekarang diteruskan langsung ke Admin ${activeRoom.otherName}.`
                       });
                     }}
                     style={{
-                      padding: '5px 10px',
-                      borderRadius: 12,
+                      padding: '5px 8px',
+                      borderRadius: 10,
                       border: '1px solid #10B981',
-                      background: '#ECFDF5',
-                      color: '#059669',
+                      background: 'rgba(16, 185, 129, 0.12)',
+                      color: '#10B981',
                       fontSize: 11,
                       fontWeight: 700,
                       cursor: 'pointer'
                     }}
                     title="Alihkan obrolan langsung ke Admin Toko Asli"
                   >
-                    🙋 Hubungi Admin
+                    Hubungi Admin
                   </button>
                 )}
               </div>
@@ -911,17 +1051,17 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
             {isCurrentRoomHandedOver && (
               <div style={{
                 padding: '6px 14px',
-                background: '#ECFDF5',
-                borderBottom: '1px solid #A7F3D0',
+                background: 'rgba(16, 185, 129, 0.12)',
+                borderBottom: '1px solid rgba(16, 185, 129, 0.25)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 fontSize: 11,
-                color: '#065F46',
+                color: '#10B981',
                 fontWeight: 700
               }}>
-                <span>🤝 Obrolan dialihkan ke Admin Penjual Langsung (Support Manusia).</span>
-                <span style={{ fontSize: 9.5, background: '#059669', color: 'white', padding: '1px 6px', borderRadius: 8 }}>Live</span>
+                <span>Obrolan dialihkan ke Admin Penjual Langsung.</span>
+                <span style={{ fontSize: 9.5, background: '#10B981', color: 'white', padding: '1px 6px', borderRadius: 8 }}>Live</span>
               </div>
             )}
 
@@ -938,10 +1078,10 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
               }}
             >
               {activeRoom.messages.length === 0 ? (
-                <div style={{ textAlign: 'center', margin: 'auto', color: '#718096', padding: '20px' }}>
+                <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--am-text-muted, #718096)', padding: '20px' }}>
                   <div style={{ fontSize: 36, marginBottom: 6 }}>👋</div>
-                  <div style={{ fontWeight: 800, fontSize: 13.5, color: '#2D3748' }}>Mulai Percakapan</div>
-                  <p style={{ fontSize: 11.5, margin: '4px 0 0' }}>Tanyakan stok produk atau pemesanan ke <strong>{activeRoom.otherName}</strong>!</p>
+                  <div style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--am-text, #2D3748)' }}>Mulai Percakapan</div>
+                  <p style={{ fontSize: 11.5, margin: '4px 0 0', color: 'var(--am-text-muted)' }}>Tanyakan stok produk atau pemesanan ke <strong>{activeRoom.otherName}</strong>!</p>
                 </div>
               ) : (
                 activeRoom.messages.map((m, idx) => {
@@ -971,7 +1111,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                         {ROLE_EMOJI[m.senderRole || activeRoom.otherRole] || '👤'}
                       </div>
                       <div className="am-chat-bubble-partner">
-                        <div style={{ fontSize: 10.5, fontWeight: 800, color: '#5FA874', marginBottom: 2 }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--am-primary, #5FA874)', marginBottom: 2 }}>
                           {m.senderName || activeRoom.otherName}
                         </div>
                         <div>{m.text}</div>
@@ -985,7 +1125,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
               {/* Typing Indicator */}
               {isOtherTyping && (
                 <div className="am-chat-typing-bubble">
-                  <span>✍️ {activeRoom.otherName} sedang mengetik...</span>
+                  <span>{activeRoom.otherName} sedang mengetik...</span>
                 </div>
               )}
             </div>
@@ -994,18 +1134,17 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
             <form
               onSubmit={handleSendMessage}
               style={{
-                position: 'sticky',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                zIndex: 60,
-                padding: '10px 14px calc(10px + env(safe-area-inset-bottom, 0px))',
-                background: '#FFFFFF',
+                flexShrink: 0,
+                padding: '8px 12px',
+                background: 'var(--am-surface, #FFFFFF)',
                 borderTop: '1px solid var(--am-border, #e8e1d5)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                boxShadow: '0 -2px 10px rgba(0,0,0,0.04)'
+                boxShadow: '0 -2px 10px rgba(0,0,0,0.04)',
+                boxSizing: 'border-box',
+                position: 'relative',
+                zIndex: 10
               }}
             >
               <input
@@ -1015,10 +1154,18 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                 onChange={e => setMessageInput(e.target.value)}
                 onFocus={() => {
                   setTimeout(() => {
+                    if (typeof window !== 'undefined' && window.visualViewport) {
+                      document.documentElement.style.setProperty('--am-chat-vh', `${window.visualViewport.height}px`);
+                    }
                     if (chatScrollRef.current) {
                       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
                     }
-                  }, 250);
+                  }, 120);
+                  setTimeout(() => {
+                    if (chatScrollRef.current) {
+                      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+                    }
+                  }, 300);
                 }}
                 style={{
                   flex: 1,
@@ -1040,7 +1187,7 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                   height: 40,
                   borderRadius: '50%',
                   border: 'none',
-                  background: messageInput.trim() ? 'linear-gradient(135deg, #5FA874 0%, #4D9562 100%)' : '#E1ECE4',
+                  background: messageInput.trim() ? 'var(--am-primary, #5FA874)' : 'var(--am-border, #E1ECE4)',
                   color: 'white',
                   fontWeight: 800,
                   fontSize: 16,
@@ -1054,16 +1201,19 @@ export default function ChatPage({ theme: _theme }: ChatPageProps) {
                 }}
                 title="Kirim Pesan"
               >
-                ➤
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"/>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
               </button>
             </form>
           </>
         ) : (
           /* Desktop Standby View saat belum memilih room */
-          <div style={{ margin: 'auto', textAlign: 'center', color: '#718096', padding: '30px' }}>
+          <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--am-text-muted, #718096)', padding: '30px' }}>
             <div style={{ fontSize: 48, marginBottom: 10 }}>💬</div>
-            <h3 style={{ margin: '0 0 6px', fontSize: 17, color: '#2D3748' }}>Pesan Kampus UIN Antasari</h3>
-            <p style={{ fontSize: 12.5, margin: 0 }}>Pilih salah satu obrolan dari daftar di sebelah kiri untuk mulai mengirim pesan.</p>
+            <h3 style={{ margin: '0 0 6px', fontSize: 17, color: 'var(--am-text, #2D3748)' }}>Pesan Kampus UIN Antasari</h3>
+            <p style={{ fontSize: 12.5, margin: 0, color: 'var(--am-text-muted)' }}>Pilih salah satu obrolan dari daftar di sebelah kiri untuk mulai mengirim pesan.</p>
           </div>
         )}
       </div>

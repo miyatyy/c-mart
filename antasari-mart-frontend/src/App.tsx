@@ -1,4 +1,4 @@
-import { useState, useEffect, Component, type ReactNode } from 'react';
+import { useState, useEffect, useRef, Component, type ReactNode } from 'react';
 import type { AppTab, Campus, CartItem, DeliveryMethod, PaymentMethod, SessionUser, ThemeMode, UserRole } from './types';
 import type { Product } from './types';
 import TopBar from './components/TopBar';
@@ -19,6 +19,7 @@ import VendingSimulator from './components/VendingSimulator';
 import MyammiyVoiceAssistant from './components/MyammiyVoiceAssistant';
 import BottomNavBar from './components/BottomNavBar';
 import CampusMartSplashScreen from './components/CampusMartSplashScreen';
+import InAppNotification, { type InAppNotificationData } from './components/InAppNotification';
 import { getChatsApi, sendChatApi } from './lib/api';
 
 const PRESET_AVATARS = [
@@ -103,6 +104,10 @@ function MainAppContent() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [chatUnread, setChatUnread] = useState(0);
   const [showSplash, setShowSplash] = useState(true);
+
+  // 🔔 In-App Push Notification & Quick Reply State
+  const [inAppNotification, setInAppNotification] = useState<InAppNotificationData | null>(null);
+  const lastNotifiedChatIdRef = useRef<string | number | null>(null);
 
   function getEffectiveUserName(u: SessionUser | null): string {
     if (!u) return 'Pengunjung Tamu';
@@ -227,6 +232,17 @@ function MainAppContent() {
   }, [user]);
 
   useEffect(() => {
+    // Listener untuk pemicu notifikasi kustom dari seluruh aplikasi
+    const handleCustomNotification = (e: any) => {
+      if (e && e.detail) {
+        setInAppNotification(e.detail);
+      }
+    };
+    window.addEventListener('am_trigger_notification', handleCustomNotification);
+    return () => window.removeEventListener('am_trigger_notification', handleCustomNotification);
+  }, []);
+
+  useEffect(() => {
     const fetchUnreadChats = async () => {
       if (isGuest || !currentUser?.email) {
         setChatUnread(0);
@@ -237,10 +253,30 @@ function MainAppContent() {
         const identifier = currentUser.email;
         const data = await getChatsApi(identifier);
         if (data.success && Array.isArray(data.chats)) {
-          const unread = data.chats.filter((c: any) =>
+          const unreadChats = data.chats.filter((c: any) =>
             c.receiverId === identifier && c.isRead === false
-          ).length;
-          setChatUnread(Math.max(0, unread));
+          );
+          setChatUnread(Math.max(0, unreadChats.length));
+
+          // 🔔 Jika ada pesan baru masuk dan pengguna tidak sedang di tab chat, tampilkan pop-up notifikasi
+          if (unreadChats.length > 0) {
+            const latestUnread = unreadChats[unreadChats.length - 1];
+            if (latestUnread && latestUnread.id !== lastNotifiedChatIdRef.current) {
+              lastNotifiedChatIdRef.current = latestUnread.id;
+              if (activeTab !== 'chat') {
+                setInAppNotification({
+                  id: String(latestUnread.id),
+                  senderId: latestUnread.senderId,
+                  senderName: latestUnread.senderName || 'Pengguna Antasari',
+                  senderRole: latestUnread.senderRole || 'seller',
+                  senderAvatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=' + encodeURIComponent(latestUnread.senderName || 'User'),
+                  roomId: latestUnread.roomId,
+                  text: latestUnread.text,
+                  time: latestUnread.time || 'Baru saja'
+                });
+              }
+            }
+          }
         }
       } catch (err) {
         console.error("Gagal mengambil status unread chat:", err);
@@ -250,7 +286,7 @@ function MainAppContent() {
     fetchUnreadChats();
     const interval = setInterval(fetchUnreadChats, 3000);
     return () => clearInterval(interval);
-  }, [currentUser, isGuest]);
+  }, [currentUser, isGuest, activeTab]);
 
   function handleLogin(r: UserRole, _gender: 'male' | 'female', c: Campus, userData: any) {
     const effectiveName = getEffectiveUserName(userData);
@@ -571,7 +607,7 @@ function MainAppContent() {
                 </button>
               </div>
             ) : (
-              <ChatPage theme={theme} campus={campus} />
+              <ChatPage theme={theme} campus={campus} onBack={() => setActiveTab('home')} />
             )
           )}
 
@@ -690,7 +726,7 @@ function MainAppContent() {
       )}
 
       {/* 📱 MODERN FIXED BOTTOM NAVIGATION BAR */}
-      {activeTab !== 'login_page' && activeTab !== 'chat' && (
+      {activeTab !== 'login_page' && (
         <BottomNavBar
           activeTab={activeTab}
           setActiveTab={handleSetActiveTab}
@@ -710,6 +746,23 @@ function MainAppContent() {
           }}
         />
       )}
+
+      {/* 🔔 FLOATING IN-APP PUSH NOTIFICATION & QUICK REPLY POP-UP */}
+      <InAppNotification
+        notification={inAppNotification}
+        onDismiss={() => setInAppNotification(null)}
+        onOpenChat={(roomId, _senderId) => {
+          setInAppNotification(null);
+          setActiveTab('chat');
+          if (roomId) {
+            localStorage.setItem('am_target_chat_room', roomId);
+          }
+        }}
+        currentUserId={currentUser.id || currentUser.email || 'user_active'}
+        currentUserName={currentUser.nama || currentUser.name || 'Pengguna Antasari'}
+        currentUserRole={role || 'buyer'}
+        theme={theme}
+      />
     </div>
   );
 }

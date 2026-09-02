@@ -38,6 +38,7 @@ export interface Product {
   name: string
   description: string
   price: number
+  originalPrice?: number
   stock: number
   category: ProductCategory
   campus: Campus
@@ -45,6 +46,7 @@ export interface Product {
   sellerName: string
   image: string
   isKoperasi: boolean
+  slotNumber?: number
   rating: number
   sold: number
 }

@@ -152,21 +152,21 @@ export function ProfileModal({
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 14, border: '1px solid var(--am-border)', textAlign: 'center' }}>
+          <div style={{ background: 'var(--am-bg2)', padding: 12, borderRadius: 14, border: '1px solid var(--am-border)', textAlign: 'center' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 'bold', color: '#334155' }}>Ganti Avatar Kartun / Foto:</span>
-              <label style={{ fontSize: 10, color: '#5FA874', cursor: 'pointer', fontWeight: 700, background: '#E0F2FE', padding: '3px 8px', borderRadius: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--am-text)' }}>Ganti Avatar Kartun / Foto:</span>
+              <label style={{ fontSize: 10, color: 'var(--am-primary)', cursor: 'pointer', fontWeight: 700, background: 'var(--am-primary-light, rgba(95, 168, 116, 0.15))', padding: '3px 8px', borderRadius: 6 }}>
                 📁 Upload Galeri
                 <input type="file" accept="image/*" onChange={onImageChange} style={{ display: 'none' }} />
               </label>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-              <img src={currentAvatar} alt="Pratinjau Foto" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', background: '#e2e8f0', border: '3px solid var(--am-primary)' }} />
+              <img src={currentAvatar} alt="Pratinjau Foto" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', background: 'var(--am-bg2)', border: '3px solid var(--am-primary)' }} />
             </div>
 
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', marginBottom: 6, textAlign: 'left' }}>Atau Pilih dari 10 Karakter Kartun Senyum Manis:</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, maxHeight: 100, overflowY: 'auto', padding: 2, background: '#ffffff', borderRadius: 10, border: '1px solid #CBD5E1' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--am-text-muted)', marginBottom: 6, textAlign: 'left' }}>Atau Pilih dari 10 Karakter Kartun Senyum Manis:</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, maxHeight: 100, overflowY: 'auto', padding: 4, background: 'var(--am-surface)', borderRadius: 10, border: '1px solid var(--am-border)' }}>
               {presetAvatars.map(avatar => (
                 <div
                   key={avatar.id}
@@ -174,9 +174,9 @@ export function ProfileModal({
                   title={avatar.name}
                   style={{
                     position: 'relative', cursor: 'pointer', borderRadius: '50%', overflow: 'hidden',
-                    background: '#f8fafc', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    border: currentAvatar === avatar.url ? '3px solid #5FA874' : '2px solid #CBD5E1',
-                    boxShadow: currentAvatar === avatar.url ? '0 0 8px rgba(244, 174, 194, 0.35)' : 'none',
+                    background: 'var(--am-bg2)', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: currentAvatar === avatar.url ? '3px solid var(--am-primary)' : '2px solid var(--am-border)',
+                    boxShadow: currentAvatar === avatar.url ? '0 0 8px rgba(95, 168, 116, 0.35)' : 'none',
                     transition: 'all 0.2s', transform: currentAvatar === avatar.url ? 'scale(1.08)' : 'scale(1)'
                   }}
                 >

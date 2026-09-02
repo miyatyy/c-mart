@@ -224,14 +224,19 @@ export default function ProductList({
                 boxSizing: 'border-box'
               }}
             />
-            <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>🔍</span>
+            <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--am-text-muted)', display: 'flex', alignItems: 'center' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </span>
           </div>
 
           <div style={{ display: 'flex', gap: 6 }}>
             {[
               { id: 'all', label: 'Semua Produk' },
-              { id: 'koperasi', label: '🏛️ Koperasi' },
-              { id: 'mahasiswa', label: '🎓 Mahasiswa' }
+              { id: 'koperasi', label: 'Koperasi' },
+              { id: 'mahasiswa', label: 'Mahasiswa' }
             ].map(f => (
               <button
                 key={f.id}
@@ -239,13 +244,14 @@ export default function ProductList({
                 style={{
                   padding: '8px 14px',
                   borderRadius: 12,
-                  border: 'none',
+                  border: filter === f.id ? '1px solid var(--am-primary)' : '1px solid var(--am-border)',
                   background: filter === f.id ? 'var(--am-primary)' : 'var(--am-surface)',
                   color: filter === f.id ? 'white' : 'var(--am-text)',
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: 'pointer',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 {f.label}
@@ -421,8 +427,20 @@ export default function ProductList({
                   {p.description || 'Produk unggulan berkualitas kampus siap dipesan.'}
                 </p>
 
-                <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--am-primary)', marginTop: 'auto', marginBottom: 8 }}>
-                  {formatRupiah(p.price)}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', marginTop: 'auto', marginBottom: 8 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 900, color: 'var(--am-primary)' }}>
+                    {formatRupiah(p.price)}
+                  </div>
+                  {p.originalPrice && p.originalPrice > p.price && (
+                    <div style={{ fontSize: 11, color: 'var(--am-text-muted)', textDecoration: 'line-through', fontWeight: 600 }}>
+                      {formatRupiah(p.originalPrice)}
+                    </div>
+                  )}
+                  {p.originalPrice && p.originalPrice > p.price && (
+                    <span style={{ fontSize: 9.5, fontWeight: 800, color: '#EF4444', background: '#FEE2E2', padding: '1px 5px', borderRadius: 4 }}>
+                      -{Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)}%
+                    </span>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -537,9 +555,20 @@ export default function ProductList({
               <div style={{ fontSize: 12, color: 'var(--am-primary)', fontWeight: 700, marginBottom: 4 }}>
                 {selectedProduct.sellerName} • Kampus {selectedProduct.campus.toUpperCase()}
               </div>
-              <h2 style={{ margin: '0 0 8px', fontSize: 18, color: 'var(--am-text)' }}>{selectedProduct.name}</h2>
-              <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--am-primary)', marginBottom: 10 }}>
-                {formatRupiah(selectedProduct.price)}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--am-primary)' }}>
+                  {formatRupiah(selectedProduct.price)}
+                </div>
+                {selectedProduct.originalPrice && selectedProduct.originalPrice > selectedProduct.price && (
+                  <div style={{ fontSize: 13, color: 'var(--am-text-muted)', textDecoration: 'line-through', fontWeight: 600 }}>
+                    {formatRupiah(selectedProduct.originalPrice)}
+                  </div>
+                )}
+                {selectedProduct.originalPrice && selectedProduct.originalPrice > selectedProduct.price && (
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#EF4444', background: '#FEE2E2', padding: '2px 8px', borderRadius: 6 }}>
+                    Hemat {formatRupiah(selectedProduct.originalPrice - selectedProduct.price)} (-{Math.round(((selectedProduct.originalPrice - selectedProduct.price) / selectedProduct.originalPrice) * 100)}%)
+                  </span>
+                )}
               </div>
 
               {/* 📦 Real-time Stock Information Badge */}
@@ -571,14 +600,14 @@ export default function ProductList({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <button
                     onClick={() => setQty(q => Math.max(1, q - 1))}
-                    style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-surface)', cursor: 'pointer' }}
+                    style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', cursor: 'pointer', fontWeight: 800, fontSize: 16 }}
                   >
                     -
                   </button>
-                  <span style={{ fontWeight: 800, fontSize: 14 }}>{qty}</span>
+                  <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--am-text)' }}>{qty}</span>
                   <button
                     onClick={() => setQty(q => q + 1)}
-                    style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-surface)', cursor: 'pointer' }}
+                    style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', cursor: 'pointer', fontWeight: 800, fontSize: 16 }}
                   >
                     +
                   </button>

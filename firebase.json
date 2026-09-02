@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "dist",  // Pastikan ini mengarah ke folder dist hasil build
+    "public": "antasari-mart-frontend/dist",
     "ignore": [
       "firebase.json",
       "**/.*",
