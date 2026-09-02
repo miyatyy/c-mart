@@ -174,6 +174,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   }
 
   function triggerEsp32Dispense(vendingObj?: any) {
+    // 1. Cloud Vercel/MongoDB Queue Trigger
     try {
       fetch('/api/vending/trigger-dispense', {
         method: 'POST',
@@ -185,6 +186,15 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
           buyerName: "Mahasiswa UIN Antasari"
         })
       }).catch(err => console.warn("Vending trigger error:", err));
+    } catch (_e) {}
+
+    // 2. Direct Local WiFi IP Hook to ESP32 (Instant 0.01s)
+    try {
+      const savedIp = localStorage.getItem('am_esp32_ip');
+      if (savedIp) {
+        const cleanIp = savedIp.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+        fetch(`http://${cleanIp}/dispense`, { mode: 'no-cors' }).catch(() => {});
+      }
     } catch (_e) {}
   }
 

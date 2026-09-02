@@ -322,6 +322,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'qris' | 'va' | 'wallet' | 'cash'>('qris');
   const [appliedVoucher, setAppliedVoucher] = useState<string>('BLINDBAGMISTERI');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [esp32IpInput, setEsp32IpInput] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('am_esp32_ip') || '' : ''));
 
   // Menghitung besaran diskon berdasarkan kupon yang sedang aktif dipakai
   const getVoucherDiscount = (slot: BlindBagSlot) => {
@@ -370,6 +371,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
   };
 
   const triggerEsp32Hardware = (orderId?: string, productName?: string, slot?: number) => {
+    // 1. Cloud MongoDB Atlas Queue
     try {
       fetch('/api/vending/trigger-dispense', {
         method: 'POST',
@@ -381,6 +383,15 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
           buyerName: 'Pembeli Antasari Mart'
         })
       }).catch(e => console.warn('Trigger ESP32 cloud offline:', e));
+    } catch (_e) {}
+
+    // 2. Direct Local WiFi IP Hook to ESP32 (Instant 0.01s)
+    try {
+      const savedIp = localStorage.getItem('am_esp32_ip');
+      if (savedIp) {
+        const cleanIp = savedIp.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+        fetch(`http://${cleanIp}/dispense`, { mode: 'no-cors' }).catch(() => {});
+      }
     } catch (_e) {}
   };
 
@@ -537,6 +548,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
     });
     setOpenedSlot(slotData.slotNumber);
     playGachaSound();
+    triggerEsp32Hardware(newTx.id, slotData.seriesName, slotData.slotNumber);
 
     Swal.fire({
       icon: 'success',
@@ -693,6 +705,108 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
           pointerEvents: 'none'
         }}>
           🎁
+        </div>
+      </div>
+
+      {/* 📡 KONTROLER HARDWARE ESP32 IOT */}
+      <div style={{
+        background: 'var(--am-surface)',
+        border: '1.5px solid var(--am-border)',
+        borderRadius: 16,
+        padding: '12px 16px',
+        marginBottom: 14,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 10
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 22 }}>🤖</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--am-text)' }}>
+              Hardware ESP32 Vending IoT
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>
+              {esp32IpInput ? `Terhubung ke IP: ${esp32IpInput}` : 'Mode Cloud Otomatis (Hotspot Aktif)'}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button
+            onClick={() => {
+              triggerEsp32Hardware(`ANTASARI-${Date.now()}`, 'Blind Bag Mystery Ganci', 1);
+              Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: '⚡ Sinyal Terkirim ke ESP32!',
+                text: 'Motor Stepper berputar...',
+                showConfirmButton: false,
+                timer: 2000
+              });
+            }}
+            style={{
+              padding: '7px 14px',
+              borderRadius: 10,
+              border: 'none',
+              background: 'linear-gradient(135deg, #5FA874 0%, #F4AEC2 100%)',
+              color: 'white',
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(95,168,116,0.3)'
+            }}
+          >
+            ⚙️ Tes Putar Motor
+          </button>
+          
+          <button
+            onClick={() => {
+              Swal.fire({
+                title: '🔌 Hubungkan IP ESP32',
+                html: `
+                  <p style="font-size:13px;color:#64748B;margin-bottom:12px;">
+                    Masukkan IP ESP32 dari Hotspot HP / Serial Monitor (contoh: <code>192.168.43.123</code>) agar website bisa memutar motor secara instan:
+                  </p>
+                  <input id="swal-esp32-ip" class="swal2-input" placeholder="Contoh: 192.168.43.123" value="${esp32IpInput}" style="font-size:14px;">
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Simpan & Tes Putar',
+                confirmButtonColor: '#5FA874',
+                preConfirm: () => {
+                  const input = (document.getElementById('swal-esp32-ip') as HTMLInputElement)?.value;
+                  return input;
+                }
+              }).then((result) => {
+                if (result.isConfirmed && result.value) {
+                  const clean = result.value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+                  setEsp32IpInput(clean);
+                  localStorage.setItem('am_esp32_ip', clean);
+                  fetch(`http://${clean}/dispense`, { mode: 'no-cors' }).catch(() => {});
+                  Swal.fire({
+                    icon: 'success',
+                    title: 'Tersimpan!',
+                    text: `IP ESP32 (${clean}) berhasil disimpan dan motor diuji putar!`,
+                    confirmButtonColor: '#5FA874'
+                  });
+                }
+              });
+            }}
+            style={{
+              padding: '7px 12px',
+              borderRadius: 10,
+              border: '1px solid var(--am-border)',
+              background: 'var(--am-bg2)',
+              color: 'var(--am-text)',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            ⚙️ Atur IP
+          </button>
         </div>
       </div>
 
