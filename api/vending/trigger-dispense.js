@@ -18,6 +18,7 @@ const VendingQueueSchema = new mongoose.Schema({
   productName: String,
   buyerName: String,
   slotNumber: Number,
+  quantity: { type: Number, default: 1 },
   status: { type: String, default: 'pending' },
   createdAt: { type: Date, default: Date.now, expires: 60 }
 });
@@ -35,20 +36,24 @@ export default async function handler(req, res) {
 
   try {
     await connectToDatabase();
-    const { orderId, productName, buyerName, slotNumber } = req.body || req.query || {};
+    const { orderId, productName, buyerName, slotNumber, quantity, qty } = req.body || req.query || {};
+
+    const finalQty = parseInt(quantity || qty) || 1;
 
     const newQueue = await VendingQueue.create({
       orderId: orderId || `ANTASARI-${Date.now()}`,
       productName: productName || "Blind Bag Mystery Ganci",
       buyerName: buyerName || "Mahasiswa UIN Antasari",
       slotNumber: parseInt(slotNumber) || 1,
+      quantity: finalQty,
       status: 'pending'
     });
 
     return res.status(200).json({
       success: true,
-      message: "Antrean Vending berhasil disimpan di MongoDB Atlas Cloud!",
-      queueId: newQueue._id
+      message: `Antrean Vending (${finalQty} putaran) berhasil disimpan di MongoDB Atlas Cloud!`,
+      queueId: newQueue._id,
+      quantity: finalQty
     });
   } catch (err) {
     console.error("Vending trigger error:", err);

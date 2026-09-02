@@ -323,6 +323,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
   const [appliedVoucher, setAppliedVoucher] = useState<string>('BLINDBAGMISTERI');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [esp32IpInput, setEsp32IpInput] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('am_esp32_ip') || '' : ''));
+  const [purchaseQty, setPurchaseQty] = useState(1);
 
   // Menghitung besaran diskon berdasarkan kupon yang sedang aktif dipakai
   const getVoucherDiscount = (slot: BlindBagSlot) => {
@@ -334,9 +335,9 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
     return 0;
   };
 
-  const calculateTotalPrice = (slot: BlindBagSlot) => {
+  const calculateTotalPrice = (slot: BlindBagSlot, qty: number = 1) => {
     const discount = getVoucherDiscount(slot);
-    return Math.max(0, slot.price - discount);
+    return Math.max(0, (slot.price * qty) - discount);
   };
 
   // 🔥 Handler Klik Pakai / Klaim Kupon
@@ -370,7 +371,8 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
     });
   };
 
-  const triggerEsp32Hardware = (orderId?: string, productName?: string, slot?: number) => {
+  const triggerEsp32Hardware = (orderId?: string, productName?: string, slot?: number, quantity: number = 1) => {
+    const finalQty = quantity || 1;
     // 1. Cloud MongoDB Atlas Queue
     try {
       fetch('/api/vending/trigger-dispense', {
@@ -380,6 +382,8 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
           orderId: orderId || `ANTASARI-${Date.now()}`,
           productName: productName || 'Blind Bag Mystery Ganci',
           slotNumber: slot || 1,
+          quantity: finalQty,
+          qty: finalQty,
           buyerName: 'Pembeli Antasari Mart'
         })
       }).catch(e => console.warn('Trigger ESP32 cloud offline:', e));
@@ -390,7 +394,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
       const savedIp = localStorage.getItem('am_esp32_ip');
       if (savedIp) {
         const cleanIp = savedIp.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-        fetch(`http://${cleanIp}/dispense`, { mode: 'no-cors' }).catch(() => {});
+        fetch(`http://${cleanIp}/dispense?qty=${finalQty}`, { mode: 'no-cors' }).catch(() => {});
       }
     } catch (_e) {}
   };
@@ -409,7 +413,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
 
     setLoading(true);
     setDispenseData(null);
-    triggerEsp32Hardware(`ANTASARI-${Date.now()}`, 'Blind Bag Mystery Ganci', 1);
+    triggerEsp32Hardware(`ANTASARI-${Date.now()}`, 'Blind Bag Mystery Ganci', 1, 2);
 
     try {
       // 1. Coba verifikasi dengan API Backend
@@ -518,7 +522,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
   };
 
   // 💳 Helper penyelesaian transaksi & pengeluaran loker
-  const completeVendingDispense = (generatedToken: string, finalPrice: number, slotData: BlindBagSlot) => {
+  const completeVendingDispense = (generatedToken: string, finalPrice: number, slotData: BlindBagSlot, quantity: number = 1) => {
     // Simpan riwayat transaksi lokal
     const newTx = {
       id: `TX-${Date.now()}`,
@@ -548,7 +552,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
     });
     setOpenedSlot(slotData.slotNumber);
     playGachaSound();
-    triggerEsp32Hardware(newTx.id, slotData.seriesName, slotData.slotNumber);
+    triggerEsp32Hardware(newTx.id, slotData.seriesName, slotData.slotNumber, quantity);
 
     Swal.fire({
       icon: 'success',
@@ -585,8 +589,9 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
 
     try {
       const generatedToken = `VEND-${selectedSlotForPayment.demoToken.split('-')[1]}-${Math.floor(1000 + Math.random() * 9000)}`;
-      const finalPrice = calculateTotalPrice(selectedSlotForPayment);
+      const finalPrice = calculateTotalPrice(selectedSlotForPayment, purchaseQty);
       const slotData = selectedSlotForPayment;
+      const currentQty = purchaseQty;
 
       // 💳 Jika memilih QRIS / Midtrans & Snap SDK tersedia
       if (selectedPaymentMethod === 'qris' && typeof window !== 'undefined' && window.snap) {
@@ -594,23 +599,23 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
           const res = await checkoutApi({
             grossAmount: finalPrice,
             customerDetails: { name: 'Pembeli Blind Bag' },
-            items: [{ productId: `slot_${slotData.slotNumber}`, name: slotData.seriesName, price: finalPrice, quantity: 1 }],
+            items: [{ productId: `slot_${slotData.slotNumber}`, name: slotData.seriesName, price: finalPrice, quantity: currentQty }],
             deliveryMethod: 'vending'
           });
 
           if (res && res.token) {
             window.snap.pay(res.token, {
               onSuccess: () => {
-                completeVendingDispense(generatedToken, finalPrice, slotData);
+                completeVendingDispense(generatedToken, finalPrice, slotData, currentQty);
               },
               onPending: () => {
-                completeVendingDispense(generatedToken, finalPrice, slotData);
+                completeVendingDispense(generatedToken, finalPrice, slotData, currentQty);
               },
               onError: () => {
                 Swal.fire({ icon: 'error', title: 'Pembayaran Dibatalkan', text: 'Silakan selesaikan pembayaran untuk membuka loker.' });
               },
               onClose: () => {
-                completeVendingDispense(generatedToken, finalPrice, slotData);
+                completeVendingDispense(generatedToken, finalPrice, slotData, currentQty);
               }
             });
             return;
@@ -620,7 +625,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
         }
       }
 
-      completeVendingDispense(generatedToken, finalPrice, slotData);
+      completeVendingDispense(generatedToken, finalPrice, slotData, currentQty);
     } catch (_e) {
       Swal.fire({
         icon: 'error',
@@ -736,7 +741,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <button
             onClick={() => {
-              triggerEsp32Hardware(`ANTASARI-${Date.now()}`, 'Blind Bag Mystery Ganci', 1);
+              triggerEsp32Hardware(`ANTASARI-${Date.now()}`, 'Blind Bag Mystery Ganci', 1, 2);
               Swal.fire({
                 toast: true,
                 position: 'top-end',
@@ -1417,6 +1422,30 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
               </div>
             </div>
 
+                        {/* 🔢 Pilih Jumlah / Qty Blind Bag */}
+            <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--am-bg2, #F0F7F2)', padding: '8px 12px', borderRadius: 10, border: '1px solid var(--am-border, #E1ECE4)' }}>
+              <span style={{ fontWeight: 800, fontSize: 12, color: 'var(--am-text, #2D3748)' }}>🔢 Jumlah Pembelian:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseQty(Math.max(1, purchaseQty - 1))}
+                  style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--am-border)', background: 'white', fontWeight: 900, cursor: 'pointer' }}
+                >
+                  -
+                </button>
+                <span style={{ fontWeight: 900, fontSize: 14, minWidth: 24, textAlign: 'center', color: 'var(--am-text, #2D3748)' }}>
+                  {purchaseQty}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseQty(Math.min(10, purchaseQty + 1))}
+                  style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--am-border)', background: 'white', fontWeight: 900, cursor: 'pointer' }}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
             {/* Pilihan Kupon Diskon Interaktif */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
@@ -1482,8 +1511,8 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 900, color: 'var(--am-text, #2D3748)' }}>
-                <span>Total Pembayaran</span>
-                <span style={{ color: '#10B981' }}>Rp {calculateTotalPrice(selectedSlotForPayment).toLocaleString('id-ID')}</span>
+                <span>Total Pembayaran ({purchaseQty} Pcs)</span>
+                <span style={{ color: '#10B981' }}>Rp {calculateTotalPrice(selectedSlotForPayment, purchaseQty).toLocaleString('id-ID')}</span>
               </div>
             </div>
 

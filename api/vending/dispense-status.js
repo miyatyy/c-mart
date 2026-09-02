@@ -18,8 +18,9 @@ const VendingQueueSchema = new mongoose.Schema({
   productName: String,
   buyerName: String,
   slotNumber: Number,
+  quantity: { type: Number, default: 1 },
   status: { type: String, default: 'pending' },
-  createdAt: { type: Date, default: Date.now, expires: 60 } // Otomatis hapus setelah 60 detik
+  createdAt: { type: Date, default: Date.now, expires: 60 }
 });
 
 const VendingQueue = mongoose.models.VendingQueue || mongoose.model('VendingQueue', VendingQueueSchema);
@@ -36,7 +37,6 @@ export default async function handler(req, res) {
   try {
     await connectToDatabase();
     
-    // Cari antrean pending yang paling baru (dibuat dalam 30 detik terakhir)
     const recentTime = new Date(Date.now() - 30000);
     const pending = await VendingQueue.findOne({
       status: 'pending',
@@ -52,6 +52,8 @@ export default async function handler(req, res) {
         hasPendingDispense: true,
         orderId: pending.orderId || "VEND-88219",
         slotNumber: pending.slotNumber || 1,
+        quantity: pending.quantity || 1,
+        qty: pending.quantity || 1,
         productName: pending.productName || "Blind Bag Mystery Ganci",
         buyerName: pending.buyerName || "Mahasiswa UIN Antasari"
       });

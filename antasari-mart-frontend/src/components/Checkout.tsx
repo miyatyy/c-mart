@@ -174,6 +174,8 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   }
 
   function triggerEsp32Dispense(vendingObj?: any) {
+    const totalQty = items.reduce((sum, it) => sum + (it.quantity || 1), 0) || 1;
+
     // 1. Cloud Vercel/MongoDB Queue Trigger
     try {
       fetch('/api/vending/trigger-dispense', {
@@ -183,6 +185,8 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
           orderId: vendingObj?.orderId || `ANTASARI-${Date.now()}`,
           productName: items[0]?.product?.name || "Blind Bag Keychain Mystery",
           slotNumber: vendingObj?.slotNumber || 1,
+          quantity: totalQty,
+          qty: totalQty,
           buyerName: "Mahasiswa UIN Antasari"
         })
       }).catch(err => console.warn("Vending trigger error:", err));
@@ -193,7 +197,7 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
       const savedIp = localStorage.getItem('am_esp32_ip');
       if (savedIp) {
         const cleanIp = savedIp.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-        fetch(`http://${cleanIp}/dispense`, { mode: 'no-cors' }).catch(() => {});
+        fetch(`http://${cleanIp}/dispense?qty=${totalQty}`, { mode: 'no-cors' }).catch(() => {});
       }
     } catch (_e) {}
   }
