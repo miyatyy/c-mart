@@ -9,7 +9,7 @@
     "rewrites": [
       {
         "source": "**",
-        "destination": "/index.html" // INI SANGAT PENTING UNTUK REACT ROUTER!
+        "destination": "/index.html"
       }
     ]
   }

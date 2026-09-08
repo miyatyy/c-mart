@@ -81,6 +81,31 @@ export const MOCK_USERS: User[] = [
 ]
 
 export const MOCK_PRODUCTS: Product[] = [
+  // 🧶 PRODUK BARU: GANCI RAJUT HANDMADE (MULTI-FOTO HD & VIDEO DEMO 5MB)
+  {
+    id: 'ganci_rajut_crochet_handmade',
+    name: 'Ganci Rajut',
+    description: 'Gantungan kunci rajut (crochet keychain) handmade kualitas premium dari benang katun susu lembut. Dilengkapi charm bunga rajut pastel yang imut dan ring pengait emas anti-karat. Cocok untuk tas kampus, dompet, kunci loker vending, atau kado spesial.',
+    originalPrice: 35000,
+    price: 25000,
+    stock: 40,
+    category: 'aksesoris',
+    campus: 'banjarmasin',
+    sellerId: 'seller_1',
+    sellerName: 'Myammiy Craft',
+    image: '/products/ganci_rajut_1.jpg',
+    images: [
+      '/products/ganci_rajut_1.jpg',
+      '/products/ganci_rajut_2.jpg',
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop'
+    ],
+    videoUrl: '/products/ganci_demo.mp4',
+    isKoperasi: false,
+    slotNumber: 5,
+    rating: 5.0,
+    sold: 64,
+  },
   // 🎁 4 SERI BLIND BAG KEYCHAIN MISTERI LOKER VENDING (35K, 40K, 45K, 50K)
   {
     id: 'blind_bag_myammiy_35k',
@@ -94,6 +119,13 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 'seller_1',
     sellerName: 'Myammiy Craft',
     image: '/banners/banner_blindbag.jpg',
+    images: [
+      '/banners/banner_blindbag.jpg',
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1508615039623-a25605d2b022?w=600&auto=format&fit=crop'
+    ],
+    videoUrl: '/products/ganci_demo.mp4',
     isKoperasi: false,
     slotNumber: 1,
     rating: 5.0,
@@ -111,6 +143,12 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 'seller_1',
     sellerName: 'Myammiy Craft',
     image: '/banners/banner_blindbag.jpg',
+    images: [
+      '/banners/banner_blindbag.jpg',
+      'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop'
+    ],
+    videoUrl: '/products/ganci_demo.mp4',
     isKoperasi: false,
     slotNumber: 2,
     rating: 5.0,
@@ -128,6 +166,12 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 'seller_1',
     sellerName: 'Myammiy Craft',
     image: '/banners/banner_blindbag.jpg',
+    images: [
+      '/banners/banner_blindbag.jpg',
+      'https://images.unsplash.com/photo-1508615039623-a25605d2b022?w=600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop'
+    ],
+    videoUrl: '/products/ganci_demo.mp4',
     isKoperasi: false,
     slotNumber: 3,
     rating: 5.0,
@@ -145,6 +189,13 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 'seller_1',
     sellerName: 'Myammiy Craft',
     image: '/banners/banner_blindbag.jpg',
+    images: [
+      '/banners/banner_blindbag.jpg',
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1508615039623-a25605d2b022?w=600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop'
+    ],
+    videoUrl: '/products/ganci_demo.mp4',
     isKoperasi: false,
     slotNumber: 4,
     rating: 5.0,
@@ -162,6 +213,12 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 's1',
     sellerName: 'Koperasi UIN Antasari',
     image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400&h=400&fit=crop&auto=format',
+    images: [
+      'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1544441893-675973e31985?w=600&fit=crop&auto=format'
+    ],
+    videoUrl: '/products/ganci_demo.mp4',
     isKoperasi: true,
     rating: 4.9,
     sold: 312,
@@ -177,6 +234,11 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 's1',
     sellerName: 'Koperasi UIN Antasari',
     image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400&h=400&fit=crop&auto=format',
+    images: [
+      'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=600&fit=crop&auto=format'
+    ],
     isKoperasi: true,
     rating: 4.7,
     sold: 89,
@@ -192,6 +254,10 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 's1',
     sellerName: 'Koperasi UIN Antasari',
     image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=400&h=400&fit=crop&auto=format',
+    images: [
+      'https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1583485088034-697b5bc54ccd?w=600&fit=crop&auto=format'
+    ],
     isKoperasi: true,
     rating: 4.5,
     sold: 201,
@@ -207,6 +273,11 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 's1',
     sellerName: 'Koperasi UIN Antasari',
     image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=400&h=400&fit=crop&auto=format',
+    images: [
+      'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&fit=crop&auto=format'
+    ],
+    videoUrl: '/products/ganci_demo.mp4',
     isKoperasi: true,
     rating: 4.8,
     sold: 478,
@@ -223,6 +294,12 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 's2',
     sellerName: 'Toko Siti — Hijab & Aksesoris',
     image: 'https://images.unsplash.com/photo-1594938298603-c8148c4b4057?w=400&h=400&fit=crop&auto=format',
+    images: [
+      'https://images.unsplash.com/photo-1594938298603-c8148c4b4057?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=600&fit=crop&auto=format'
+    ],
+    videoUrl: '/products/ganci_demo.mp4',
     isKoperasi: false,
     rating: 4.8,
     sold: 156,
@@ -238,6 +315,10 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 's2',
     sellerName: 'Toko Siti — Hijab & Aksesoris',
     image: 'https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w=400&h=400&fit=crop&auto=format',
+    images: [
+      'https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&fit=crop&auto=format'
+    ],
     isKoperasi: false,
     rating: 4.6,
     sold: 230,
@@ -253,6 +334,10 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 's2',
     sellerName: 'Toko Siti — Hijab & Aksesoris',
     image: 'https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400&h=400&fit=crop&auto=format',
+    images: [
+      'https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&fit=crop&auto=format'
+    ],
     isKoperasi: false,
     rating: 4.9,
     sold: 67,
@@ -269,6 +354,11 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 's1',
     sellerName: 'Koperasi UIN Antasari',
     image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400&h=400&fit=crop&auto=format',
+    images: [
+      'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&fit=crop&auto=format'
+    ],
+    videoUrl: '/products/ganci_demo.mp4',
     isKoperasi: true,
     rating: 4.9,
     sold: 98,
@@ -284,6 +374,10 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 's3',
     sellerName: 'Habibi Snack Corner',
     image: 'https://images.unsplash.com/photo-1501443762994-82bd5dace89a?w=400&h=400&fit=crop&auto=format',
+    images: [
+      'https://images.unsplash.com/photo-1501443762994-82bd5dace89a?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=600&fit=crop&auto=format'
+    ],
     isKoperasi: false,
     rating: 4.7,
     sold: 345,
@@ -299,6 +393,10 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 's3',
     sellerName: 'Habibi Snack Corner',
     image: 'https://images.unsplash.com/photo-1558655146-364adaf1fcc9?w=400&h=400&fit=crop&auto=format',
+    images: [
+      'https://images.unsplash.com/photo-1558655146-364adaf1fcc9?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&fit=crop&auto=format'
+    ],
     isKoperasi: false,
     rating: 4.8,
     sold: 112,
@@ -314,11 +412,17 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: 's3',
     sellerName: 'Habibi Snack Corner',
     image: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400&h=400&fit=crop&auto=format',
+    images: [
+      'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=600&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&fit=crop&auto=format'
+    ],
+    videoUrl: '/products/ganci_demo.mp4',
     isKoperasi: false,
     rating: 4.5,
     sold: 78,
   },
-]
+];
+
 
 export const MOCK_DRIVERS: Driver[] = [
   {

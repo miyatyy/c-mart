@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Swal from 'sweetalert2';
 import type { ThemeMode } from '../types';
 import { claimVendingApi, checkoutApi } from '../lib/api';
+import { playCuteVendingSpinningMusic, playCuteVendingSuccessJingle, playCuteVendingFullExperience } from '../lib/vendingAudio';
 
 interface VendingSimulatorProps {
   theme: ThemeMode;
@@ -316,6 +317,8 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
   const [loading, setLoading] = useState(false);
   const [dispenseData, setDispenseData] = useState<any>(null);
   const [openedSlot, setOpenedSlot] = useState<number | null>(null);
+  const [isSpinningVisual, setIsSpinningVisual] = useState(false);
+  const [spinningSlotNumber, setSpinningSlotNumber] = useState<number | null>(null);
 
   // 💳 Direct Payment State
   const [selectedSlotForPayment, setSelectedSlotForPayment] = useState<BlindBagSlot | null>(null);
@@ -324,6 +327,39 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [esp32IpInput, setEsp32IpInput] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('am_esp32_ip') || '' : ''));
   const [purchaseQty, setPurchaseQty] = useState(1);
+
+  // 🎵 Handler Uji Coba Musik Imut Mesin Vending Berputar di Speaker Laptop
+  const handleTestSpinningWithMusic = (slotNumber: number = 1) => {
+    setIsSpinningVisual(true);
+    setSpinningSlotNumber(slotNumber);
+    triggerEsp32Hardware(`ANTASARI-${Date.now()}`, 'Blind Bag Mystery Ganci', slotNumber, 1);
+
+    // Mainkan musik ceria gacha saat berputar (2.8 detik)
+    playCuteVendingFullExperience(2800, () => {
+      setIsSpinningVisual(false);
+      setOpenedSlot(slotNumber);
+      Swal.fire({
+        icon: 'success',
+        title: '🎶 Mesin Berhasil Berputar! 🎁✨',
+        html: `
+          <div style="text-align: center; padding: 10px 14px; font-size: 13.5px;">
+            <div style="font-size: 44px; margin-bottom: 8px;">🎉🎀🧸✨</div>
+            <div style="font-weight: 800; color: #16A34A; font-size: 15px; margin-bottom: 6px;">
+              Musik Imut & Rotasi Mesin Sukses 100%!
+            </div>
+            <p style="color: #4B5563; margin: 0 0 10px; line-height: 1.5;">
+              Melodi ceria gachapon dan jingle kemenangan berhasil dimainkan melalui speaker laptop Anda.
+            </p>
+            <div style="background: #DCFCE7; padding: 8px 12px; border-radius: 8px; color: #166534; font-size: 12px; font-weight: 700;">
+              🚪 Loker Slot #${slotNumber} terbuka & siap digunakan.
+            </div>
+          </div>
+        `,
+        confirmButtonColor: '#10B981',
+        confirmButtonText: 'Keren Banget! 👍'
+      });
+    });
+  };
 
   // Menghitung besaran diskon berdasarkan kupon yang sedang aktif dipakai
   const getVoucherDiscount = (slot: BlindBagSlot) => {
@@ -413,16 +449,25 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
 
     setLoading(true);
     setDispenseData(null);
+    setIsSpinningVisual(true);
+    setSpinningSlotNumber(1);
+
+    // 🎵 Mainkan musik imut saat mesin berputar
+    const stopMusic = playCuteVendingSpinningMusic(2600);
     triggerEsp32Hardware(`ANTASARI-${Date.now()}`, 'Blind Bag Mystery Ganci', 1, 2);
 
     try {
       // 1. Coba verifikasi dengan API Backend
       const data = await claimVendingApi(token);
 
+      // Tunggu putaran motor & musik selesai
+      await new Promise(r => setTimeout(r, 2600));
+      setIsSpinningVisual(false);
+      playCuteVendingSuccessJingle();
+
       if (data.success && data.dispense) {
         setDispenseData(data.dispense);
         setOpenedSlot(data.dispense.slotNumber || 1);
-        playGachaSound();
 
         Swal.fire({
           icon: 'success',
@@ -464,7 +509,6 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
           };
           setDispenseData(mockDispense);
           setOpenedSlot(matchingDemo.slotNumber);
-          playGachaSound();
 
           Swal.fire({
             icon: 'success',
@@ -498,6 +542,9 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
         }
       }
     } catch (_err) {
+      setIsSpinningVisual(false);
+      stopMusic();
+      playCuteVendingSuccessJingle();
       // Fallback matching
       const matchingDemo = BLIND_BAG_LOCKERS.find(d => d.demoToken.toLowerCase() === token.toLowerCase()) || BLIND_BAG_LOCKERS[0];
       setDispenseData({
@@ -508,7 +555,6 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
         buyerName: 'Pembeli Misteri'
       });
       setOpenedSlot(matchingDemo.slotNumber);
-      playGachaSound();
 
       Swal.fire({
         icon: 'success',
@@ -517,6 +563,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
         confirmButtonColor: '#16A34A'
       });
     } finally {
+      setIsSpinningVisual(false);
       setLoading(false);
     }
   };
@@ -542,43 +589,52 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
     setSelectedSlotForPayment(null);
     setInputToken(generatedToken);
 
-    // Buka loker otomatis dengan token baru
-    setDispenseData({
-      orderId: newTx.id,
-      slotNumber: slotData.slotNumber,
-      productName: slotData.seriesName,
-      price: `Rp ${finalPrice.toLocaleString('id-ID')}`,
-      buyerName: 'Anda (Pembayaran Berhasil)'
-    });
-    setOpenedSlot(slotData.slotNumber);
-    playGachaSound();
+    // Animasi putar motor & musik imut
+    setIsSpinningVisual(true);
+    setSpinningSlotNumber(slotData.slotNumber);
+    playCuteVendingSpinningMusic(2600);
     triggerEsp32Hardware(newTx.id, slotData.seriesName, slotData.slotNumber, quantity);
 
-    Swal.fire({
-      icon: 'success',
-      title: 'Pembayaran Sukses & Loker Terbuka! 💳🎉',
-      html: `
-        <div style="text-align: left; background: #F0FDF4; padding: 14px 16px; border-radius: 14px; border: 1.5px solid #86EFAC; font-size: 13px;">
-          <div style="font-size: 14.5px; font-weight: 800; color: #16A34A; margin-bottom: 6px;">
-            ✅ ${slotData.seriesName}
+    setTimeout(() => {
+      setIsSpinningVisual(false);
+      playCuteVendingSuccessJingle();
+
+      // Buka loker otomatis dengan token baru
+      setDispenseData({
+        orderId: newTx.id,
+        slotNumber: slotData.slotNumber,
+        productName: slotData.seriesName,
+        price: `Rp ${finalPrice.toLocaleString('id-ID')}`,
+        buyerName: 'Anda (Pembayaran Berhasil)'
+      });
+      setOpenedSlot(slotData.slotNumber);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Pembayaran Sukses & Loker Terbuka! 💳🎉',
+        html: `
+          <div style="text-align: left; background: #F0FDF4; padding: 14px 16px; border-radius: 14px; border: 1.5px solid #86EFAC; font-size: 13px;">
+            <div style="font-size: 14.5px; font-weight: 800; color: #16A34A; margin-bottom: 6px;">
+              ✅ ${slotData.seriesName}
+            </div>
+            <div style="color: #374151; margin-bottom: 3px;">
+              <strong>💰 Total Dibayar:</strong> Rp ${finalPrice.toLocaleString('id-ID')}
+            </div>
+            <div style="color: #374151; margin-bottom: 3px;">
+              <strong>🔑 Kode Token Anda:</strong> <code style="background: #EAF5EE; color: #16A34A; font-weight: 800; padding: 2px 6px; border-radius: 4px;">${generatedToken}</code>
+            </div>
+            <div style="color: #374151; margin-bottom: 8px;">
+              <strong>🚪 Nomor Loker:</strong> <span style="color: #16A34A; font-weight: 800;">Slot #${slotData.slotNumber}</span>
+            </div>
+            <div style="background: #DCFCE7; padding: 8px 10px; border-radius: 8px; color: #166534; font-size: 12px; font-weight: 700;">
+              ✨ Pintu loker sudah dibuka! Silakan ambil Blind Bag kamu sekarang! 🎁
+            </div>
           </div>
-          <div style="color: #374151; margin-bottom: 3px;">
-            <strong>💰 Total Dibayar:</strong> Rp ${finalPrice.toLocaleString('id-ID')}
-          </div>
-          <div style="color: #374151; margin-bottom: 3px;">
-            <strong>🔑 Kode Token Anda:</strong> <code style="background: #EAF5EE; color: #16A34A; font-weight: 800; padding: 2px 6px; border-radius: 4px;">${generatedToken}</code>
-          </div>
-          <div style="color: #374151; margin-bottom: 8px;">
-            <strong>🚪 Nomor Loker:</strong> <span style="color: #16A34A; font-weight: 800;">Slot #${slotData.slotNumber}</span>
-          </div>
-          <div style="background: #DCFCE7; padding: 8px 10px; border-radius: 8px; color: #166534; font-size: 12px; font-weight: 700;">
-            ✨ Pintu loker sudah dibuka! Silakan ambil Blind Bag kamu sekarang! 🎁
-          </div>
-        </div>
-      `,
-      confirmButtonColor: '#16A34A',
-      confirmButtonText: 'Ambil Blind Bag & Selesai'
-    });
+        `,
+        confirmButtonColor: '#16A34A',
+        confirmButtonText: 'Ambil Blind Bag & Selesai'
+      });
+    }, 2600);
   };
 
   // 💳 Proses Pembayaran Langsung untuk Membuka Loker
@@ -814,6 +870,152 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
           </button>
         </div>
       </div>
+
+      {/* 🎵 SPEAKER LAPTOP: MUSIK IMUT MESIN VENDING BERPUTAR (KAWAII GACHA SYNTH) */}
+      <div style={{
+        background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%)',
+        color: 'white',
+        borderRadius: 16,
+        padding: '14px 18px',
+        marginBottom: 16,
+        boxShadow: '0 8px 24px rgba(67, 56, 202, 0.25)',
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 12
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 46,
+            height: 46,
+            borderRadius: 14,
+            background: 'linear-gradient(135deg, #EC4899, #8B5CF6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 24,
+            boxShadow: '0 4px 12px rgba(236, 72, 153, 0.35)',
+            transform: isSpinningVisual ? 'rotate(360deg) scale(1.1)' : 'none',
+            transition: 'transform 0.8s ease-in-out'
+          }}>
+            {isSpinningVisual ? '⚙️' : '🎵'}
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13.5, fontWeight: 900 }}>Speaker Laptop: Musik Imut Mesin Berputar</span>
+              <span style={{ fontSize: 10, background: '#10B981', color: 'white', padding: '2px 7px', borderRadius: 6, fontWeight: 800 }}>
+                ● AKTIF DI LAPTOP / HP
+              </span>
+            </div>
+            <div style={{ fontSize: 11.5, opacity: 0.9, marginTop: 2 }}>
+              {isSpinningVisual
+                ? '🎶 Sedang memutar melodi gacha imut saat motor spiral berputar...'
+                : 'Musik ceria & jingle gashapon manis otomatis berbunyi di speaker laptop saat mesin berputar! ✨'}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            onClick={() => handleTestSpinningWithMusic(1)}
+            disabled={isSpinningVisual}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 12,
+              border: 'none',
+              background: isSpinningVisual ? '#475569' : 'linear-gradient(135deg, #EC4899, #F43F5E)',
+              color: 'white',
+              fontSize: 12.5,
+              fontWeight: 800,
+              cursor: isSpinningVisual ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 14px rgba(244, 63, 94, 0.35)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              transition: 'transform 0.15s ease'
+            }}
+          >
+            <span>{isSpinningVisual ? '⏳ Mesin Berputar...' : '▶️ Uji Coba Musik Imut (Putar Mesin) 🎶'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 🌸 MODAL ANIMASI SPESIAL: MESIN VENDING BERPUTAR DENGAN MUSIK IMUT */}
+      {isSpinningVisual && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #FFFFFF 0%, #FFF1F2 100%)',
+            borderRadius: 24,
+            padding: '32px 28px',
+            maxWidth: 420,
+            width: '100%',
+            textAlign: 'center',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)',
+            border: '2px solid #F43F5E',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Cute Floating Music Notes */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 14, fontSize: 24, marginBottom: 12 }}>
+              <span style={{ animation: 'bounce 0.8s infinite alternate' }}>🎵</span>
+              <span style={{ animation: 'bounce 0.8s 0.2s infinite alternate' }}>🎶</span>
+              <span style={{ animation: 'bounce 0.8s 0.4s infinite alternate' }}>✨</span>
+              <span style={{ animation: 'bounce 0.8s 0.6s infinite alternate' }}>🌸</span>
+            </div>
+
+            {/* Rotating Gear / Spiral Animation */}
+            <div style={{
+              width: 96,
+              height: 96,
+              margin: '0 auto 16px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #FFE4E6, #FCE7F3)',
+              border: '4px dashed #F43F5E',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 48,
+              animation: 'spin 2s linear infinite'
+            }}>
+              ⚙️
+            </div>
+
+            <h3 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 900, color: '#9F1239' }}>
+              Mesin Sedang Berputar... 🎀
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#881337', lineHeight: 1.5 }}>
+              🎶 Musik imut sedang dimainkan melalui <strong>speaker laptop</strong> Anda. Motor spiral sedang menurunkan paket Blind Bag dari <strong>Slot #{spinningSlotNumber || 1}</strong>!
+            </p>
+
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              background: '#FFE4E6',
+              padding: '6px 16px',
+              borderRadius: 20,
+              color: '#E11D48',
+              fontSize: 12,
+              fontWeight: 800
+            }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#F43F5E' }} />
+              <span>Memutar Musik Kawaii & Mengeluarkan Paket...</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 🎟️ KUPON PROMO RINGKAS DENGAN FITUR "PAKAI / KLAIM" LANGSUNG */}
       <div style={{ marginBottom: 16 }}>

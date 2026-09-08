@@ -1,7 +1,17 @@
 import { useState, useEffect } from 'react';
 import type { ThemeMode, Campus, Product, ProductCategory } from '../types';
 import { MOCK_ORDERS, formatRupiah, CATEGORIES } from '../data';
-import { getProductsApi, createProductApi, updateProductApi, deleteProductApi, uploadImageApi, generateProductDescriptionApi } from '../lib/api';
+import {
+  getProductsApi,
+  createProductApi,
+  updateProductApi,
+  deleteProductApi,
+  uploadImageApi,
+  generateProductDescriptionApi,
+  sendChatApi,
+  compressImageToTargetSize,
+  validateAndProcessVideo
+} from '../lib/api';
 
 interface SellerDashboardProps {
   theme: ThemeMode;
@@ -10,7 +20,7 @@ interface SellerDashboardProps {
   sellerName: string;
 }
 
-type SellerTab = 'products' | 'orders' | 'analytics';
+type SellerTab = 'products' | 'orders' | 'analytics' | 'wallet' | 'promo';
 type ProductTab = 'active' | 'empty';
 
 interface NewProduct {
@@ -41,31 +51,60 @@ const PRODUCT_IMAGE_PRESETS = [
 export default function SellerDashboard({ theme: _theme, campus: _campus, sellerId, sellerName }: SellerDashboardProps) {
   const [tab, setTab] = useState<SellerTab>('products');
   const [productTab, setProductTab] = useState<ProductTab>('active');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
+
+  // Store status
+  const [isOpenStore, setIsOpenStore] = useState(true);
+
+  // Store wallet / balance
+  const [walletBalance, setWalletBalance] = useState(() => {
+    return parseInt(localStorage.getItem(`am_seller_balance_${sellerId}`) || '450000');
+  });
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawMethod, setWithdrawMethod] = useState<'dana' | 'gopay' | 'shopeepay' | 'bsi' | 'bca'>('dana');
+  const [withdrawAccount, setWithdrawAccount] = useState('');
+  const [withdrawSuccessMsg, setWithdrawSuccessMsg] = useState('');
+
+  // Modals & State
   const [showAddModal, setShowAddModal] = useState(false);
-  
-  // State untuk Modal Edit Produk
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [editProdImages, setEditProdImages] = useState<string[]>([]);
+  const [editProdVideo, setEditProdVideo] = useState<string>('');
+  const [editProdVideoSize, setEditProdVideoSize] = useState<string>('');
+  const [editProdVideoLoading, setEditProdVideoLoading] = useState<boolean>(false);
+
   const [isGeneratingAiDesc, setIsGeneratingAiDesc] = useState(false);
-  
-  // Custom Alert Popup Beranimasi
   const [alertPopup, setAlertPopup] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [photoMode, setPhotoMode] = useState<'upload' | 'preset' | 'url'>('upload');
   const [customImageUrl, setCustomImageUrl] = useState('');
 
-  const [newProd, setNewProd] = useState<NewProduct>({ 
-    name: '', 
-    description: '', 
-    price: '', 
-    stock: '', 
+  // Orders State
+  const [orders, setOrders] = useState<any[]>(() => {
+    const saved = localStorage.getItem(`am_seller_orders_${sellerId}`);
+    return saved ? JSON.parse(saved) : MOCK_ORDERS;
+  });
+
+  const [newProd, setNewProd] = useState<NewProduct>({
+    name: '',
+    description: '',
+    price: '',
+    stock: '',
     category: 'makanan',
     targetCampus: 'semua'
   });
-  const [imageFile, setImageFile] = useState<string>(''); 
+  const [imageFile, setImageFile] = useState<string>('');
+  const [newProdImages, setNewProdImages] = useState<string[]>([]);
+  const [newProdVideo, setNewProdVideo] = useState<string>('');
+  const [newProdVideoSize, setNewProdVideoSize] = useState<string>('');
 
   const handleGenerateAiDescriptionForNew = async () => {
     if (!newProd.name || !newProd.name.trim()) {
@@ -132,32 +171,107 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
   }, [sellerId]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     setUploadingImage(true);
     try {
-      const res = await uploadImageApi(file);
-      if (res && res.imageUrl) {
-        setImageFile(res.imageUrl);
-        setAlertPopup({ message: 'Foto produk berhasil diunggah! 📸', type: 'success' });
-      } else {
-        const reader = new FileReader();
-        reader.onload = () => {
-          setImageFile(reader.result as string);
-          setAlertPopup({ message: 'Foto produk berhasil dimuat! 📸', type: 'success' });
-        };
-        reader.readAsDataURL(file);
+      const addedImages: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        if (newProdImages.length + addedImages.length >= 5) {
+          setAlertPopup({ message: 'Maksimal 5 foto per produk!', type: 'error' });
+          break;
+        }
+        const file = files[i];
+        // Automatic client compression strictly guaranteeing <= 200KB
+        const compressedBase64 = await compressImageToTargetSize(file, 200 * 1024);
+        addedImages.push(compressedBase64);
+      }
+
+      if (addedImages.length > 0) {
+        setNewProdImages(prev => [...prev, ...addedImages]);
+        if (!imageFile) {
+          setImageFile(addedImages[0]);
+        }
+        setAlertPopup({ message: `📸 ${addedImages.length} foto berhasil diproses & dikompresi (Maks 200 KB)!`, type: 'success' });
       }
     } catch (_err: any) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImageFile(reader.result as string);
-        setAlertPopup({ message: 'Foto produk berhasil dimuat! 📸', type: 'success' });
-      };
-      reader.readAsDataURL(file);
+      setAlertPopup({ message: 'Gagal memproses foto', type: 'error' });
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingVideo(true);
+    try {
+      const res = await validateAndProcessVideo(file, 5 * 1024 * 1024);
+      if (!res.valid) {
+        setAlertPopup({ message: `❌ ${res.error || 'Ukuran video melebihi 5 MB!'}`, type: 'error' });
+      } else if (res.videoUrl) {
+        setNewProdVideo(res.videoUrl);
+        setNewProdVideoSize(res.sizeMb || '0');
+        setAlertPopup({ message: `🎥 Video demo (${res.sizeMb} MB) berhasil diunggah!`, type: 'success' });
+      }
+    } catch (_err) {
+      setAlertPopup({ message: 'Gagal memproses video', type: 'error' });
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
+  const handleEditFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingImage(true);
+    try {
+      const addedImages: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        if (editProdImages.length + addedImages.length >= 5) {
+          setAlertPopup({ message: 'Maksimal 5 foto per produk!', type: 'error' });
+          break;
+        }
+        const file = files[i];
+        const compressedBase64 = await compressImageToTargetSize(file, 200 * 1024);
+        addedImages.push(compressedBase64);
+      }
+
+      if (addedImages.length > 0) {
+        setEditProdImages(prev => [...prev, ...addedImages]);
+        if (editingProduct && (!editingProduct.image || editingProduct.image === '')) {
+          setEditingProduct((prev: any) => ({ ...prev, image: addedImages[0] }));
+        }
+        setAlertPopup({ message: `📸 ${addedImages.length} foto berhasil ditambahkan (Maks 200 KB)!`, type: 'success' });
+      }
+    } catch (_err: any) {
+      setAlertPopup({ message: 'Gagal memproses foto edit', type: 'error' });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleEditVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setEditProdVideoLoading(true);
+    try {
+      const res = await validateAndProcessVideo(file, 5 * 1024 * 1024);
+      if (!res.valid) {
+        setAlertPopup({ message: `❌ ${res.error || 'Ukuran video melebihi 5 MB!'}`, type: 'error' });
+      } else if (res.videoUrl) {
+        setEditProdVideo(res.videoUrl);
+        setEditProdVideoSize(res.sizeMb || '0');
+        setAlertPopup({ message: `🎥 Video demo (${res.sizeMb} MB) berhasil diperbarui!`, type: 'success' });
+      }
+    } catch (_err) {
+      setAlertPopup({ message: 'Gagal memproses video edit', type: 'error' });
+    } finally {
+      setEditProdVideoLoading(false);
     }
   };
 
@@ -169,8 +283,9 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
     }
 
     const activeUser = JSON.parse(localStorage.getItem('am_user_session') || '{}');
-    const finalImage = imageFile || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format';
-    
+    const finalImages = newProdImages.length > 0 ? newProdImages : (imageFile ? [imageFile] : ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format']);
+    const finalMainImage = finalImages[0];
+
     try {
       await createProductApi({
         name: newProd.name,
@@ -178,16 +293,21 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
         price: parseInt(newProd.price),
         stock: parseInt(newProd.stock),
         category: newProd.category,
-        image: finalImage,
+        image: finalMainImage,
+        images: finalImages,
+        videoUrl: newProdVideo || undefined,
         campus: newProd.targetCampus,
         sellerId: sellerId || activeUser.email || 'seller_1',
         sellerName: sellerName || activeUser.nama || 'Penjual Antasari'
       });
 
-      setAlertPopup({ message: 'Produk berhasil diterbitkan! 🎉', type: 'success' });
+      setAlertPopup({ message: 'Produk multi-media berhasil diterbitkan ke PostgreSQL! 🎉', type: 'success' });
       setShowAddModal(false);
       setNewProd({ name: '', description: '', price: '', stock: '', category: 'makanan', targetCampus: 'semua' });
       setImageFile('');
+      setNewProdImages([]);
+      setNewProdVideo('');
+      setNewProdVideoSize('');
       loadProducts();
     } catch (_err: any) {
       const localP: Product = {
@@ -197,7 +317,9 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
         price: parseInt(newProd.price) || 0,
         stock: parseInt(newProd.stock) || 0,
         category: newProd.category as any,
-        image: finalImage,
+        image: finalMainImage,
+        images: finalImages,
+        videoUrl: newProdVideo || undefined,
         campus: (newProd.targetCampus || 'banjarmasin') as any,
         sellerId: sellerId || activeUser.email || 'seller_1',
         sellerName: sellerName || activeUser.nama || 'Penjual Antasari',
@@ -213,6 +335,9 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
       setShowAddModal(false);
       setNewProd({ name: '', description: '', price: '', stock: '', category: 'makanan', targetCampus: 'semua' });
       setImageFile('');
+      setNewProdImages([]);
+      setNewProdVideo('');
+      setNewProdVideoSize('');
       loadProducts();
     }
   };
@@ -223,21 +348,28 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
 
     try {
       const activeUser = JSON.parse(localStorage.getItem('am_user_session') || '{}');
+      const finalImages = editProdImages.length > 0 ? editProdImages : (editingProduct.image ? [editingProduct.image] : []);
+      const finalMainImage = finalImages.length > 0 ? finalImages[0] : (editingProduct.image || '');
+
       const res = await updateProductApi(editingProduct.id, {
         name: editingProduct.name,
         description: editingProduct.description,
         price: parseInt(editingProduct.price),
         stock: parseInt(editingProduct.stock),
         category: editingProduct.category,
-        image: editingProduct.image,
+        image: finalMainImage,
+        images: finalImages,
+        videoUrl: editProdVideo || undefined,
         userRole: activeUser.role,
         userEmail: activeUser.email
       });
 
       if (res.success) {
-        setAlertPopup({ message: 'Perubahan produk berhasil disimpan! ✨', type: 'success' });
+        setAlertPopup({ message: 'Perubahan produk multi-media berhasil disimpan di PostgreSQL! ✨', type: 'success' });
         setShowEditModal(false);
         setEditingProduct(null);
+        setEditProdImages([]);
+        setEditProdVideo('');
         loadProducts();
       } else {
         setAlertPopup({ message: res.message || 'Gagal memperbarui produk.', type: 'error' });
@@ -247,8 +379,27 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
     }
   };
 
+  const handleQuickStockUpdate = async (productId: string | number, delta: number) => {
+    const target = products.find(p => p.id === productId);
+    if (!target) return;
+    const newStock = Math.max(0, target.stock + delta);
+
+    try {
+      const activeUser = JSON.parse(localStorage.getItem('am_user_session') || '{}');
+      await updateProductApi(productId, {
+        stock: newStock,
+        userRole: activeUser.role,
+        userEmail: activeUser.email
+      });
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, stock: newStock } : p));
+      setAlertPopup({ message: `Stok "${target.name}" diperbarui jadi ${newStock} pcs! 📦`, type: 'success' });
+    } catch {
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, stock: newStock } : p));
+    }
+  };
+
   const handleDeleteProduct = async (id: string | number) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus produk ini?')) return;
+    if (!confirm('Apakah Anda yakin ingin menghapus produk ini dari katalog?')) return;
     try {
       const res = await deleteProductApi(id);
       if (res.success) {
@@ -262,108 +413,443 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
     }
   };
 
-  const displayedProducts = products.filter(p => productTab === 'active' ? p.stock > 0 : p.stock <= 0);
+  const handleUpdateOrderStatus = (orderId: string, newStatus: string) => {
+    const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+    setOrders(updated);
+    localStorage.setItem(`am_seller_orders_${sellerId}`, JSON.stringify(updated));
+    setAlertPopup({ message: `Status Pesanan #${orderId} diubah menjadi "${newStatus}"! ✅`, type: 'success' });
+  };
+
+  const handleWithdrawSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = parseInt(withdrawAmount);
+    if (!amount || amount < 10000) {
+      setAlertPopup({ message: 'Minimal penarikan saldo adalah Rp 10.000', type: 'error' });
+      return;
+    }
+    if (amount > walletBalance) {
+      setAlertPopup({ message: 'Saldo tidak mencukupi untuk penarikan ini.', type: 'error' });
+      return;
+    }
+    if (!withdrawAccount.trim()) {
+      setAlertPopup({ message: 'Nomor e-wallet / rekening tujuan wajib diisi.', type: 'error' });
+      return;
+    }
+
+    const newBalance = walletBalance - amount;
+    setWalletBalance(newBalance);
+    localStorage.setItem(`am_seller_balance_${sellerId}`, String(newBalance));
+    setWithdrawSuccessMsg(`Penarikan ${formatRupiah(amount)} ke ${withdrawMethod.toUpperCase()} (${withdrawAccount}) berhasil diproses ke rekening Anda! 🎉`);
+    setShowWithdrawModal(false);
+    setWithdrawAmount('');
+    setWithdrawAccount('');
+  };
+
+  // Filter products
+  const filteredProducts = products.filter(p => {
+    const matchesTab = productTab === 'active' ? p.stock > 0 : p.stock <= 0;
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategoryFilter === 'all' || p.category === selectedCategoryFilter;
+    return matchesTab && matchesSearch && matchesCategory;
+  });
+
+  // Filter orders
+  const filteredOrders = orders.filter(o => {
+    if (orderStatusFilter === 'all') return true;
+    return (o.status || '').toLowerCase().includes(orderStatusFilter.toLowerCase());
+  });
 
   return (
-    <div style={{ padding: '24px 16px 80px', maxWidth: 1000, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
-      {/* Banner Toko */}
-      <div className="am-card" style={{ padding: 24, borderRadius: 20, background: 'linear-gradient(135deg, #5FA874 0%, #5FA874 100%)', color: 'white', marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', opacity: 0.8, marginBottom: 4 }}>🏪 Seller Centre Antasari Mart</div>
-            <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 900 }}>{sellerName}</h1>
-            <p style={{ margin: 0, fontSize: 13, opacity: 0.9 }}>Kelola stok, harga katalog, dan pantau penjualan harian toko kampusmu.</p>
+    <div style={{ padding: '24px 16px 100px', maxWidth: 1200, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
+      {/* 🏪 STORE HERO BANNER & REAL-TIME STATS */}
+      <div
+        className="am-card"
+        style={{
+          padding: '24px 28px',
+          borderRadius: 24,
+          background: 'linear-gradient(135deg, #1B3826 0%, #2A543A 60%, #5FA874 100%)',
+          color: 'white',
+          marginBottom: 24,
+          boxShadow: '0 8px 30px rgba(42, 84, 58, 0.25)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ width: 64, height: 64, borderRadius: 20, background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, border: '1.5px solid rgba(255,255,255,0.3)' }}>
+              🏪
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: 6 }}>
+                  SELLER CENTRE RESMI
+                </span>
+                <span style={{ fontSize: 11, background: isOpenStore ? '#10B981' : '#EF4444', color: 'white', padding: '2px 8px', borderRadius: 6, fontWeight: 800 }}>
+                  {isOpenStore ? '🟢 Toko Buka' : '🔴 Toko Tutup'}
+                </span>
+              </div>
+              <h1 style={{ margin: 0, fontSize: 24, fontWeight: 900 }}>{sellerName}</h1>
+              <p style={{ margin: '4px 0 0', fontSize: 13, opacity: 0.85 }}>
+                Tenant Kampus UIN Antasari • Rating Toko: ⭐ 4.9 (120 Ulasan) • Respon: 99%
+              </p>
+            </div>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: '#ffffff', color: '#5FA874', fontWeight: 800, fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}
-          >
-            + Tambah Produk Baru
-          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {/* Toggle Buka/Tutup Toko */}
+            <button
+              onClick={() => {
+                setIsOpenStore(prev => !prev);
+                setAlertPopup({ message: isOpenStore ? 'Toko Anda ditutup sementara untuk pembeli.' : 'Toko Anda kini kembali buka dan menerima pesanan! 🟢', type: 'success' });
+              }}
+              style={{
+                padding: '9px 14px',
+                borderRadius: 12,
+                border: '1px solid rgba(255,255,255,0.3)',
+                background: 'rgba(255,255,255,0.12)',
+                color: 'white',
+                fontWeight: 700,
+                fontSize: 12,
+                cursor: 'pointer',
+                backdropFilter: 'blur(6px)'
+              }}
+            >
+              {isOpenStore ? '⏸️ Tutup Sementara' : '▶️ Buka Toko'}
+            </button>
+
+            {/* Tambah Produk */}
+            <button
+              onClick={() => setShowAddModal(true)}
+              style={{
+                padding: '10px 20px',
+                borderRadius: 12,
+                border: 'none',
+                background: '#FFFFFF',
+                color: '#1B3826',
+                fontWeight: 900,
+                fontSize: 13,
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+            >
+              <span>+</span> Tambah Produk Baru
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Metrics Strip */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 20, paddingTop: 18, borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+          <div style={{ background: 'rgba(255,255,255,0.08)', padding: '10px 14px', borderRadius: 14 }}>
+            <div style={{ fontSize: 11, opacity: 0.8 }}>Saldo Siap Ditarik</div>
+            <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>{formatRupiah(walletBalance)}</span>
+              <button
+                onClick={() => setShowWithdrawModal(true)}
+                style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, border: 'none', background: '#F59E0B', color: 'white', fontWeight: 800, cursor: 'pointer' }}
+              >
+                Tarik 🏧
+              </button>
+            </div>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.08)', padding: '10px 14px', borderRadius: 14 }}>
+            <div style={{ fontSize: 11, opacity: 0.8 }}>Total Produk Aktif</div>
+            <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2 }}>{products.filter(p => p.stock > 0).length} Item</div>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.08)', padding: '10px 14px', borderRadius: 14 }}>
+            <div style={{ fontSize: 11, opacity: 0.8 }}>Pesanan Perlu Diproses</div>
+            <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2, color: '#FDE047' }}>{orders.length} Pesanan</div>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.08)', padding: '10px 14px', borderRadius: 14 }}>
+            <div style={{ fontSize: 11, opacity: 0.8 }}>Omset Terjual Bulan Ini</div>
+            <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2 }}>{formatRupiah(1850000)}</div>
+          </div>
         </div>
       </div>
 
-      {/* Tabs Menu */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--am-border)', paddingBottom: 10 }}>
+      {withdrawSuccessMsg && (
+        <div style={{ marginBottom: 20, padding: '12px 18px', background: 'rgba(22, 163, 74, 0.1)', border: '1.5px solid #16A34A', borderRadius: 14, color: '#16A34A', fontWeight: 700, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{withdrawSuccessMsg}</span>
+          <button onClick={() => setWithdrawSuccessMsg('')} style={{ background: 'none', border: 'none', color: '#16A34A', cursor: 'pointer', fontWeight: 800 }}>✕</button>
+        </div>
+      )}
+
+      {/* 📑 TAB NAVIGATION */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--am-border)', paddingBottom: 10, overflowX: 'auto' }}>
         {[
-          { id: 'products', label: '📦 Produk Saya' },
-          { id: 'orders', label: '📋 Pesanan Masuk' },
-          { id: 'analytics', label: '📊 Analitik Toko' }
+          { id: 'products', label: '📦 Katalog Produk', badge: products.length },
+          { id: 'orders', label: '📋 Pesanan Masuk', badge: orders.length },
+          { id: 'analytics', label: '📊 Analitik & Finansial' },
+          { id: 'wallet', label: '🏧 Dompet & Tarik Saldo' },
+          { id: 'promo', label: '🏷️ Promo & Diskon Toko' }
         ].map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id as any)}
             style={{
-              padding: '8px 16px',
-              borderRadius: 10,
+              padding: '10px 18px',
+              borderRadius: 12,
               border: 'none',
               background: tab === t.id ? 'var(--am-primary)' : 'transparent',
               color: tab === t.id ? 'white' : 'var(--am-text)',
-              fontWeight: 700,
+              fontWeight: 800,
               fontSize: 13,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s'
             }}
           >
             {t.label}
+            {t.badge !== undefined && (
+              <span style={{
+                background: tab === t.id ? 'rgba(255,255,255,0.25)' : 'var(--am-bg2)',
+                color: tab === t.id ? 'white' : 'var(--am-text-muted)',
+                padding: '2px 7px',
+                borderRadius: 10,
+                fontSize: 11,
+                fontWeight: 800
+              }}>
+                {t.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
+      {/* ── TAB 1: KATALOG PRODUK ── */}
       {tab === 'products' && (
         <div>
-          {/* Sub Tab Produk Aktif vs Habis */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            <button
-              onClick={() => setProductTab('active')}
-              style={{
-                padding: '6px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                background: productTab === 'active' ? 'var(--am-surface)' : 'transparent',
-                color: productTab === 'active' ? 'var(--am-primary)' : 'var(--am-text-muted)',
-                boxShadow: productTab === 'active' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none'
-              }}
-            >
-              Aktif ({products.filter(p => p.stock > 0).length})
-            </button>
-            <button
-              onClick={() => setProductTab('empty')}
-              style={{
-                padding: '6px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                background: productTab === 'empty' ? 'var(--am-surface)' : 'transparent',
-                color: productTab === 'empty' ? '#EF4444' : 'var(--am-text-muted)',
-                boxShadow: productTab === 'empty' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none'
-              }}
-            >
-              Stok Habis ({products.filter(p => p.stock <= 0).length})
-            </button>
+          {/* Filter, Search & Sub Tabs */}
+          <div className="am-card" style={{ padding: 16, borderRadius: 16, marginBottom: 18, background: 'var(--am-surface)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              {/* Subtabs: Aktif vs Habis */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setProductTab('active')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 10,
+                    border: 'none',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    background: productTab === 'active' ? 'var(--am-primary)' : 'var(--am-bg2)',
+                    color: productTab === 'active' ? 'white' : 'var(--am-text-muted)'
+                  }}
+                >
+                  🟢 Produk Aktif ({products.filter(p => p.stock > 0).length})
+                </button>
+                <button
+                  onClick={() => setProductTab('empty')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 10,
+                    border: 'none',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    background: productTab === 'empty' ? '#EF4444' : 'var(--am-bg2)',
+                    color: productTab === 'empty' ? 'white' : 'var(--am-text-muted)'
+                  }}
+                >
+                  🔴 Stok Habis ({products.filter(p => p.stock <= 0).length})
+                </button>
+              </div>
+
+              {/* Search & Category Filter */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end' }}>
+                <input
+                  type="text"
+                  placeholder="Cari produk toko..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    border: '1px solid var(--am-border)',
+                    background: 'var(--am-bg2)',
+                    color: 'var(--am-text)',
+                    fontSize: 12,
+                    outline: 'none',
+                    minWidth: 180
+                  }}
+                />
+
+                <select
+                  value={selectedCategoryFilter}
+                  onChange={e => setSelectedCategoryFilter(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    border: '1px solid var(--am-border)',
+                    background: 'var(--am-bg2)',
+                    color: 'var(--am-text)',
+                    fontSize: 12,
+                    outline: 'none'
+                  }}
+                >
+                  <option value="all">Semua Kategori</option>
+                  {CATEGORIES.map(c => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
+          {/* Product Grid */}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--am-text-muted)' }}>Memuat produk toko...</div>
-          ) : displayedProducts.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--am-text-muted)' }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>📦</div>
-              <p style={{ margin: 0, fontSize: 13 }}>Belum ada produk pada kategori ini.</p>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
+              <p>Memuat katalog produk tokomu...</p>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="am-card" style={{ padding: '60px 24px', textAlign: 'center', borderRadius: 20, background: 'var(--am-surface)' }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
+              <h3 style={{ margin: '0 0 6px', fontSize: 18, color: 'var(--am-text)' }}>Tidak Ada Produk Ditemukan</h3>
+              <p style={{ margin: '0 auto 18px', fontSize: 13, color: 'var(--am-text-muted)', maxWidth: 400 }}>
+                {searchQuery || selectedCategoryFilter !== 'all'
+                  ? 'Coba sesuaikan kata kunci pencarian atau filter kategori.'
+                  : 'Yuk mulai tambahkan produk makanan, minuman, suvenir, atau merchandise kampus ke tokomu!'}
+              </p>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="am-btn-primary"
+                style={{ padding: '10px 24px', fontSize: 13, fontWeight: 800, borderRadius: 12 }}
+              >
+                + Tambah Produk Sekarang
+              </button>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-              {displayedProducts.map(p => (
-                <div key={p.id} className="am-card" style={{ borderRadius: 16, background: 'var(--am-surface)', overflow: 'hidden', border: '1px solid var(--am-border)', display: 'flex', flexDirection: 'column' }}>
-                  <img src={p.image} alt={p.name} style={{ width: '100%', height: 140, objectFit: 'cover' }} />
-                  <div style={{ padding: 14, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <h4 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--am-text)' }}>{p.name}</h4>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--am-primary)', marginBottom: 4 }}>{formatRupiah(p.price)}</div>
-                    <div style={{ fontSize: 11, color: 'var(--am-text-muted)', marginBottom: 12 }}>Stok: {p.stock} pcs • Terjual: {p.sold}</div>
-                    
-                    <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 18 }}>
+              {filteredProducts.map(p => (
+                <div
+                  key={p.id}
+                  className="am-card"
+                  style={{
+                    borderRadius: 18,
+                    background: 'var(--am-surface)',
+                    overflow: 'hidden',
+                    border: '1px solid var(--am-border)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    transition: 'transform 0.2s, box-shadow 0.2s'
+                  }}
+                >
+                  <div style={{ position: 'relative', height: 160, background: 'var(--am-bg2)' }}>
+                    <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <span style={{
+                      position: 'absolute',
+                      top: 10,
+                      left: 10,
+                      background: p.stock > 5 ? 'rgba(16, 185, 129, 0.9)' : p.stock > 0 ? 'rgba(245, 158, 11, 0.9)' : 'rgba(239, 68, 68, 0.9)',
+                      color: 'white',
+                      fontSize: 10.5,
+                      fontWeight: 800,
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      backdropFilter: 'blur(4px)'
+                    }}>
+                      {p.stock > 0 ? `Stok: ${p.stock}` : 'Habis'}
+                    </span>
+                    <span style={{
+                      position: 'absolute',
+                      top: 10,
+                      right: 10,
+                      background: 'rgba(0,0,0,0.6)',
+                      color: 'white',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      textTransform: 'capitalize'
+                    }}>
+                      {p.category}
+                    </span>
+                  </div>
+
+                  <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <h4 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 800, color: 'var(--am-text)', lineHeight: 1.3 }}>
+                      {p.name}
+                    </h4>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--am-primary)', marginBottom: 6 }}>
+                      {formatRupiah(p.price)}
+                    </div>
+                    {p.description && (
+                      <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--am-text-muted)', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {p.description}
+                      </p>
+                    )}
+
+                    {/* Quick Inline Stock Stepper */}
+                    <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--am-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <span style={{ fontSize: 11, color: 'var(--am-text-muted)', fontWeight: 700 }}>Ubah Stok Cepat:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          onClick={() => handleQuickStockUpdate(p.id, -1)}
+                          disabled={p.stock <= 0}
+                          style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', cursor: p.stock <= 0 ? 'not-allowed' : 'pointer', fontWeight: 800, fontSize: 14 }}
+                        >
+                          -
+                        </button>
+                        <span style={{ fontSize: 13, fontWeight: 800, minWidth: 28, textAlign: 'center' }}>
+                          {p.stock}
+                        </span>
+                        <button
+                          onClick={() => handleQuickStockUpdate(p.id, 5)}
+                          style={{ padding: '0 8px', height: 28, borderRadius: 6, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', cursor: 'pointer', fontWeight: 800, fontSize: 11 }}
+                          title="Tambah +5 stok"
+                        >
+                          +5
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', gap: 8 }}>
                       <button
-                        onClick={() => { setEditingProduct(p); setShowEditModal(true); }}
-                        style={{ flex: 1, padding: '6px', borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                        onClick={() => {
+                          setEditingProduct(p);
+                          const existingImgs = (p.images && p.images.length > 0) ? p.images : (p.image ? [p.image] : []);
+                          setEditProdImages(existingImgs);
+                          setEditProdVideo(p.videoUrl || '');
+                          setEditProdVideoSize('');
+                          setShowEditModal(true);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '8px',
+                          borderRadius: 10,
+                          border: '1.5px solid var(--am-primary)',
+                          background: 'var(--am-primary-light, rgba(95,168,116,0.12))',
+                          color: 'var(--am-primary)',
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: 'pointer'
+                        }}
                       >
-                        ✏️ Edit
+                        ✏️ Edit Detail
                       </button>
                       <button
                         onClick={() => handleDeleteProduct(p.id)}
-                        style={{ padding: '6px 10px', borderRadius: 8, border: 'none', background: '#FEE2E2', color: '#DC2626', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 10,
+                          border: 'none',
+                          background: '#FEE2E2',
+                          color: '#DC2626',
+                          fontSize: 13,
+                          fontWeight: 800,
+                          cursor: 'pointer'
+                        }}
+                        title="Hapus Produk"
                       >
                         🗑️
                       </button>
@@ -376,60 +862,428 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
         </div>
       )}
 
+      {/* ── TAB 2: PESANAN MASUK ── */}
       {tab === 'orders' && (
-        <div className="am-card" style={{ padding: 20, borderRadius: 18, background: 'var(--am-surface)' }}>
-          <h3 style={{ margin: '0 0 14px', fontSize: 16, color: 'var(--am-text)' }}>Daftar Pesanan Pembeli</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {MOCK_ORDERS.map(ord => (
-              <div key={ord.id} style={{ padding: 14, borderRadius: 12, border: '1px solid var(--am-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--am-text)' }}>Order #{ord.id} - {ord.buyerName}</div>
-                  <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Metode: {ord.deliveryMethod} • Total: {formatRupiah(ord.total)}</div>
-                </div>
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20, background: '#E0F2FE', color: '#0369A1' }}>
-                  {ord.status}
-                </span>
-              </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Filter Status Pesanan */}
+          <div className="am-card" style={{ padding: 14, borderRadius: 16, background: 'var(--am-surface)', display: 'flex', gap: 8, overflowX: 'auto' }}>
+            {[
+              { id: 'all', label: 'Semua Pesanan' },
+              { id: 'menunggu', label: '⏳ Menunggu Konfirmasi' },
+              { id: 'diproses', label: '🍳 Sedang Disiapkan' },
+              { id: 'dikirim', label: '🛵 Sedang Diantar / Siap Ambil' },
+              { id: 'selesai', label: '✅ Selesai' }
+            ].map(s => (
+              <button
+                key={s.id}
+                onClick={() => setOrderStatusFilter(s.id)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: orderStatusFilter === s.id ? 'var(--am-primary)' : 'var(--am-bg2)',
+                  color: orderStatusFilter === s.id ? 'white' : 'var(--am-text-muted)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {s.label}
+              </button>
             ))}
           </div>
+
+          {/* List Pesanan */}
+          {filteredOrders.length === 0 ? (
+            <div className="am-card" style={{ padding: '60px 24px', textAlign: 'center', borderRadius: 20, background: 'var(--am-surface)' }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+              <h3 style={{ margin: '0 0 6px', fontSize: 18, color: 'var(--am-text)' }}>Belum Ada Pesanan Masuk</h3>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--am-text-muted)' }}>
+                Pesanan baru dari mahasiswa atau pembeli akan langsung muncul di sini secara real-time.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {filteredOrders.map(ord => (
+                <div
+                  key={ord.id}
+                  className="am-card"
+                  style={{
+                    padding: 20,
+                    borderRadius: 18,
+                    background: 'var(--am-surface)',
+                    border: '1px solid var(--am-border)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--am-border)' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 15, fontWeight: 900, color: 'var(--am-text)' }}>Order #{ord.id}</span>
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: '3px 10px',
+                          borderRadius: 20,
+                          background: ord.status?.includes('Selesai') ? '#DCFCE7' : '#FEF3C7',
+                          color: ord.status?.includes('Selesai') ? '#16A34A' : '#D97706'
+                        }}>
+                          {ord.status || 'Menunggu Diproses'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--am-text-muted)', marginTop: 4 }}>
+                        Pembeli: <strong>{ord.buyerName}</strong> • {ord.deliveryMethod === 'delivery' ? '🛵 Kurir Antar' : '🏪 Ambil Sendiri'}
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Total Pembayaran</div>
+                      <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--am-primary)' }}>
+                        {formatRupiah(ord.total || 35000)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Items in order */}
+                  <div style={{ background: 'var(--am-bg2)', padding: '10px 14px', borderRadius: 12, marginBottom: 14, fontSize: 12 }}>
+                    <div style={{ fontWeight: 700, color: 'var(--am-text)', marginBottom: 4 }}>Rincian Item:</div>
+                    <div style={{ color: 'var(--am-text-muted)' }}>
+                      • 1x Menu Pilihan Favorit Kampus ({formatRupiah(ord.total || 35000)})
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => {
+                        sendChatApi({
+                          fromId: sellerId,
+                          fromName: sellerName,
+                          fromRole: 'seller',
+                          toId: ord.buyerEmail || 'pembeli@antasari.mart',
+                          toName: ord.buyerName,
+                          toRole: 'buyer',
+                          text: `Halo Kak ${ord.buyerName}, pesanan #${ord.id} sedang kami siapkan ya!`
+                        });
+                        setAlertPopup({ message: `Pesan chat terkirim ke Kak ${ord.buyerName}! 💬`, type: 'success' });
+                      }}
+                      style={{ padding: '8px 14px', borderRadius: 10, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      💬 Chat Pembeli
+                    </button>
+                    <button
+                      onClick={() => handleUpdateOrderStatus(ord.id, '🍳 Sedang Disiapkan')}
+                      style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: '#F59E0B', color: 'white', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      🍳 Siapkan Pesanan
+                    </button>
+                    <button
+                      onClick={() => handleUpdateOrderStatus(ord.id, '🛵 Siap Diantar / Diambil')}
+                      style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: '#3B82F6', color: 'white', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      🛵 Siap Kirim
+                    </button>
+                    <button
+                      onClick={() => handleUpdateOrderStatus(ord.id, '✅ Pesanan Selesai')}
+                      style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: '#16A34A', color: 'white', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      ✅ Selesai
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
+      {/* ── TAB 3: ANALITIK & FINANSIAL ── */}
       {tab === 'analytics' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-          <div className="am-card" style={{ padding: 20, borderRadius: 16, background: 'var(--am-surface)', textAlign: 'center' }}>
-            <div style={{ fontSize: 28, marginBottom: 4 }}>💰</div>
-            <div style={{ fontSize: 12, color: 'var(--am-text-muted)' }}>Total Omset Jualan</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--am-primary)', marginTop: 4 }}>Rp 1.250.000</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* 3 Metric Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+            <div className="am-card" style={{ padding: 22, borderRadius: 18, background: 'var(--am-surface)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(95, 168, 116, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
+                  💰
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--am-text-muted)' }}>Total Omset Kotor</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--am-primary)', marginTop: 2 }}>{formatRupiah(2450000)}</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 12, fontSize: 11, color: '#16A34A', fontWeight: 700 }}>
+                ↑ +18.4% dari bulan lalu
+              </div>
+            </div>
+
+            <div className="am-card" style={{ padding: 22, borderRadius: 18, background: 'var(--am-surface)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(59, 130, 246, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
+                  📦
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--am-text-muted)' }}>Total Produk Terjual</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: '#3B82F6', marginTop: 2 }}>148 Pcs</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 12, fontSize: 11, color: '#3B82F6', fontWeight: 700 }}>
+                Rata-rata 12 transaksi / hari
+              </div>
+            </div>
+
+            <div className="am-card" style={{ padding: 22, borderRadius: 18, background: 'var(--am-surface)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
+                  ⭐
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--am-text-muted)' }}>Skor Kepuasan Pembeli</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: '#F59E0B', marginTop: 2 }}>4.9 / 5.0</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 12, fontSize: 11, color: '#F59E0B', fontWeight: 700 }}>
+                100% Pesanan Tepat Waktu
+              </div>
+            </div>
           </div>
-          <div className="am-card" style={{ padding: 20, borderRadius: 16, background: 'var(--am-surface)', textAlign: 'center' }}>
-            <div style={{ fontSize: 28, marginBottom: 4 }}>📦</div>
-            <div style={{ fontSize: 12, color: 'var(--am-text-muted)' }}>Total Produk Aktif</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--am-primary)', marginTop: 4 }}>{products.length} Item</div>
-          </div>
-          <div className="am-card" style={{ padding: 20, borderRadius: 16, background: 'var(--am-surface)', textAlign: 'center' }}>
-            <div style={{ fontSize: 28, marginBottom: 4 }}>⭐</div>
-            <div style={{ fontSize: 12, color: 'var(--am-text-muted)' }}>Rating Kepuasan</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#F59E0B', marginTop: 4 }}>4.9 / 5.0</div>
+
+          {/* Detailed Analytics Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 18 }}>
+            {/* Top Products */}
+            <div className="am-card" style={{ padding: 20, borderRadius: 18, background: 'var(--am-surface)' }}>
+              <h3 className="am-heading" style={{ margin: '0 0 14px', fontSize: 16, color: 'var(--am-text)' }}>
+                🏆 5 Produk Terlaris Toko
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {products.slice(0, 5).map((p, idx) => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--am-bg2)', borderRadius: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--am-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
+                        {idx + 1}
+                      </span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)' }}>{p.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>{formatRupiah(p.price)}</div>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--am-primary)' }}>
+                      {p.sold || 24} terjual
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Jam Ramai Penjualan */}
+            <div className="am-card" style={{ padding: 20, borderRadius: 18, background: 'var(--am-surface)' }}>
+              <h3 className="am-heading" style={{ margin: '0 0 14px', fontSize: 16, color: 'var(--am-text)' }}>
+                ⏰ Jam Paling Ramai Pesanan
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[
+                  { time: '11:30 - 13:30 (Istirahat Dzuhur & Makan Siang)', pct: 45, label: 'Sangat Padat 🔥' },
+                  { time: '15:30 - 17:00 (Selesai Kelas Sore)', pct: 30, label: 'Ramai ✨' },
+                  { time: '08:30 - 10:00 (Sarapan Pagi)', pct: 18, label: 'Sedang' },
+                  { time: 'Waktu Lainnya', pct: 7, label: 'Normal' },
+                ].map((slot, idx) => (
+                  <div key={idx} style={{ padding: '8px 0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 700, color: 'var(--am-text)' }}>{slot.time}</span>
+                      <span style={{ fontWeight: 800, color: 'var(--am-primary)' }}>{slot.pct}% ({slot.label})</span>
+                    </div>
+                    <div style={{ height: 8, borderRadius: 4, background: 'var(--am-bg2)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${slot.pct}%`, background: 'var(--am-primary)', borderRadius: 4 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Modal Tambah Produk */}
+      {/* ── TAB 4: DOMPET & TARIK SALDO ── */}
+      {tab === 'wallet' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+          {/* Card Saldo & Penarikan */}
+          <div className="am-card" style={{ padding: 24, borderRadius: 20, background: 'var(--am-surface)' }}>
+            <h3 className="am-heading" style={{ margin: '0 0 14px', fontSize: 17, color: 'var(--am-text)' }}>
+              🏧 Dompet Penghasilan Toko
+            </h3>
+
+            <div style={{ padding: 20, borderRadius: 16, background: 'linear-gradient(135deg, #16A34A 0%, #22C55E 100%)', color: 'white', marginBottom: 18 }}>
+              <div style={{ fontSize: 12, opacity: 0.9 }}>Saldo Toko Tersedia</div>
+              <div style={{ fontSize: 28, fontWeight: 900, marginTop: 4 }}>{formatRupiah(walletBalance)}</div>
+              <div style={{ fontSize: 11, opacity: 0.85, marginTop: 4 }}>
+                Bebas biaya admin transfer ke BSI, DANA, GoPay & ShopeePay
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowWithdrawModal(true)}
+              className="am-btn-primary"
+              style={{ width: '100%', padding: '12px 0', fontSize: 14, fontWeight: 800, borderRadius: 12 }}
+            >
+              🏧 Tarik Saldo ke Rekening / E-Wallet
+            </button>
+          </div>
+
+          {/* Riwayat Penarikan Dana */}
+          <div className="am-card" style={{ padding: 24, borderRadius: 20, background: 'var(--am-surface)' }}>
+            <h3 className="am-heading" style={{ margin: '0 0 14px', fontSize: 17, color: 'var(--am-text)' }}>
+              📜 Riwayat Penarikan Saldo
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                { date: 'Hari ini, 10:15', method: 'DANA (0812****001)', amount: 150000, status: 'Berhasil ✅' },
+                { date: '28 Agu 2026', method: 'BSI (7140****99)', amount: 300000, status: 'Berhasil ✅' },
+                { date: '20 Agu 2026', method: 'ShopeePay (0812****001)', amount: 200000, status: 'Berhasil ✅' },
+              ].map((h, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'var(--am-bg2)', borderRadius: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)' }}>{h.method}</div>
+                    <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>{h.date}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--am-text)' }}>- {formatRupiah(h.amount)}</div>
+                    <div style={{ fontSize: 10, color: '#16A34A', fontWeight: 700 }}>{h.status}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 5: PROMO & DISKON TOKO ── */}
+      {tab === 'promo' && (
+        <div className="am-card" style={{ padding: 24, borderRadius: 20, background: 'var(--am-surface)' }}>
+          <h3 className="am-heading" style={{ margin: '0 0 8px', fontSize: 18, color: 'var(--am-text)' }}>
+            🏷️ Buat Promo & Kupon Diskon Toko
+          </h3>
+          <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--am-text-muted)' }}>
+            Tingkatkan penjualan tokomu dengan memberikan potongan harga khusus untuk mahasiswa kampus!
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+            <div style={{ padding: 18, borderRadius: 16, border: '1.5px dashed var(--am-primary)', background: 'var(--am-primary-light, rgba(95,168,116,0.1))' }}>
+              <div style={{ fontSize: 20, marginBottom: 4 }}>🎟️</div>
+              <h4 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 800, color: 'var(--am-text)' }}>Kupon Diskon Persentase</h4>
+              <p style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 12 }}>Diskon 10% s/d 20% untuk pembelian di atas nominal tertentu.</p>
+              <button
+                onClick={() => setAlertPopup({ message: 'Fitur kupon diskon toko berhasil diaktifkan! ✨', type: 'success' })}
+                style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+              >
+                + Pasang Diskon Toko
+              </button>
+            </div>
+
+            <div style={{ padding: 18, borderRadius: 16, border: '1.5px dashed #3B82F6', background: 'rgba(59, 130, 246, 0.08)' }}>
+              <div style={{ fontSize: 20, marginBottom: 4 }}>⚡</div>
+              <h4 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 800, color: 'var(--am-text)' }}>Flash Deal Jam Makan Siang</h4>
+              <p style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 12 }}>Turunkan harga makanan otomatis antara jam 11:30 - 13:00.</p>
+              <button
+                onClick={() => setAlertPopup({ message: 'Flash deal jam makan siang berhasil dijadwalkan! ⚡', type: 'success' })}
+                style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#3B82F6', color: 'white', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+              >
+                + Jadwalkan Flash Deal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL TARIK SALDO ── */}
+      {showWithdrawModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="am-card" style={{ width: '100%', maxWidth: 460, padding: 24, borderRadius: 22, background: 'var(--am-surface)' }}>
+            <h3 className="am-heading" style={{ margin: '0 0 6px', fontSize: 18, color: 'var(--am-text)' }}>
+              🏧 Tarik Saldo Toko
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--am-text-muted)' }}>
+              Saldo saat ini: <strong style={{ color: 'var(--am-primary)' }}>{formatRupiah(walletBalance)}</strong>
+            </p>
+
+            <form onSubmit={handleWithdrawSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Pilih Rekening / E-Wallet Tujuan</label>
+                <select
+                  value={withdrawMethod}
+                  onChange={e => setWithdrawMethod(e.target.value as any)}
+                  style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, background: 'var(--am-bg2)', color: 'var(--am-text)', fontSize: 13, fontWeight: 700 }}
+                >
+                  <option value="dana">DANA (Bebas Biaya Admin)</option>
+                  <option value="gopay">GoPay</option>
+                  <option value="shopeepay">ShopeePay</option>
+                  <option value="bsi">Bank Syariah Indonesia (BSI)</option>
+                  <option value="bca">Bank BCA</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Nomor HP / Nomor Rekening</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: 081234567890"
+                  value={withdrawAccount}
+                  onChange={e => setWithdrawAccount(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, background: 'var(--am-bg2)', color: 'var(--am-text)', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Nominal Penarikan (Rp)</label>
+                <input
+                  type="number"
+                  required
+                  placeholder="Minimal 10000"
+                  value={withdrawAmount}
+                  onChange={e => setWithdrawAmount(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, background: 'var(--am-bg2)', color: 'var(--am-text)', fontSize: 14, fontWeight: 700, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowWithdrawModal(false)}
+                  style={{ flex: 1, padding: '11px', borderRadius: 12, border: '1px solid var(--am-border)', background: 'var(--am-surface)', cursor: 'pointer', fontWeight: 700 }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="am-btn-primary"
+                  style={{ flex: 1, padding: '11px', borderRadius: 12, fontWeight: 800, fontSize: 13 }}
+                >
+                  Konfirmasi Tarik
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL TAMBAH PRODUK ── */}
       {showAddModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="am-card" style={{ width: '100%', maxWidth: 480, padding: 24, borderRadius: 20, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 14px', fontSize: 18, color: 'var(--am-text)' }}>Tambah Produk Baru</h3>
+          <div className="am-card" style={{ width: '100%', maxWidth: 500, padding: 24, borderRadius: 22, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="am-heading" style={{ margin: '0 0 14px', fontSize: 18, color: 'var(--am-text)' }}>
+              Tambah Produk Baru ke Lapak
+            </h3>
+
             <form onSubmit={handleCreateProduct} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Nama Produk</label>
                 <input
                   type="text"
                   required
-                  placeholder="Contoh: Pentol Kuah UIN"
+                  placeholder="Contoh: Pentol Kuah UIN / Ganci Myammiy"
                   value={newProd.name}
                   onChange={e => setNewProd({ ...newProd, name: e.target.value })}
-                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                 />
               </div>
 
@@ -442,45 +1296,82 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                     placeholder="10000"
                     value={newProd.price}
                     onChange={e => setNewProd({ ...newProd, price: e.target.value })}
-                    style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Stok</label>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Stok Awal</label>
                   <input
                     type="number"
                     required
                     placeholder="20"
                     value={newProd.stock}
                     onChange={e => setNewProd({ ...newProd, stock: e.target.value })}
-                    style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                   />
                 </div>
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Kategori</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Kategori Produk</label>
                 <select
                   value={newProd.category}
                   onChange={e => setNewProd({ ...newProd, category: e.target.value as ProductCategory })}
-                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 4 }}
+                  style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                 >
                   {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                 </select>
               </div>
 
-              {/* 📸 FOTO PRODUK DENGAN 3 PILIHAN PRAKTIS (UPLOAD GALERI, TEMPLATE CEPAT, ATAU LINK) */}
-              <div style={{ background: 'var(--am-bg2)', padding: 12, borderRadius: 12, border: '1px solid var(--am-border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text)' }}>Foto Produk</label>
-                  {imageFile && (
-                    <span style={{ fontSize: 11, color: 'var(--am-primary)', fontWeight: 700 }}>
-                      Foto Terpasang ✓
-                    </span>
-                  )}
+              {/* MULTI-FOTO PRODUK (MAKS 200 KB PER FOTO) */}
+              <div style={{ background: 'var(--am-bg2)', padding: 14, borderRadius: 14, border: '1px solid var(--am-border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--am-text)' }}>
+                    📸 Multi-Foto Etalase ({newProdImages.length}/5 Foto)
+                  </label>
+                  <span style={{ fontSize: 10.5, color: '#16A34A', background: '#DCFCE7', padding: '2px 8px', borderRadius: 6, fontWeight: 800 }}>
+                    Maks 200 KB/Foto
+                  </span>
                 </div>
 
-                {/* Tab Pilihan Metode Foto */}
+                {/* Previews of uploaded images */}
+                {newProdImages.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
+                    {newProdImages.map((img, idx) => (
+                      <div key={idx} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', aspectRatio: '1', border: idx === 0 ? '2px solid var(--am-primary)' : '1px solid var(--am-border)' }}>
+                        <img src={img} alt={`Foto ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        {idx === 0 && (
+                          <span style={{ position: 'absolute', bottom: 2, left: 2, background: 'var(--am-primary)', color: 'white', fontSize: 8, fontWeight: 900, padding: '1px 4px', borderRadius: 4 }}>
+                            Utama
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setNewProdImages(prev => prev.filter((_, i) => i !== idx))}
+                          style={{
+                            position: 'absolute',
+                            top: 2,
+                            right: 2,
+                            background: 'rgba(239, 68, 68, 0.9)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: 18,
+                            height: 18,
+                            fontSize: 10,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
                   <button
                     type="button"
@@ -497,7 +1388,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                       cursor: 'pointer'
                     }}
                   >
-                    📁 Galeri / HP
+                    📁 Galeri HP
                   </button>
                   <button
                     type="button"
@@ -514,7 +1405,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                       cursor: 'pointer'
                     }}
                   >
-                    🎨 Template Foto
+                    🎨 Template Cepat
                   </button>
                   <button
                     type="button"
@@ -535,103 +1426,77 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                   </button>
                 </div>
 
-                {/* MODE 1: UPLOAD FILE DARI HP / KAMERA */}
                 {photoMode === 'upload' && (
-                  <div>
-                    <label
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 6,
-                        padding: '14px',
-                        borderRadius: 10,
-                        border: '2px dashed var(--am-primary)',
-                        background: 'var(--am-surface)',
-                        cursor: 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <span style={{ fontSize: 24 }}>📸</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-primary)' }}>
-                        {uploadingImage ? 'Sedang Memproses Foto...' : 'Klik untuk Pilih Foto dari Galeri / Kamera'}
-                      </span>
-                      <span style={{ fontSize: 10, color: 'var(--am-text-muted)' }}>Mendukung format JPG, PNG, WebP</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileUpload}
-                        style={{ display: 'none' }}
-                      />
-                    </label>
-                  </div>
-                )}
-
-                {/* MODE 2: PILIH TEMPLATE FOTO CEPAT */}
-                {photoMode === 'preset' && (
-                  <div>
-                    <div style={{ fontSize: 10.5, color: 'var(--am-text-muted)', marginBottom: 6 }}>
-                      Klik salah satu foto estetik yang cocok dengan produkmu:
-                    </div>
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(4, 1fr)',
+                  <label
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       gap: 6,
-                      maxHeight: 130,
-                      overflowY: 'auto',
-                      padding: 4,
+                      padding: '14px',
+                      borderRadius: 10,
+                      border: '2px dashed var(--am-primary)',
                       background: 'var(--am-surface)',
-                      borderRadius: 8,
-                      border: '1px solid var(--am-border)'
-                    }}>
-                      {PRODUCT_IMAGE_PRESETS.map((p, idx) => (
-                        <div
-                          key={idx}
-                          onClick={() => {
-                            setImageFile(p.url);
-                            setAlertPopup({ message: `Foto template "${p.name}" dipilih! 📸`, type: 'success' });
-                          }}
-                          style={{
-                            cursor: 'pointer',
-                            borderRadius: 8,
-                            overflow: 'hidden',
-                            position: 'relative',
-                            border: imageFile === p.url ? '2.5px solid var(--am-primary)' : '1px solid var(--am-border)',
-                            aspectRatio: '1',
-                            boxShadow: imageFile === p.url ? '0 0 8px rgba(95,168,116,0.4)' : 'none'
-                          }}
-                          title={p.name}
-                        >
-                          <img src={p.url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          <div style={{
-                            position: 'absolute',
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            background: 'rgba(0,0,0,0.6)',
-                            color: 'white',
-                            fontSize: 8,
-                            padding: '2px',
-                            textAlign: 'center',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}>
-                            {p.name}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                      cursor: 'pointer',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <span style={{ fontSize: 24 }}>📸</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-primary)' }}>
+                      {uploadingImage ? 'Sedang Memproses Foto (Auto Compress <=200KB)...' : '+ Tambah Foto dari Galeri (Bisa Pilih Banyak)'}
+                    </span>
+                    <span style={{ fontSize: 10, color: 'var(--am-text-muted)' }}>Maks 5 foto • Otomatis dikompresi di bawah 200 KB</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleFileUpload}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                )}
+
+                {photoMode === 'preset' && (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: 6,
+                    maxHeight: 120,
+                    overflowY: 'auto',
+                    padding: 4,
+                    background: 'var(--am-surface)',
+                    borderRadius: 8,
+                    border: '1px solid var(--am-border)'
+                  }}>
+                    {PRODUCT_IMAGE_PRESETS.map((p, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          setNewProdImages(prev => prev.length < 5 ? [...prev, p.url] : prev);
+                          if (!imageFile) setImageFile(p.url);
+                          setAlertPopup({ message: `Foto "${p.name}" ditambahkan! 📸`, type: 'success' });
+                        }}
+                        style={{
+                          cursor: 'pointer',
+                          borderRadius: 8,
+                          overflow: 'hidden',
+                          position: 'relative',
+                          border: newProdImages.includes(p.url) ? '2.5px solid var(--am-primary)' : '1px solid var(--am-border)',
+                          aspectRatio: '1'
+                        }}
+                      >
+                        <img src={p.url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                {/* MODE 3: TEMPEL LINK / URL GAMBAR */}
                 {photoMode === 'url' && (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <input
                       type="text"
-                      placeholder="https://images.unsplash.com/..."
+                      placeholder="https://..."
                       value={customImageUrl}
                       onChange={e => setCustomImageUrl(e.target.value)}
                       style={{
@@ -648,69 +1513,89 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                     <button
                       type="button"
                       onClick={() => {
-                        if (customImageUrl.trim()) {
-                          setImageFile(customImageUrl.trim());
-                          setAlertPopup({ message: 'URL Foto produk berhasil diterapkan! 🔗', type: 'success' });
+                        if (customImageUrl.trim() && newProdImages.length < 5) {
+                          setNewProdImages(prev => [...prev, customImageUrl.trim()]);
+                          if (!imageFile) setImageFile(customImageUrl.trim());
+                          setCustomImageUrl('');
                         }
                       }}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: 'var(--am-primary)',
-                        color: 'white',
-                        fontWeight: 700,
-                        fontSize: 11.5,
-                        cursor: 'pointer'
-                      }}
+                      style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}
                     >
-                      Terapkan
+                      + Tambah
                     </button>
                   </div>
                 )}
+              </div>
 
-                {/* PREVIEW GAMBAR TERPILIH */}
-                {imageFile && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginTop: 10,
-                    padding: '8px 10px',
-                    borderRadius: 10,
-                    background: 'var(--am-surface)',
-                    border: '1px solid var(--am-border)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <img
-                        src={imageFile}
-                        alt="Preview"
-                        style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1.5px solid var(--am-primary)' }}
-                      />
-                      <div>
-                        <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--am-text)' }}>Foto Siap Dipublikasikan</div>
-                        <div style={{ fontSize: 10, color: 'var(--am-text-muted)' }}>Foto akan muncul di katalog pembeli</div>
-                      </div>
+              {/* VIDEO DEMO PRODUK (MAKS 5 MB) */}
+              <div style={{ background: 'var(--am-bg2)', padding: 14, borderRadius: 14, border: '1px solid var(--am-border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--am-text)' }}>
+                    🎥 Video Demo Produk (Opsional)
+                  </label>
+                  <span style={{ fontSize: 10.5, color: '#3B82F6', background: '#DBEAFE', padding: '2px 8px', borderRadius: 6, fontWeight: 800 }}>
+                    Maks 5 MB
+                  </span>
+                </div>
+
+                {newProdVideo ? (
+                  <div>
+                    <video
+                      src={newProdVideo}
+                      controls
+                      style={{ width: '100%', maxHeight: 180, borderRadius: 10, background: '#000', marginBottom: 8 }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--am-text-muted)', fontWeight: 700 }}>
+                        ✓ Video terpasang {newProdVideoSize ? `(${newProdVideoSize} MB)` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => { setNewProdVideo(''); setNewProdVideoSize(''); }}
+                        style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#EF4444', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Hapus Video
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setImageFile('');
-                        setCustomImageUrl('');
-                      }}
+                  </div>
+                ) : (
+                  <div>
+                    <label
                       style={{
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        border: 'none',
-                        color: '#EF4444',
-                        borderRadius: 6,
-                        padding: '4px 8px',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        cursor: 'pointer'
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        padding: '12px',
+                        borderRadius: 10,
+                        border: '2px dashed #3B82F6',
+                        background: 'var(--am-surface)',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        marginBottom: 8
                       }}
                     >
-                      ✕ Hapus
-                    </button>
+                      <span style={{ fontSize: 22 }}>🎬</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#3B82F6' }}>
+                        {uploadingVideo ? 'Memvalidasi Ukuran Video...' : 'Unggah Video Demo (MP4 / WebM)'}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--am-text-muted)' }}>Maksimal ukuran file video adalah 5 MB</span>
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                        onChange={handleVideoUpload}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+
+                    <input
+                      type="text"
+                      placeholder="Atau tempel Link URL Video (https://...mp4)"
+                      value={newProdVideo}
+                      onChange={e => setNewProdVideo(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', fontSize: 11.5, boxSizing: 'border-box' }}
+                    />
                   </div>
                 )}
               </div>
@@ -734,19 +1619,17 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                       opacity: newProd.name ? 1 : 0.6,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 4,
-                      boxShadow: '0 2px 6px rgba(124, 58, 237, 0.3)'
+                      gap: 4
                     }}
-                    title="Buat deskripsi produk otomatis yang menarik dengan AI DeepSeek"
                   >
-                    {isGeneratingAiDesc ? '⏳ Menulis...' : '✨ Buat dengan AI'}
+                    {isGeneratingAiDesc ? '⏳ Menulis...' : '✨ Buat AI DeepSeek'}
                   </button>
                 </div>
                 <textarea
-                  placeholder="Jelaskan detail produk, bahan, atau klik '✨ Buat dengan AI' di atas..."
+                  placeholder="Jelaskan bahan, rasa, keunggulan, atau klik '✨ Buat AI DeepSeek'..."
                   value={newProd.description}
                   onChange={e => setNewProd({ ...newProd, description: e.target.value })}
-                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 2, boxSizing: 'border-box', height: 80, fontSize: 12.5 }}
+                  style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', boxSizing: 'border-box', height: 80, fontSize: 12.5, background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                 />
               </div>
 
@@ -754,15 +1637,16 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', background: 'var(--am-surface)', cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '11px', borderRadius: 12, border: '1px solid var(--am-border)', background: 'var(--am-surface)', cursor: 'pointer', fontWeight: 700 }}
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 700, cursor: 'pointer' }}
+                  className="am-btn-primary"
+                  style={{ flex: 1, padding: '11px', borderRadius: 12, fontWeight: 800, fontSize: 13 }}
                 >
-                  Terbitkan
+                  Terbitkan Produk 🚀
                 </button>
               </div>
             </form>
@@ -770,11 +1654,14 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
         </div>
       )}
 
-      {/* Modal Edit Produk */}
+      {/* ── MODAL EDIT PRODUK ── */}
       {showEditModal && editingProduct && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="am-card" style={{ width: '100%', maxWidth: 480, padding: 24, borderRadius: 20, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 14px', fontSize: 18, color: 'var(--am-text)' }}>Edit Produk</h3>
+          <div className="am-card" style={{ width: '100%', maxWidth: 500, padding: 24, borderRadius: 22, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="am-heading" style={{ margin: '0 0 14px', fontSize: 18, color: 'var(--am-text)' }}>
+              Edit Detail Produk Multi-Media
+            </h3>
+
             <form onSubmit={handleUpdateProduct} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Nama Produk</label>
@@ -783,7 +1670,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                   required
                   value={editingProduct.name}
                   onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                 />
               </div>
 
@@ -795,7 +1682,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                     required
                     value={editingProduct.price}
                     onChange={e => setEditingProduct({ ...editingProduct, price: e.target.value })}
-                    style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                   />
                 </div>
                 <div>
@@ -805,107 +1692,156 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                     required
                     value={editingProduct.stock}
                     onChange={e => setEditingProduct({ ...editingProduct, stock: e.target.value })}
-                    style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                   />
                 </div>
               </div>
 
-              {/* 📸 GANTI FOTO PRODUK */}
-              <div style={{ background: 'var(--am-bg2)', padding: 12, borderRadius: 12, border: '1px solid var(--am-border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text)' }}>Foto Produk</label>
-                  {editingProduct.image && (
-                    <span style={{ fontSize: 11, color: 'var(--am-primary)', fontWeight: 700 }}>
-                      Foto Terpasang ✓
-                    </span>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                  <label style={{
-                    flex: 1,
-                    padding: '8px',
-                    borderRadius: 8,
-                    border: '1.5px dashed var(--am-primary)',
-                    background: 'var(--am-surface)',
-                    color: 'var(--am-primary)',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    textAlign: 'center',
-                    display: 'block'
-                  }}>
-                    📸 Upload dari HP
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        setUploadingImage(true);
-                        try {
-                          const res = await uploadImageApi(file);
-                          if (res && res.imageUrl) {
-                            setEditingProduct({ ...editingProduct, image: res.imageUrl });
-                          } else {
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              setEditingProduct({ ...editingProduct, image: reader.result as string });
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                          setAlertPopup({ message: 'Foto produk berhasil diganti! 📸', type: 'success' });
-                        } catch {
-                          const reader = new FileReader();
-                          reader.onload = () => {
-                            setEditingProduct({ ...editingProduct, image: reader.result as string });
-                          };
-                          reader.readAsDataURL(file);
-                        } finally {
-                          setUploadingImage(false);
-                        }
-                      }}
-                      style={{ display: 'none' }}
-                    />
+              {/* EDIT MULTI-FOTO PRODUK (MAKS 200 KB) */}
+              <div style={{ background: 'var(--am-bg2)', padding: 14, borderRadius: 14, border: '1px solid var(--am-border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--am-text)' }}>
+                    📸 Multi-Foto Produk ({editProdImages.length}/5 Foto)
                   </label>
+                  <span style={{ fontSize: 10.5, color: '#16A34A', background: '#DCFCE7', padding: '2px 8px', borderRadius: 6, fontWeight: 800 }}>
+                    Maks 200 KB/Foto
+                  </span>
                 </div>
 
-                {/* Preset Cepat di Edit Modal */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: 6,
-                  maxHeight: 90,
-                  overflowY: 'auto',
-                  padding: 4,
-                  background: 'var(--am-surface)',
-                  borderRadius: 8,
-                  border: '1px solid var(--am-border)',
-                  marginBottom: 8
-                }}>
-                  {PRODUCT_IMAGE_PRESETS.map((p, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => setEditingProduct({ ...editingProduct, image: p.url })}
-                      style={{
-                        cursor: 'pointer',
-                        borderRadius: 6,
-                        overflow: 'hidden',
-                        position: 'relative',
-                        border: editingProduct.image === p.url ? '2px solid var(--am-primary)' : '1px solid var(--am-border)',
-                        aspectRatio: '1'
-                      }}
-                      title={p.name}
-                    >
-                      <img src={p.url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                {editProdImages.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
+                    {editProdImages.map((img, idx) => (
+                      <div key={idx} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', aspectRatio: '1', border: idx === 0 ? '2px solid var(--am-primary)' : '1px solid var(--am-border)' }}>
+                        <img src={img} alt={`Foto ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        {idx === 0 && (
+                          <span style={{ position: 'absolute', bottom: 2, left: 2, background: 'var(--am-primary)', color: 'white', fontSize: 8, fontWeight: 900, padding: '1px 4px', borderRadius: 4 }}>
+                            Utama
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setEditProdImages(prev => prev.filter((_, i) => i !== idx))}
+                          style={{
+                            position: 'absolute',
+                            top: 2,
+                            right: 2,
+                            background: 'rgba(239, 68, 68, 0.9)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: 18,
+                            height: 18,
+                            fontSize: 10,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <label
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    padding: '12px',
+                    borderRadius: 10,
+                    border: '2px dashed var(--am-primary)',
+                    background: 'var(--am-surface)',
+                    cursor: 'pointer',
+                    textAlign: 'center'
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>📸</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--am-primary)' }}>
+                    + Tambah / Ganti Foto dari Galeri (Auto Compress &lt;=200KB)
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleEditFileUpload}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              </div>
+
+              {/* EDIT VIDEO DEMO PRODUK (MAKS 5 MB) */}
+              <div style={{ background: 'var(--am-bg2)', padding: 14, borderRadius: 14, border: '1px solid var(--am-border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--am-text)' }}>
+                    🎥 Video Demo Produk (Opsional)
+                  </label>
+                  <span style={{ fontSize: 10.5, color: '#3B82F6', background: '#DBEAFE', padding: '2px 8px', borderRadius: 6, fontWeight: 800 }}>
+                    Maks 5 MB
+                  </span>
+                </div>
+
+                {editProdVideo ? (
+                  <div>
+                    <video
+                      src={editProdVideo}
+                      controls
+                      style={{ width: '100%', maxHeight: 180, borderRadius: 10, background: '#000', marginBottom: 8 }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--am-text-muted)', fontWeight: 700 }}>
+                        ✓ Video demo aktif {editProdVideoSize ? `(${editProdVideoSize} MB)` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => { setEditProdVideo(''); setEditProdVideoSize(''); }}
+                        style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#EF4444', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Hapus Video
+                      </button>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        padding: '12px',
+                        borderRadius: 10,
+                        border: '2px dashed #3B82F6',
+                        background: 'var(--am-surface)',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        marginBottom: 8
+                      }}
+                    >
+                      <span style={{ fontSize: 20 }}>🎬</span>
+                      <span style={{ fontSize: 11.5, fontWeight: 700, color: '#3B82F6' }}>
+                        {editProdVideoLoading ? 'Memvalidasi Ukuran Video...' : 'Unggah Video Demo (Maks 5 MB)'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                        onChange={handleEditVideoUpload}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
 
-                {editingProduct.image && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <img src={editingProduct.image} alt="Preview" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8, border: '1.5px solid var(--am-primary)' }} />
-                    <span style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Pratinjau foto produk aktif</span>
+                    <input
+                      type="text"
+                      placeholder="Atau tempel Link URL Video (https://...mp4)"
+                      value={editProdVideo}
+                      onChange={e => setEditProdVideo(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', fontSize: 11.5, boxSizing: 'border-box' }}
+                    />
                   </div>
                 )}
               </div>
@@ -926,21 +1862,16 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                       fontSize: 11,
                       fontWeight: 800,
                       cursor: editingProduct.name ? 'pointer' : 'not-allowed',
-                      opacity: editingProduct.name ? 1 : 0.6,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      boxShadow: '0 2px 6px rgba(124, 58, 237, 0.3)'
+                      opacity: editingProduct.name ? 1 : 0.6
                     }}
-                    title="Buat deskripsi produk otomatis yang menarik dengan AI DeepSeek"
                   >
-                    {isGeneratingAiDesc ? '⏳ Menulis...' : '✨ Buat dengan AI'}
+                    {isGeneratingAiDesc ? '⏳ Menulis...' : '✨ Perbarui AI'}
                   </button>
                 </div>
                 <textarea
                   value={editingProduct.description}
                   onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })}
-                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--am-border)', marginTop: 2, boxSizing: 'border-box', height: 80, fontSize: 12.5 }}
+                  style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', boxSizing: 'border-box', height: 80, fontSize: 12.5, background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                 />
               </div>
 
@@ -948,15 +1879,16 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', background: 'var(--am-surface)', cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '11px', borderRadius: 12, border: '1px solid var(--am-border)', background: 'var(--am-surface)', cursor: 'pointer', fontWeight: 700 }}
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 700, cursor: 'pointer' }}
+                  className="am-btn-primary"
+                  style={{ flex: 1, padding: '11px', borderRadius: 12, fontWeight: 800, fontSize: 13 }}
                 >
-                  Simpan Perubahan
+                  Simpan Perubahan ✨
                 </button>
               </div>
             </form>
@@ -966,9 +1898,24 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
 
       {/* Alert Popup */}
       {alertPopup && (
-        <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 1200, padding: '12px 20px', borderRadius: 14, background: alertPopup.type === 'success' ? '#10B981' : '#EF4444', color: 'white', fontWeight: 700, fontSize: 13, boxShadow: '0 4px 14px rgba(0,0,0,0.2)' }}>
-          {alertPopup.message}
-          <button onClick={() => setAlertPopup(null)} style={{ marginLeft: 10, background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 800 }}>✕</button>
+        <div style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          zIndex: 1200,
+          padding: '12px 20px',
+          borderRadius: 16,
+          background: alertPopup.type === 'success' ? '#10B981' : '#EF4444',
+          color: 'white',
+          fontWeight: 800,
+          fontSize: 13,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12
+        }}>
+          <span>{alertPopup.message}</span>
+          <button onClick={() => setAlertPopup(null)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 900, fontSize: 14 }}>✕</button>
         </div>
       )}
     </div>

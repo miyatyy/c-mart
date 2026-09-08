@@ -162,12 +162,9 @@ export default function Sidebar({
   const getMenuByRole = () => {
     const menus: { key: AppTab; label: string }[] = [
       { key: 'home', label: 'Beranda' },
+      { key: 'tracker', label: hasActiveOrder ? trackerLabel : 'Peta Lokasi' },
       { key: 'cart', label: 'Keranjang' },
     ];
-
-    if (hasActiveOrder) {
-      menus.push({ key: 'tracker', label: trackerLabel });
-    }
 
     menus.push({ key: 'chat', label: 'Pesan' });
 
@@ -382,7 +379,7 @@ export default function Sidebar({
               <button
                 key={item.key}
                 onClick={() => {
-                  if (isGuest && (item.key === 'cart' || item.key === 'chat' || item.key === 'tracker' || item.key === 'seller' || item.key === 'driver')) {
+                  if (isGuest && (item.key === 'cart' || item.key === 'chat' || item.key === 'seller' || item.key === 'driver')) {
                     if (onRequireLogin) onRequireLogin();
                     return;
                   }

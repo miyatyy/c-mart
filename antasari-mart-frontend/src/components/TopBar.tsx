@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import type { AppTab, Campus, ThemeMode, UserRole, CartItem } from '../types'
 import { useRealtimeLocation } from '../lib/useRealtimeLocation'
 
@@ -26,12 +25,14 @@ interface TopBarProps {
 
 export default function TopBar({
   theme, campus, setCampus, activeTab: _activeTab, setActiveTab,
-  role, userName, userEmail, userAvatar, isGuest, onRequireLogin,
-  onLogout, onOpenProfileModal, onToggleMobileSidebar, onToggleTheme
+  userName, userAvatar, isGuest, onRequireLogin,
+  cartItems, chatUnread,
+  onOpenProfileModal, onToggleMobileSidebar, onToggleTheme
 }: TopBarProps) {
   const isAesthetic = theme === 'aesthetic'
+  const totalCartCount = cartItems.reduce((acc, i) => acc + (i.quantity || 1), 0)
 
-  // 📡 Pelacakan GPS Real-Time dengan Reverse Geocoding & Webhook
+  // 📡 Pelacakan GPS Real-Time dengan Reverse Geocoding
   const {
     status: gpsStatus,
     cityName: gpsCityName,
@@ -46,6 +47,22 @@ export default function TopBar({
     } else if (onOpenProfileModal) {
       onOpenProfileModal();
     }
+  }
+
+  const handleChatClick = () => {
+    if (isGuest && onRequireLogin) {
+      onRequireLogin();
+      return;
+    }
+    setActiveTab('chat');
+  }
+
+  const handleCartClick = () => {
+    if (isGuest && onRequireLogin) {
+      onRequireLogin();
+      return;
+    }
+    setActiveTab('cart');
   }
 
   return (
@@ -67,13 +84,49 @@ export default function TopBar({
         .gps-pulse-detecting {
           animation: pulseDetecting 1.2s infinite;
         }
+        .topbar-icon-btn {
+          position: relative;
+          background: var(--am-bg2);
+          border: 1px solid var(--am-border);
+          border-radius: 10px;
+          width: 38px;
+          height: 38px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--am-text);
+          transition: all 0.2s ease;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+        }
+        .topbar-icon-btn:active {
+          transform: scale(0.92);
+        }
+        .topbar-badge {
+          position: absolute;
+          top: -4px;
+          right: -4px;
+          background: linear-gradient(135deg, #EF4444 0%, #F43F5E 100%);
+          color: white;
+          border-radius: 10px;
+          font-size: 10px;
+          font-weight: 800;
+          padding: 1px 5px;
+          min-width: 17px;
+          height: 17px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+          border: 1.5px solid var(--am-surface, #ffffff);
+        }
       `}</style>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', gap: 6 }}>
         
-        {/* Sisi Kiri: Tombol Hamburger Menu + Logo */}
+        {/* Sisi Kiri: Tombol Hamburger Menu + Logo Antasari Mart */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* 📱 Tombol Hamburger Menu Khusus HP */}
+          {/* 📱 Tombol Hamburger Menu */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -81,21 +134,9 @@ export default function TopBar({
               if (onToggleMobileSidebar) onToggleMobileSidebar();
             }}
             aria-label="Buka Menu Sidebar"
-            style={{
-              background: 'var(--am-bg2)',
-              border: '1px solid var(--am-border)',
-              borderRadius: 10,
-              width: 36,
-              height: 36,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--am-primary)',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
-              zIndex: 102
-            }}
+            className="topbar-icon-btn"
             title="Buka Sidebar Menu"
+            style={{ width: 36, height: 36 }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               <line x1="3" y1="12" x2="21" y2="12"/>
@@ -105,69 +146,64 @@ export default function TopBar({
           </button>
 
           {/* Logo Antasari Mart */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setActiveTab('home')}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }} onClick={() => setActiveTab('home')}>
             <div style={{
-              width: 34, height: 34, borderRadius: isAesthetic ? '50%' : 8,
+              width: 34, height: 34, borderRadius: isAesthetic ? '50%' : 9,
               background: 'linear-gradient(135deg, #5FA874 0%, #F4AEC2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 16, fontWeight: 800, color: 'white', flexShrink: 0,
               boxShadow: '0 2px 8px rgba(95, 168, 116, 0.25)'
             }}>A</div>
             <div style={{ whiteSpace: 'nowrap' }}>
-              <div className="am-heading" style={{ fontSize: isAesthetic ? 14 : 13.5, fontWeight: 800, color: 'var(--am-text)', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+              <div className="am-heading" style={{ fontSize: isAesthetic ? 13.5 : 13, fontWeight: 800, color: 'var(--am-text)', lineHeight: 1.1 }}>
                 Antasari Mart
               </div>
-              <div style={{ fontSize: 10, color: 'var(--am-primary)', fontWeight: 600, lineHeight: 1.1, display: 'flex', alignItems: 'center', gap: 3, marginTop: 2, whiteSpace: 'nowrap' }}>
-                <span>Campus Hub</span>
+              <div style={{ fontSize: 9.5, color: 'var(--am-primary)', fontWeight: 600, lineHeight: 1.1, marginTop: 2 }}>
+                Campus Hub
               </div>
             </div>
           </div>
         </div>
 
-        {/* Tengah: 📍 SIMBOL LOKASI DENGAN 1 KATA NAMA KOTA DI BAWAHNYA (REAL-TIME AUTO) */}
+        {/* Tengah: 📍 SIMBOL LOKASI REAL-TIME */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
           <div
-            title={`Lokasi Aktif: ${gpsCityName || (campus === 'banjarbaru' ? 'Banjarbaru' : 'Banjarmasin')} (Terdeteksi Real-Time)`}
+            title={`Lokasi Aktif: ${gpsCityName || (campus === 'banjarbaru' ? 'Banjarbaru' : 'Banjarmasin')}`}
             style={{
               display: 'inline-flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '2px 8px',
-              borderRadius: 12,
+              padding: '2px 6px',
+              borderRadius: 10,
               background: 'transparent',
               userSelect: 'none'
             }}
           >
-            {/* Simbol Ikon Lokasi SVG dengan Radar Ringan */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', color: 'var(--am-primary)' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/>
                 <circle cx="12" cy="10" r="2.8" fill="currentColor"/>
               </svg>
-              {/* Titik Pulse Live Indikator */}
               <span
                 className={gpsStatus === 'detecting' ? 'gps-pulse-detecting' : 'gps-pulse-live'}
                 style={{
                   position: 'absolute',
                   top: -1,
                   right: -3,
-                  width: 5.5,
-                  height: 5.5,
+                  width: 5,
+                  height: 5,
                   borderRadius: '50%',
                   background: gpsStatus === 'detecting' ? '#F59E0B' : '#10B981'
                 }}
               />
             </div>
-
-            {/* 1 Kata Keterangan Nama Kota di Bawah Simbol */}
             <span
               style={{
-                fontSize: 10.5,
+                fontSize: 10,
                 fontWeight: 800,
                 color: 'var(--am-text)',
                 lineHeight: 1.1,
                 marginTop: 2,
-                letterSpacing: 0.2,
                 textTransform: 'capitalize',
                 whiteSpace: 'nowrap'
               }}
@@ -177,31 +213,55 @@ export default function TopBar({
           </div>
         </div>
 
-        {/* Sisi Kanan: Toggle Mode Gelap/Terang + Foto Profil & Tombol Masuk/Keluar */}
+        {/* Sisi Kanan: 💬 CHAT + 🛒 KERANJANG + 🌓 TEMA + 👤 AVATAR (TANPA TOMBOL LOGOUT ATAS) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* Tombol Cepat Ganti Tema Terang/Gelap */}
+          
+          {/* 💬 1. Tombol Chat / Pesan di Pojok Kanan Atas */}
+          <button
+            onClick={handleChatClick}
+            className="topbar-icon-btn"
+            title="Chat & Pesan Masuk"
+            aria-label="Buka Chat"
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            {chatUnread > 0 && (
+              <span className="topbar-badge">
+                {chatUnread > 9 ? '9+' : chatUnread}
+              </span>
+            )}
+          </button>
+
+          {/* 🛒 2. Tombol Keranjang di Pojok Kanan Atas */}
+          <button
+            onClick={handleCartClick}
+            className="topbar-icon-btn"
+            title="Keranjang Belanja"
+            aria-label="Buka Keranjang"
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="8" cy="21" r="1"/>
+              <circle cx="19" cy="21" r="1"/>
+              <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
+            </svg>
+            {totalCartCount > 0 && (
+              <span className="topbar-badge">
+                {totalCartCount > 9 ? '9+' : totalCartCount}
+              </span>
+            )}
+          </button>
+
+          {/* 🌓 3. Tombol Ganti Mode Gelap/Terang */}
           <button
             onClick={onToggleTheme}
+            className="topbar-icon-btn"
             title={theme === 'modern' ? "Ganti ke Mode Terang (Siang)" : "Ganti ke Mode Gelap (Malam)"}
-            aria-label="Ganti Tema Mode Gelap / Terang"
-            style={{
-              background: 'var(--am-bg2)',
-              border: '1px solid var(--am-border)',
-              borderRadius: 8,
-              width: 32,
-              height: 32,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--am-text)',
-              fontSize: 14,
-              transition: 'all 0.2s ease'
-            }}
+            aria-label="Ganti Tema"
+            style={{ width: 34, height: 34 }}
           >
             {theme === 'modern' ? (
-              /* Sun Icon */
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="5"/>
                 <line x1="12" y1="1" x2="12" y2="3"/>
                 <line x1="12" y1="21" x2="12" y2="23"/>
@@ -213,25 +273,25 @@ export default function TopBar({
                 <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
               </svg>
             ) : (
-              /* Moon Icon */
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--am-text)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
               </svg>
             )}
           </button>
 
+          {/* 👤 4. Foto Profil Pengguna */}
           <div 
             onClick={handleProfileClick}
-            title="Klik untuk Edit Profil"
+            title="Klik untuk Lihat Profil & Akun"
             style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
           >
             {isGuest ? (
               <div style={{ 
-                width: 32, height: 32, borderRadius: '50%', background: 'var(--am-bg2)', 
-                border: '2px solid var(--am-border)', display: 'flex', alignItems: 'center', 
-                justifyContent: 'center', fontSize: 14, flexShrink: 0, color: 'var(--am-text-muted)' 
+                width: 34, height: 34, borderRadius: '50%', background: 'var(--am-bg2)', 
+                border: '1.5px solid var(--am-border)', display: 'flex', alignItems: 'center', 
+                justifyContent: 'center', fontSize: 13, flexShrink: 0, color: 'var(--am-text-muted)' 
               }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
                   <circle cx="12" cy="7" r="4"/>
                 </svg>
@@ -240,20 +300,11 @@ export default function TopBar({
               <img 
                 src={activeAvatar} 
                 alt={userName} 
-                style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', background: 'var(--am-bg2)', border: '2px solid var(--am-primary)', flexShrink: 0 }} 
+                style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', background: 'var(--am-bg2)', border: '2px solid var(--am-primary)', flexShrink: 0 }} 
               />
             )}
           </div>
-          
-          <button 
-            onClick={onLogout}
-            style={{ 
-              background: isGuest ? 'var(--am-primary)' : '#EF4444', color: 'white', border: 'none', borderRadius: 8, 
-              padding: '6px 10px', fontSize: 10.5, fontWeight: 800, cursor: 'pointer', letterSpacing: 0.3
-            }}
-          >
-            {isGuest ? 'MASUK' : 'LOGOUT'}
-          </button>
+
         </div>
       </div>
     </header>

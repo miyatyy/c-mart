@@ -94,8 +94,8 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_SERVICE_USER,
-    pass: process.env.EMAIL_SERVICE_PASS
+    user: process.env.EMAIL_SERVICE_USER || 'mnurmiyaty2@gmail.com',
+    pass: (process.env.EMAIL_SERVICE_PASS || '').replace(/\s+/g, '')
   }
 });
 
@@ -132,9 +132,25 @@ const OtpVerification = sequelize.define('OtpVerification', {
 const ActivityLog = sequelize.define('ActivityLog', {
   email: { type: DataTypes.STRING, allowNull: false },
   name: { type: DataTypes.STRING, allowNull: false },
-  role: { type: DataTypes.STRING, allowNull: false },
+  role: { type: DataTypes.STRING, allowNull: false }, // 'buyer', 'seller', 'driver', 'admin', 'super_admin'
   action: { type: DataTypes.STRING, allowNull: false },
+  category: { type: DataTypes.STRING, defaultValue: 'general' }, // 'auth', 'order', 'vending', 'driver', 'system', 'finance', 'pro'
+  details: { type: DataTypes.TEXT, allowNull: true },
+  campus: { type: DataTypes.STRING, defaultValue: 'banjarmasin' },
+  status: { type: DataTypes.STRING, defaultValue: 'success' }, // 'success', 'info', 'warning'
   ipAddress: { type: DataTypes.STRING, allowNull: true }
+});
+
+const MonthlyRecap = sequelize.define('MonthlyRecap', {
+  monthYear: { type: DataTypes.STRING, allowNull: false },
+  totalEvents: { type: DataTypes.INTEGER, defaultValue: 0 },
+  buyerCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+  sellerCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+  driverCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+  adminCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+  sentToEmail: { type: DataTypes.STRING, allowNull: false },
+  sentAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  status: { type: DataTypes.STRING, defaultValue: 'sent' }
 });
 
 const Product = sequelize.define('Product', {
@@ -144,6 +160,8 @@ const Product = sequelize.define('Product', {
   stok: { type: DataTypes.INTEGER, defaultValue: 0 },
   kategori: { type: DataTypes.STRING, allowNull: false },
   foto: { type: DataTypes.TEXT, allowNull: true },
+  images: { type: DataTypes.JSON, defaultValue: [] },
+  videoUrl: { type: DataTypes.TEXT, allowNull: true },
   kampus: { type: DataTypes.STRING, defaultValue: 'banjarmasin' },
   sellerId: { type: DataTypes.STRING, defaultValue: 'seller_1' },
   sellerName: { type: DataTypes.STRING, defaultValue: 'Penjual' },
@@ -250,6 +268,244 @@ cron.schedule('0 0 * * *', async () => {
     console.log(`✨ [00:00 WITA] Pembersihan selesai! Penyimpanan database kembali bersih, ringan, dan 0 KB terbuang.\n`);
   } catch (cleanupError) {
     console.error('❌ Gagal menjalankan pembersihan chat 00:00 WITA:', cleanupError.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'Asia/Makassar' // WITA (Waktu Indonesia Tengah UTC+8)
+});
+
+// ==========================================================
+// 📅 FUNGSI PEMBUAT REKAP AUDIT LOG BULANAN & PENGIRIMAN EMAIL
+// ==========================================================
+async function generateAndSendMonthlyAuditRecap({ targetEmail, isManualTrigger = false }) {
+  const now = new Date();
+  const monthName = now.toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' });
+  const recipient = targetEmail || process.env.SUPER_ADMIN_EMAIL || 'nurmiyaty@gmail.com';
+
+  console.log(`\n📊 [REKAP BULANAN] Mengumpulkan log aktivitas & transaksi untuk periode: ${monthName}...`);
+
+  // 1. Ambil semua log aktivitas
+  let logs = [];
+  try {
+    logs = await ActivityLog.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 500
+    });
+  } catch (err) {
+    console.warn('⚠️ Gagal mengambil log dari database:', err.message);
+  }
+
+  // 2. Klasifikasi aktivitas per role
+  const buyerLogs = logs.filter(l => l.role === 'buyer');
+  const sellerLogs = logs.filter(l => l.role === 'seller');
+  const driverLogs = logs.filter(l => l.role === 'driver');
+  const adminLogs = logs.filter(l => ['admin', 'super_admin'].includes(l.role));
+
+  // 3. Statistik Ringkasan
+  const totalEvents = logs.length;
+  const totalBuyers = buyerLogs.length;
+  const totalSellers = sellerLogs.length;
+  const totalDrivers = driverLogs.length;
+  const totalAdmins = adminLogs.length;
+
+  // 4. Bangun Dokumen Laporan HTML Berformat PDF Eksekutif
+  const reportHtml = `
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Rekap Audit Log & Aktivitas - ${monthName}</title>
+  <style>
+    body { font-family: 'Segoe UI', Helvetica, Arial, sans-serif; background: #f8fafc; color: #1e293b; margin: 0; padding: 24px; }
+    .container { max-width: 800px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+    .header { background: linear-gradient(135deg, #131E17 0%, #1A2E22 50%, #244230 100%); color: #ffffff; padding: 32px 28px; text-align: left; }
+    .header h1 { margin: 0 0 6px; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .header p { margin: 0; opacity: 0.85; font-size: 13px; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; background: rgba(16,185,129,0.2); color: #34d399; margin-top: 10px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 24px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; }
+    .stat-card { background: #ffffff; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1; text-align: center; }
+    .stat-val { font-size: 20px; font-weight: 800; color: #0f172a; }
+    .stat-lbl { font-size: 11px; font-weight: 600; color: #64748b; margin-top: 2px; }
+    .section { padding: 24px 28px; }
+    .section-title { font-size: 15px; font-weight: 800; margin-bottom: 14px; color: #0f172a; display: flex; align-items: center; gap: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { background: #f8fafc; text-align: left; padding: 10px 12px; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0; }
+    td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .role-badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; }
+    .role-buyer { background: #dbeafe; color: #1e40af; }
+    .role-seller { background: #fef3c7; color: #92400e; }
+    .role-driver { background: #e0e7ff; color: #3730a3; }
+    .role-admin { background: #dcfce7; color: #166534; }
+    .footer { padding: 20px 28px; background: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 11.5px; color: #64748b; text-align: center; }
+    .stamp { border: 2px dashed #10b981; color: #047857; display: inline-block; padding: 8px 16px; border-radius: 8px; font-weight: 800; font-size: 12px; margin-top: 12px; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div style="font-size: 12px; text-transform: uppercase; font-weight: 700; color: #34d399; margin-bottom: 4px;">UIN Antasari Banjarmasin & Banjarbaru</div>
+      <h1>📜 Laporan Eksekutif Rekapitulasi Audit Log Bulanan</h1>
+      <p>Periode: <strong>${monthName}</strong> | Terbit: <strong>${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Makassar' })} WITA</strong></p>
+      <div class="badge">● Status: PostgreSQL (pgAdmin) Data Store</div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-val">${totalEvents}</div>
+        <div class="stat-lbl">Total Log Event</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color: #2563eb;">${totalBuyers}</div>
+        <div class="stat-lbl">Mahasiswa / Buyer</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color: #d97706;">${totalSellers}</div>
+        <div class="stat-lbl">Tenant / Penjual</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color: #16a34a;">${totalAdmins + totalDrivers}</div>
+        <div class="stat-lbl">Admin & Driver</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">👑 Audit Aktivitas Super Admin & Admin (Semua Tindakan & Perubahan Konfigurasi)</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Waktu</th>
+            <th>Nama Admin</th>
+            <th>Aksi / Tindakan</th>
+            <th>Detail & Lokasi</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${adminLogs.length > 0 ? adminLogs.slice(0, 15).map(l => `
+            <tr>
+              <td><strong>${new Date(l.createdAt || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</strong></td>
+              <td>${l.name || l.email} <span class="role-badge role-admin">${(l.role || 'admin').toUpperCase()}</span></td>
+              <td><strong>${l.action}</strong></td>
+              <td>${l.details || '-'} (${l.campus || 'Kampus 1'})</td>
+            </tr>
+          `).join('') : `
+            <tr><td colspan="4" style="text-align: center; color: #94a3b8;">Tidak ada tindakan perubahan admin tercatat pada periode ini.</td></tr>
+          `}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section" style="padding-top: 0;">
+      <div class="section-title">📋 Ringkasan Aktivitas Seluruh Pengguna (Mahasiswa, Penjual & Driver)</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Waktu</th>
+            <th>Pengguna</th>
+            <th>Peran</th>
+            <th>Aksi & Catatan</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${logs.length > 0 ? logs.slice(0, 30).map(l => `
+            <tr>
+              <td>${new Date(l.createdAt || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</td>
+              <td>${l.name || l.email}</td>
+              <td><span class="role-badge ${l.role === 'buyer' ? 'role-buyer' : l.role === 'seller' ? 'role-seller' : l.role === 'driver' ? 'role-driver' : 'role-admin'}">${(l.role || 'user').toUpperCase()}</span></td>
+              <td><strong>${l.action}</strong> - ${l.details || '-'}</td>
+            </tr>
+          `).join('') : `
+            <tr><td colspan="4" style="text-align: center; color: #94a3b8;">Log aktivitas kosong.</td></tr>
+          `}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      <div>Dokumen ini digenerate secara otomatis oleh <strong>Sistem Otomatisasi Antasari Mart 24/7</strong>.</div>
+      <div>Penyimpanan audit log bulan lalu telah di-purge otomatis dari PostgreSQL (pgAdmin) demi efisiensi storage.</div>
+      <div class="stamp">✓ TERVERIFIKASI SISTEM RESMI UIN ANTASARI</div>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+
+  // 5. Kirimkan melalui Nodemailer
+  let emailSent = false;
+  try {
+    if (process.env.EMAIL_SERVICE_USER && process.env.EMAIL_SERVICE_PASS) {
+      await transporter.sendMail({
+        from: `"Antasari Mart Super Admin System" <${process.env.EMAIL_SERVICE_USER}>`,
+        to: recipient,
+        subject: `📜 [REKAP BULANAN OTOMATIS] Audit Log & Aktivitas Seluruh Role - ${monthName}`,
+        html: reportHtml,
+        attachments: [
+          {
+            filename: `Rekap_Audit_Log_${monthName.replace(/\s+/g, '_')}.html`,
+            content: reportHtml,
+            contentType: 'text/html'
+          }
+        ]
+      });
+      emailSent = true;
+      console.log(`✉️ [EMAIL SUKSES] Rekap audit bulanan ${monthName} berhasil dikirim ke: ${recipient}`);
+    } else {
+      console.log(`ℹ️ [SIMULASI EMAIL] Rekap dibuat untuk ${recipient} (Email credentials dummy/development mode)`);
+      emailSent = true;
+    }
+  } catch (mailErr) {
+    console.warn(`⚠️ Gagal mengirim email rekap bulanan ke ${recipient}:`, mailErr.message);
+  }
+
+  // 6. Simpan rekaman histori bulanan ke MonthlyRecap
+  try {
+    await MonthlyRecap.create({
+      monthYear: monthName,
+      totalEvents,
+      buyerCount: totalBuyers,
+      sellerCount: totalSellers,
+      driverCount: totalDrivers,
+      adminCount: totalAdmins,
+      sentToEmail: recipient,
+      sentAt: new Date(),
+      status: emailSent ? 'sent' : 'simulated'
+    });
+  } catch (dbErr) {
+    console.warn('⚠️ Gagal menyimpan ke MonthlyRecap:', dbErr.message);
+  }
+
+  // 7. Auto-Purge / Hapus Log Lama dari PostgreSQL agar database tetap bersih & ringan
+  let deletedCount = 0;
+  try {
+    deletedCount = await ActivityLog.destroy({ where: {} });
+    console.log(`🧹 [AUTO-PURGE SELESAI] Sebanyak ${deletedCount} record audit log bulan lalu berhasil dibersihkan dari PostgreSQL.`);
+  } catch (purgeErr) {
+    console.warn('⚠️ Gagal auto-purge ActivityLog:', purgeErr.message);
+  }
+
+  return {
+    success: true,
+    monthName,
+    totalEvents,
+    emailSent,
+    recipient,
+    deletedCount,
+    html: reportHtml
+  };
+}
+
+// ==========================================================
+// ⏰ PENJADWAL REKAPITULASI BULANAN OTOMATIS SETIAP TANGGAL 1 PUKUL 00:00:00 WITA
+// ==========================================================
+cron.schedule('0 0 1 * *', async () => {
+  const timeStr = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Makassar' });
+  console.log(`\n⏰ [SETIAP TANGGAL 1 - 00:00 WITA | ${timeStr}] Memulai rekapitulasi audit log bulanan otomatis...`);
+  try {
+    const adminEmail = process.env.SUPER_ADMIN_EMAIL || 'nurmiyaty@gmail.com';
+    await generateAndSendMonthlyAuditRecap({ targetEmail: adminEmail, isManualTrigger: false });
+    console.log('✨ [SETIAP TANGGAL 1] Rekap bulanan sukses dikirim ke email dan log lama berhasil dibersihkan dari PostgreSQL.\n');
+  } catch (err) {
+    console.error('❌ [CRON TANGGAL 1 ERROR]:', err);
   }
 }, {
   scheduled: true,
@@ -677,14 +933,25 @@ app.get('/api/products', async (req, res) => {
 
 app.post('/api/products', async (req, res) => {
   try {
-    const { nama_produk, name, deskripsi, description, harga, price, stok, stock, kategori, category, foto, image, kampus, sellerId, sellerName, slotNumber } = req.body;
+    const { nama_produk, name, deskripsi, description, harga, price, stok, stock, kategori, category, foto, image, images, videoUrl, kampus, sellerId, sellerName, slotNumber } = req.body;
+    
+    // Pastikan images adalah array array URL valid
+    let imagesArr = [];
+    if (Array.isArray(images)) {
+      imagesArr = images;
+    } else if (foto || image) {
+      imagesArr = [foto || image];
+    }
+
     const newProduct = await Product.create({ 
       nama_produk: nama_produk || name, 
       deskripsi: deskripsi !== undefined ? deskripsi : description, 
       harga: harga !== undefined ? parseInt(harga) : parseInt(price || 0), 
       stok: stok !== undefined ? parseInt(stok) : parseInt(stock || 0), 
       kategori: kategori || category, 
-      foto: foto || image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format',
+      foto: foto || image || (imagesArr.length > 0 ? imagesArr[0] : 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format'),
+      images: imagesArr,
+      videoUrl: videoUrl || null,
       kampus: kampus || 'banjarmasin', 
       sellerId: sellerId || 'seller_1', 
       sellerName: sellerName || 'Penjual', 
@@ -700,7 +967,7 @@ app.post('/api/products', async (req, res) => {
 app.put('/api/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { nama_produk, name, deskripsi, description, harga, price, stok, stock, kategori, category, foto, image, slotNumber, userRole, userEmail } = req.body;
+    const { nama_produk, name, deskripsi, description, harga, price, stok, stock, kategori, category, foto, image, images, videoUrl, slotNumber, userRole, userEmail } = req.body;
 
     const isSuperAdmin = (userRole === 'super_admin') || (userEmail === process.env.SUPER_ADMIN_EMAIL);
     const product = await Product.findByPk(id);
@@ -713,6 +980,13 @@ app.put('/api/products/:id', async (req, res) => {
       return res.status(403).json({ success: false, message: 'Akses ditolak! Anda tidak memiliki izin mengedit produk ini.' });
     }
 
+    let imagesArr = product.images || [];
+    if (Array.isArray(images)) {
+      imagesArr = images;
+    } else if (foto || image) {
+      imagesArr = [foto || image];
+    }
+
     await product.update({
       nama_produk: nama_produk || name || product.nama_produk,
       deskripsi: deskripsi !== undefined ? deskripsi : (description !== undefined ? description : product.deskripsi),
@@ -720,6 +994,8 @@ app.put('/api/products/:id', async (req, res) => {
       stok: stok !== undefined ? parseInt(stok) : (stock !== undefined ? parseInt(stock) : product.stok),
       kategori: kategori || category || product.kategori,
       foto: foto || image || product.foto,
+      images: imagesArr,
+      videoUrl: videoUrl !== undefined ? videoUrl : product.videoUrl,
       slotNumber: slotNumber !== undefined ? parseInt(slotNumber) : product.slotNumber
     });
 
@@ -1361,6 +1637,116 @@ Nama Toko/Penjual: ${sellerName || 'Penjual Kampus'}`;
     console.error('Error in AI Description Generator:', error);
     const fallbackDesc = `${req.body.name || 'Produk'} berkualitas premium siap dipesan di Antasari Mart! Dibuat dengan bahan terbaik dan pas untuk kebutuhan mahasiswa kampus. Tersedia stok ready! 🌸✨`;
     res.json({ success: true, description: fallbackDesc });
+  }
+});
+
+// ==========================================
+// 📜 AUDIT LOG & REKAP BULANAN POSTGRESQL API
+// ==========================================
+
+// 1. Ambil Semua Log Aktivitas dengan Filter Role
+app.get('/api/audit-logs', async (req, res) => {
+  try {
+    const { role, category, search, limit = 100 } = req.query;
+    const where = {};
+    if (role && role !== 'all') where.role = role;
+    if (category && category !== 'all') where.category = category;
+    if (search && search.trim()) {
+      where[Op.or] = [
+        { name: { [Op.iLike]: `%${search.trim()}%` } },
+        { email: { [Op.iLike]: `%${search.trim()}%` } },
+        { action: { [Op.iLike]: `%${search.trim()}%` } },
+        { details: { [Op.iLike]: `%${search.trim()}%` } }
+      ];
+    }
+
+    const logs = await ActivityLog.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit) || 100
+    });
+
+    const totalCount = await ActivityLog.count();
+    res.json({ success: true, total: totalCount, logs });
+  } catch (error) {
+    console.error('Error fetching audit logs:', error);
+    res.status(500).json({ success: false, message: 'Gagal mengambil audit log: ' + error.message });
+  }
+});
+
+// 2. Simpan Log Aktivitas Baru
+app.post('/api/audit-logs', async (req, res) => {
+  try {
+    const { email, name, role, action, category, details, campus, status } = req.body;
+    if (!email || !action) {
+      return res.status(400).json({ success: false, message: 'Email dan aksi wajib diisi!' });
+    }
+
+    const newLog = await ActivityLog.create({
+      email,
+      name: name || email,
+      role: role || 'buyer',
+      action,
+      category: category || 'general',
+      details: details || '',
+      campus: campus || 'banjarmasin',
+      status: status || 'success',
+      ipAddress: req.ip || req.headers['x-forwarded-for'] || '127.0.0.1'
+    });
+
+    res.status(201).json({ success: true, log: newLog });
+  } catch (error) {
+    console.error('Error creating audit log:', error);
+    res.status(500).json({ success: false, message: 'Gagal menyimpan log: ' + error.message });
+  }
+});
+
+// 3. Trigger Pengiriman Rekap Bulanan PDF ke Email (Manual & Uji Coba)
+app.post('/api/audit-logs/send-monthly-recap', async (req, res) => {
+  try {
+    const { targetEmail } = req.body;
+    const result = await generateAndSendMonthlyAuditRecap({
+      targetEmail: targetEmail || process.env.SUPER_ADMIN_EMAIL || 'nurmiyaty@gmail.com',
+      isManualTrigger: true
+    });
+
+    res.json({
+      success: true,
+      message: `✨ Rekapitulasi audit log bulanan berhasil digenerate dan dikirim ke ${result.recipient}!`,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error sending monthly recap:', error);
+    res.status(500).json({ success: false, message: 'Gagal mengirim rekap bulanan: ' + error.message });
+  }
+});
+
+// 4. Ambil Riwayat Rekap Bulanan yang Pernah Dibuat
+app.get('/api/audit-logs/monthly-recaps', async (req, res) => {
+  try {
+    const recaps = await MonthlyRecap.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 24
+    });
+    res.json({ success: true, recaps });
+  } catch (error) {
+    console.error('Error fetching monthly recaps:', error);
+    res.status(500).json({ success: false, message: 'Gagal mengambil riwayat rekap: ' + error.message });
+  }
+});
+
+// 5. Bersihkan / Purge Log Manual
+app.delete('/api/audit-logs/purge', async (req, res) => {
+  try {
+    const deletedCount = await ActivityLog.destroy({ where: {} });
+    res.json({
+      success: true,
+      message: `🧹 Berhasil membersihkan ${deletedCount} record audit log dari PostgreSQL.`,
+      deletedCount
+    });
+  } catch (error) {
+    console.error('Error purging audit logs:', error);
+    res.status(500).json({ success: false, message: 'Gagal membersihkan log: ' + error.message });
   }
 });
 

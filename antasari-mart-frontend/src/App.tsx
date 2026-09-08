@@ -202,7 +202,7 @@ function MainAppContent() {
   useEffect(() => {
     const saved = localStorage.getItem('am_tab') as AppTab | null;
     if (saved) {
-      if (isGuest && ['cart', 'checkout', 'chat', 'seller', 'driver', 'admin', 'tracker', 'super_admin'].includes(saved)) {
+      if (isGuest && ['cart', 'checkout', 'chat', 'seller', 'driver', 'admin', 'super_admin'].includes(saved)) {
         setActiveTab('home');
       } else {
         setActiveTab(saved);
@@ -278,8 +278,13 @@ function MainAppContent() {
             }
           }
         }
-      } catch (err) {
-        console.error("Gagal mengambil status unread chat:", err);
+      } catch (_err) {
+        // Fallback offline / mock mode
+        try {
+          const local = JSON.parse(localStorage.getItem(`am_local_chats_${currentUser.email.toLowerCase().trim()}`) || '[]');
+          const unread = local.filter((c: any) => c.receiverId?.toLowerCase() === currentUser.email?.toLowerCase() && c.isRead === false);
+          setChatUnread(unread.length);
+        } catch (_e) {}
       }
     };
 
@@ -329,19 +334,9 @@ function MainAppContent() {
   }
 
   const handleSetActiveTab = (tab: AppTab) => {
-    const guestRestricted: AppTab[] = ['cart', 'checkout', 'chat', 'seller', 'driver', 'admin', 'tracker', 'super_admin'];
+    const guestRestricted: AppTab[] = ['cart', 'checkout', 'chat', 'seller', 'driver', 'admin', 'super_admin'];
     if (isGuest && guestRestricted.includes(tab)) {
       setShowLoginModal(true);
-      return;
-    }
-    if (tab === 'tracker' && !hasActiveOrder) {
-      setModalMessage({
-        title: isGuest ? 'Silakan Login Dulu 🔒' : 'Belum Ada Pesanan 🛵',
-        desc: isGuest
-          ? 'Fitur Lacak / Order Pick-Up hanya dapat diakses setelah kamu login dan memiliki pesanan aktif.'
-          : 'Belum ada pesanan aktif. Lakukan checkout pesanan terlebih dahulu untuk membuka fitur ini.',
-        icon: '📍'
-      });
       return;
     }
     setActiveTab(tab);
@@ -370,11 +365,12 @@ function MainAppContent() {
     });
   }
 
-  function handleCheckout(_method: DeliveryMethod, _payment: PaymentMethod, _location: string) {
+  function handleCheckout(method: DeliveryMethod, _payment: PaymentMethod, _location: string) {
     setCart([]);
     localStorage.setItem('am_active_order', 'true');
+    localStorage.setItem('am_delivery_method', method);
     setHasActiveOrder(true);
-    setActiveTab('home');
+    setActiveTab('tracker');
   }
 
   async function handleOpenChat(sellerId: string, sellerName: string, productName: string) {
@@ -515,7 +511,7 @@ function MainAppContent() {
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
         />
 
-        <main style={{ flex: 1, paddingBottom: activeTab === 'chat' ? 0 : 72, minHeight: 'calc(100vh - 60px)' }}>
+        <main style={{ flex: 1, paddingBottom: 72, minHeight: 'calc(100vh - 60px)' }}>
           {activeTab === 'home' && (
             <ProductList
               theme={theme}
@@ -553,6 +549,7 @@ function MainAppContent() {
                   }
                 }}
                 onContinueShopping={() => setActiveTab('home')}
+                onAddToCart={addToCart}
               />
             )
           )}
@@ -577,24 +574,19 @@ function MainAppContent() {
             )
           )}
           {activeTab === 'tracker' && (
-            hasActiveOrder ? (
-              <CourierTracker
-                theme={theme}
-                campus={campus}
-                userName={currentUser.nama || currentUser.name || 'Pengunjung'}
-                userEmail={currentUser.email}
-              />
-            ) : (
-              <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--am-text-muted)' }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
-                <h3 style={{ color: 'var(--am-text)', margin: '0 0 8px' }}>Fitur Terkunci</h3>
-                <p style={{ fontSize: 13 }}>
-                  {isGuest
-                    ? 'Silakan login terlebih dahulu dan lakukan checkout pesanan untuk melihat status pesanan.'
-                    : 'Lakukan checkout pesanan terlebih dahulu untuk membuka fitur ini.'}
-                </p>
-              </div>
-            )
+            <CourierTracker
+              theme={theme}
+              campus={campus}
+              hasActiveOrder={hasActiveOrder}
+              userName={currentUser.nama || currentUser.name || 'Pengunjung'}
+              userEmail={currentUser.email}
+              onNavigateHome={() => setActiveTab('home')}
+              onNavigateCart={() => setActiveTab('cart')}
+              onFinishTracking={() => {
+                setHasActiveOrder(false)
+                setActiveTab('home')
+              }}
+            />
           )}
           {activeTab === 'chat' && (
             isGuest ? (

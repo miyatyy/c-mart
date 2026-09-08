@@ -164,11 +164,17 @@ export async function createProductApi(payload: {
   stock: number;
   category: string;
   image?: string;
+  images?: string[];
+  videoUrl?: string;
   campus?: string;
   sellerId?: string;
   sellerName?: string;
   slotNumber?: number;
 }) {
+  const imagesArr = payload.images && payload.images.length > 0
+    ? payload.images
+    : (payload.image ? [payload.image] : ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format']);
+
   const localProduct: Product = {
     id: `prod_${Date.now()}`,
     name: payload.name,
@@ -176,7 +182,9 @@ export async function createProductApi(payload: {
     price: payload.price,
     stock: payload.stock,
     category: payload.category as any,
-    image: payload.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format',
+    image: payload.image || imagesArr[0],
+    images: imagesArr,
+    videoUrl: payload.videoUrl,
     campus: (payload.campus || 'banjarmasin') as any,
     sellerId: payload.sellerId || 'seller_1',
     sellerName: payload.sellerName || 'Penjual Antasari',
@@ -203,7 +211,9 @@ export async function createProductApi(payload: {
         harga: payload.price,
         stok: payload.stock,
         kategori: payload.category,
-        foto: payload.image,
+        foto: payload.image || imagesArr[0],
+        images: imagesArr,
+        videoUrl: payload.videoUrl,
         kampus: payload.campus,
         sellerId: payload.sellerId,
         sellerName: payload.sellerName,
@@ -266,6 +276,11 @@ export interface BackendChatMessage {
   text: string;
   time: string;
   createdAt?: string;
+  mediaType?: 'text' | 'image' | 'audio' | 'location';
+  mediaUrl?: string;
+  audioDuration?: number;
+  status?: 'sending' | 'sent' | 'delivered' | 'read';
+  reactions?: Record<string, number>;
 }
 
 export async function getChatsApi(identifier: string) {
@@ -282,6 +297,9 @@ export async function sendChatApi(payload: {
   toName: string;
   toRole?: string;
   text: string;
+  mediaType?: 'text' | 'image' | 'audio' | 'location';
+  mediaUrl?: string;
+  audioDuration?: number;
 }) {
   return request<{ success: boolean; message: string; chat: BackendChatMessage }>('/api/chats', {
     method: 'POST',
@@ -352,59 +370,179 @@ export async function getActivityLogsApi() {
 }
 
 // ==========================================
-// ☁️ UPLOAD IMAGE API (Auto Compression + Cloudinary/Server + Resilient DataURI Fallback)
+// ☁️ SMART MEDIA COMPRESSION & VALIDATION (<= 200KB FOTO & <= 5MB VIDEO)
 // ==========================================
-function compressImage(file: File): Promise<string> {
+
+export interface ProcessedImageResult {
+  dataUrl: string;
+  sizeBytes: number;
+  sizeKb: number;
+  sizeFormatted: string;
+  isValid: boolean;
+}
+
+/**
+ * 🖼️ Kompresor Foto Cerdas Otomatis: Menjamin ukuran berkas <= 200 KB
+ * Melakukan penyesuaian dimensi dan kualitas kompresi bertahap (lossless/adaptive JPEG)
+ */
+export async function compressImageToTargetSize(
+  file: File,
+  maxSizeBytes: number = 200 * 1024
+): Promise<ProcessedImageResult> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
+        let currentQuality = 0.85;
+        let maxDimension = 1200;
+
+        // Hitung rasio awal
         let width = img.width;
         let height = img.height;
-        const maxDim = 800;
-
-        if (width > height) {
-          if (width > maxDim) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          }
-        } else {
-          if (height > maxDim) {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
+        if (width > height && width > maxDimension) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else if (height > maxDimension) {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
         }
 
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          resolve(dataUrl);
-        } else {
-          resolve((e.target?.result as string) || '');
+        if (!ctx) {
+          const raw = (e.target?.result as string) || '';
+          resolve({
+            dataUrl: raw,
+            sizeBytes: file.size,
+            sizeKb: Math.round(file.size / 1024),
+            sizeFormatted: `${Math.round(file.size / 1024)} KB`,
+            isValid: file.size <= maxSizeBytes
+          });
+          return;
         }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Loop kompresi adaptif hingga ukuran <= maxSizeBytes (200 KB)
+        let dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
+        let approxBytes = Math.round((dataUrl.length * 3) / 4);
+
+        while (approxBytes > maxSizeBytes && currentQuality > 0.35) {
+          currentQuality -= 0.12;
+          dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
+          approxBytes = Math.round((dataUrl.length * 3) / 4);
+        }
+
+        // Jika masih sedikit lebih besar dari 200 KB, resize canvas ke 800px
+        if (approxBytes > maxSizeBytes) {
+          maxDimension = 720;
+          let w2 = img.width;
+          let h2 = img.height;
+          if (w2 > h2 && w2 > maxDimension) {
+            h2 = Math.round((h2 * maxDimension) / w2);
+            w2 = maxDimension;
+          } else if (h2 > maxDimension) {
+            w2 = Math.round((w2 * maxDimension) / h2);
+            h2 = maxDimension;
+          }
+          canvas.width = w2;
+          canvas.height = h2;
+          ctx.drawImage(img, 0, 0, w2, h2);
+          dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+          approxBytes = Math.round((dataUrl.length * 3) / 4);
+        }
+
+        const sizeKb = Math.round(approxBytes / 1024);
+        resolve({
+          dataUrl,
+          sizeBytes: approxBytes,
+          sizeKb,
+          sizeFormatted: `${sizeKb} KB (Maks 200 KB)`,
+          isValid: approxBytes <= maxSizeBytes
+        });
       };
       img.onerror = () => {
-        resolve((e.target?.result as string) || '');
+        resolve({
+          dataUrl: (e.target?.result as string) || '',
+          sizeBytes: file.size,
+          sizeKb: Math.round(file.size / 1024),
+          sizeFormatted: `${Math.round(file.size / 1024)} KB`,
+          isValid: file.size <= maxSizeBytes
+        });
       };
       img.src = e.target?.result as string;
     };
-    reader.onerror = () => resolve('');
+    reader.onerror = () => {
+      resolve({
+        dataUrl: '',
+        sizeBytes: 0,
+        sizeKb: 0,
+        sizeFormatted: '0 KB',
+        isValid: false
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * 🎥 Validasi & Pemrosesan Video Produk: Batas Maksimal 5 MB
+ */
+export interface ProcessedVideoResult {
+  valid: boolean;
+  videoUrl?: string;
+  sizeBytes: number;
+  sizeMb: string;
+  error?: string;
+}
+
+export async function validateAndProcessVideo(
+  file: File,
+  maxSizeBytes: number = 5 * 1024 * 1024
+): Promise<ProcessedVideoResult> {
+  const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+
+  if (file.size > maxSizeBytes) {
+    return {
+      valid: false,
+      sizeBytes: file.size,
+      sizeMb: `${sizeMb} MB`,
+      error: `⚠️ Ukuran video terlalu besar (${sizeMb} MB)! Maksimal ukuran video produk adalah 5.00 MB.`
+    };
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({
+        valid: true,
+        videoUrl: reader.result as string,
+        sizeBytes: file.size,
+        sizeMb: `${sizeMb} MB`
+      });
+    };
+    reader.onerror = () => {
+      resolve({
+        valid: false,
+        sizeBytes: file.size,
+        sizeMb: `${sizeMb} MB`,
+        error: 'Gagal membaca berkas video.'
+      });
+    };
     reader.readAsDataURL(file);
   });
 }
 
 export async function uploadImageApi(file: File): Promise<{ success: boolean; message: string; imageUrl?: string }> {
   try {
-    const compressedDataUrl = await compressImage(file);
+    const processed = await compressImageToTargetSize(file, 200 * 1024);
 
     try {
       const formData = new FormData();
-      const resBlob = await (await fetch(compressedDataUrl)).blob();
+      const resBlob = await (await fetch(processed.dataUrl)).blob();
       formData.append('foto', resBlob, file.name.replace(/\.[^/.]+$/, "") + ".jpg");
 
       const targetUrl = API_BASE_URL ? `${API_BASE_URL}/api/upload` : '/api/upload';
@@ -423,11 +561,11 @@ export async function uploadImageApi(file: File): Promise<{ success: boolean; me
       console.warn("Upload ke server 413/offline, menggunakan hasil kompresi data:", _serverErr);
     }
 
-    if (compressedDataUrl) {
+    if (processed.dataUrl) {
       return {
         success: true,
-        message: 'Foto produk berhasil diproses! 📸',
-        imageUrl: compressedDataUrl
+        message: `Foto produk berhasil dikompresi (${processed.sizeFormatted})! 📸`,
+        imageUrl: processed.dataUrl
       };
     }
   } catch (err: any) {

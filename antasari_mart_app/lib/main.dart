@@ -67,26 +67,19 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
 
   Future<void> _requestPermissions() async {
     try {
-      var status = await Permission.locationWhenInUse.status;
-      if (!status.isGranted) {
-        await Permission.locationWhenInUse.request();
-      }
-      var locStatus = await Permission.location.status;
-      if (!locStatus.isGranted) {
+      // Minta izin lokasi GPS perangkat secara prioritas saat membuka aplikasi
+      final locStatus = await Permission.locationWhenInUse.request();
+      debugPrint('Status Izin Lokasi: $locStatus');
+      if (locStatus.isDenied) {
         await Permission.location.request();
       }
-      var cameraStatus = await Permission.camera.status;
-      if (!cameraStatus.isGranted) {
-        await Permission.camera.request();
-      }
-      var photosStatus = await Permission.photos.status;
-      if (!photosStatus.isGranted) {
-        await Permission.photos.request();
-      }
-      var storageStatus = await Permission.storage.status;
-      if (!storageStatus.isGranted) {
-        await Permission.storage.request();
-      }
+
+      // Izin kamera dan galeri untuk upload produk / foto chat
+      await [
+        Permission.camera,
+        Permission.photos,
+        Permission.storage,
+      ].request();
     } catch (e) {
       debugPrint('Gagal meminta izin: $e');
     }
@@ -125,9 +118,12 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
           onNavigationRequest: (NavigationRequest request) async {
             final uri = Uri.parse(request.url);
 
-            // Buka link WhatsApp, TikTok, Tokopedia, SeaBank di aplikasi eksternal
+            // Buka link WhatsApp, Google Maps, TikTok, Tokopedia di aplikasi eksternal HP
             if (request.url.startsWith('https://wa.me') ||
                 request.url.startsWith('whatsapp://') ||
+                request.url.startsWith('https://www.google.com/maps') ||
+                request.url.startsWith('https://maps.google.com') ||
+                request.url.startsWith('geo:') ||
                 request.url.contains('tokopedia.com') ||
                 request.url.contains('tiktok.com') ||
                 request.url.startsWith('tel:') ||
@@ -146,9 +142,9 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
       );
 
     if (_controller.platform is AndroidWebViewController) {
-      AndroidWebViewController.enableDebugging(true);
-      (_controller.platform as AndroidWebViewController)
-          .setGeolocationPermissionsPromptCallbacks(
+      AndroidWebViewController.enableDebugging(false);
+      final androidController = _controller.platform as AndroidWebViewController;
+      androidController.setGeolocationPermissionsPromptCallbacks(
         onShowPrompt: (request) async {
           return const GeolocationPermissionsResponse(
             allow: true,
@@ -156,6 +152,9 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
           );
         },
       );
+      androidController.setOnConsoleMessage((message) {
+        // Safe interceptor to protect from NullPointerException in third-party scripts
+      });
     }
 
     try {
@@ -186,6 +185,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
         }
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: true,
         backgroundColor: const Color(0xFFFAFDFB),
         body: SafeArea(
           child: Stack(

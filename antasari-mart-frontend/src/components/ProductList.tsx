@@ -3,6 +3,7 @@ import type { Product, CartItem, Campus, ThemeMode } from '../types';
 import { CATEGORIES, formatRupiah, MOCK_PRODUCTS } from '../data';
 import { getProductsApi } from '../lib/api';
 import PromoCarousel from './PromoCarousel';
+import ProductDetailModal from './ProductDetailModal';
 
 interface ProductListProps {
   theme: ThemeMode;
@@ -31,7 +32,6 @@ export default function ProductList({
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'koperasi' | 'mahasiswa'>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [qty, setQty] = useState(1);
   
   const [successPopup, setSuccessPopup] = useState<{ product: Product; qty: number } | null>(null);
   const [productsList, setProductsList] = useState<Product[]>([]);
@@ -81,7 +81,19 @@ export default function ProductList({
           const mappedName = p.name || (p as any).nama_produk || 'Produk';
           const mappedDesc = p.description || (p as any).deskripsi || '';
           const mappedSeller = p.sellerName || (p as any).seller_name || 'Penjual';
-          const mappedImage = p.image || (p as any).foto || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format';
+          let mappedImage = p.image || (p as any).foto || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format';
+          let mappedImages = Array.isArray(p.images) && p.images.length > 0 ? p.images : (mappedImage ? [mappedImage] : []);
+
+          if (mappedName.toLowerCase().includes('ganci rajut')) {
+            mappedImage = '/products/ganci_rajut_1.jpg';
+            mappedImages = [
+              '/products/ganci_rajut_1.jpg',
+              '/products/ganci_rajut_2.jpg',
+              'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop'
+            ];
+          }
+
+          const mappedVideo = p.videoUrl || (p as any).video_url || undefined;
           const mappedCategory = p.category || (p as any).kategori || 'kerajinan';
           const mappedPrice = typeof p.price === 'number' ? p.price : (typeof (p as any).harga === 'number' ? (p as any).harga : 0);
           const mappedStock = typeof p.stock === 'number' ? p.stock : (typeof (p as any).stok === 'number' ? (p as any).stok : 50);
@@ -94,6 +106,8 @@ export default function ProductList({
             description: mappedDesc,
             sellerName: mappedSeller,
             image: mappedImage,
+            images: mappedImages,
+            videoUrl: mappedVideo,
             category: mappedCategory,
             price: mappedPrice,
             stock: override !== undefined ? override : mappedStock
@@ -111,12 +125,15 @@ export default function ProductList({
         ];
         const finalProducts = combined.map(p => {
           const override = stockOverrides[p.id] !== undefined ? stockOverrides[p.id] : undefined;
+          const mainImg = p.image || (p as any).foto || '';
           return {
             ...p,
             name: p.name || (p as any).nama_produk || 'Produk',
             description: p.description || (p as any).deskripsi || '',
             sellerName: p.sellerName || (p as any).seller_name || 'Penjual',
-            image: p.image || (p as any).foto || '',
+            image: mainImg,
+            images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (mainImg ? [mainImg] : []),
+            videoUrl: p.videoUrl,
             stock: override !== undefined ? override : (p.stock !== undefined ? p.stock : 50)
           };
         });
@@ -351,6 +368,9 @@ export default function ProductList({
                 <img
                   src={p.image}
                   alt={p.name}
+                  onError={(e) => {
+                    e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop';
+                  }}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
                 {p.isKoperasi && (
@@ -498,177 +518,25 @@ export default function ProductList({
         </div>
       )}
 
-      {/* Modal Detail Produk */}
-      {selectedProduct && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.6)',
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16
-          }}
-          onClick={() => setSelectedProduct(null)}
-        >
-          <div
-            className="am-card"
-            style={{
-              width: '100%',
-              maxWidth: 500,
-              borderRadius: 24,
-              background: 'var(--am-surface)',
-              overflow: 'hidden',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{ position: 'relative', height: 240 }}>
-              <img
-                src={selectedProduct.image}
-                alt={selectedProduct.name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-              <button
-                onClick={() => setSelectedProduct(null)}
-                style={{
-                  position: 'absolute',
-                  top: 12,
-                  right: 12,
-                  background: 'rgba(0,0,0,0.5)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: 32,
-                  height: 32,
-                  color: 'white',
-                  fontSize: 16,
-                  cursor: 'pointer'
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ padding: 20 }}>
-              <div style={{ fontSize: 12, color: 'var(--am-primary)', fontWeight: 700, marginBottom: 4 }}>
-                {selectedProduct.sellerName} • Kampus {selectedProduct.campus.toUpperCase()}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--am-primary)' }}>
-                  {formatRupiah(selectedProduct.price)}
-                </div>
-                {selectedProduct.originalPrice && selectedProduct.originalPrice > selectedProduct.price && (
-                  <div style={{ fontSize: 13, color: 'var(--am-text-muted)', textDecoration: 'line-through', fontWeight: 600 }}>
-                    {formatRupiah(selectedProduct.originalPrice)}
-                  </div>
-                )}
-                {selectedProduct.originalPrice && selectedProduct.originalPrice > selectedProduct.price && (
-                  <span style={{ fontSize: 11, fontWeight: 800, color: '#EF4444', background: '#FEE2E2', padding: '2px 8px', borderRadius: 6 }}>
-                    Hemat {formatRupiah(selectedProduct.originalPrice - selectedProduct.price)} (-{Math.round(((selectedProduct.originalPrice - selectedProduct.price) / selectedProduct.originalPrice) * 100)}%)
-                  </span>
-                )}
-              </div>
-
-              {/* 📦 Real-time Stock Information Badge */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '8px 12px',
-                background: selectedProduct.stock > 0 ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                border: `1px solid ${selectedProduct.stock > 0 ? '#86efac' : '#fca5a5'}`,
-                borderRadius: 12,
-                marginBottom: 14,
-                fontSize: 12.5,
-                fontWeight: 700,
-                color: selectedProduct.stock > 0 ? '#16a34a' : '#dc2626'
-              }}>
-                <span>{selectedProduct.stock > 0 ? '📦 Sisa Stok Tersedia (Real-Time):' : '❌ Status Stok:'}</span>
-                <span style={{ fontSize: 13, fontWeight: 900, background: selectedProduct.stock > 0 ? '#16a34a' : '#dc2626', color: 'white', padding: '2px 8px', borderRadius: 8 }}>
-                  {selectedProduct.stock > 0 ? `${selectedProduct.stock} unit` : 'Habis'}
-                </span>
-              </div>
-
-              <p style={{ fontSize: 13, color: 'var(--am-text-muted)', lineHeight: 1.5, marginBottom: 16 }}>
-                {selectedProduct.description || 'Tidak ada deskripsi tambahan.'}
-              </p>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)' }}>Jumlah:</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button
-                    onClick={() => setQty(q => Math.max(1, q - 1))}
-                    style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', cursor: 'pointer', fontWeight: 800, fontSize: 16 }}
-                  >
-                    -
-                  </button>
-                  <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--am-text)' }}>{qty}</span>
-                  <button
-                    onClick={() => setQty(q => q + 1)}
-                    style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', cursor: 'pointer', fontWeight: 800, fontSize: 16 }}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  onClick={() => {
-                    if (isGuest) {
-                      setSelectedProduct(null);
-                      if (onRequireLogin) onRequireLogin();
-                      return;
-                    }
-                    onAddToCart(selectedProduct, qty);
-                    setSuccessPopup({ product: selectedProduct, qty });
-                    setSelectedProduct(null);
-                    setQty(1);
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '12px',
-                    borderRadius: 12,
-                    border: 'none',
-                    background: 'var(--am-primary)',
-                    color: 'white',
-                    fontWeight: 800,
-                    fontSize: 14,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Tambah ke Keranjang
-                </button>
-                <button
-                  onClick={() => {
-                    if (isGuest) {
-                      setSelectedProduct(null);
-                      if (onRequireLogin) onRequireLogin();
-                      return;
-                    }
-                    onChat(selectedProduct.sellerId, selectedProduct.sellerName, selectedProduct.name);
-                    setSelectedProduct(null);
-                  }}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 12,
-                    border: '1px solid var(--am-border)',
-                    background: 'var(--am-surface)',
-                    color: 'var(--am-text)',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: 'pointer'
-                  }}
-                >
-                  💬 Tanya
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal Detail Produk Multi-Foto (Maks 200KB) & Video Demo (Maks 5MB) */}
+      <ProductDetailModal
+        product={selectedProduct}
+        theme={theme}
+        onClose={() => setSelectedProduct(null)}
+        onAddToCart={(prod, count) => {
+          onAddToCart(prod, count);
+          setSuccessPopup({ product: prod, qty: count });
+        }}
+        onDirectBuy={(prod, count) => {
+          onAddToCart(prod, count);
+          if (onNavigateCheckout) {
+            onNavigateCheckout();
+          }
+        }}
+        onChat={onChat}
+        isGuest={isGuest}
+        onRequireLogin={onRequireLogin}
+      />
 
       {/* Success Popup */}
       {successPopup && (

@@ -3,6 +3,7 @@ import type { CartItem, DeliveryMethod, PaymentMethod, ThemeMode, Campus } from 
 import { formatRupiah } from '../data';
 import { QRCodeSVG } from 'qrcode.react';
 import { checkoutApi, deductStockApi, MIDTRANS_CLIENT_KEY } from '../lib/api';
+import { playCuteVendingSpinningMusic, playCuteVendingSuccessJingle } from '../lib/vendingAudio';
 
 declare global {
   interface Window {
@@ -148,9 +149,10 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     } else if (step === 'vending_qr' && countdown === 0) {
       localStorage.removeItem('am_active_vending_qr');
       setStep('vending_dispensing');
+      playCuteVendingSpinningMusic(2500);
       setTimeout(() => {
         setStep('vending_done');
-        playCelebrationFanfare();
+        playCuteVendingSuccessJingle();
         const speechMsg = 'Yaaay! Selamat Kakak! Paket Blind Bag Mystery kamu berhasil dikeluarkan! Silakan ambil di boks mesin vending yaa!';
         setTimeout(() => speakVoice(speechMsg), 400);
       }, 2500);
@@ -641,10 +643,11 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
             <button
               onClick={() => {
                 setStep('vending_dispensing');
+                playCuteVendingSpinningMusic(2500);
                 setTimeout(() => {
-                  playCelebrationFanfare();
+                  playCuteVendingSuccessJingle();
                   setStep('vending_done');
-                }, 2000);
+                }, 2500);
               }}
               style={{
                 padding: '12px 20px',
@@ -658,17 +661,44 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                 boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)'
               }}
             >
-              🚀 Buka Pintu Loker Sekarang (Kirim Sinyal IoT)
+              🚀 Buka Pintu Loker Sekarang (Kirim Sinyal IoT & Putar Musik 🎵)
             </button>
           </div>
         </div>
       )}
 
       {step === 'vending_dispensing' && (
-        <div className="am-card" style={{ padding: 40, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
-          <div style={{ fontSize: 54, marginBottom: 12 }}>⚙️📦</div>
-          <h3 style={{ margin: '0 0 8px', color: 'var(--am-text)' }}>Mesin Sedang Mengeluarkan Barang...</h3>
-          <p style={{ fontSize: 13, color: 'var(--am-text-muted)' }}>Mohon tunggu, gantungan kunci / barang Anda sedang diturunkan ke boks pengambilan.</p>
+        <div className="am-card" style={{ padding: 40, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center', border: '2px solid #F43F5E' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, fontSize: 26, marginBottom: 12 }}>
+            <span style={{ animation: 'bounce 0.8s infinite alternate' }}>🎵</span>
+            <span style={{ animation: 'bounce 0.8s 0.2s infinite alternate' }}>🎶</span>
+            <span style={{ animation: 'bounce 0.8s 0.4s infinite alternate' }}>✨</span>
+            <span style={{ animation: 'bounce 0.8s 0.6s infinite alternate' }}>🌸</span>
+          </div>
+
+          <div style={{
+            width: 80,
+            height: 80,
+            margin: '0 auto 16px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #FFE4E6, #FCE7F3)',
+            border: '3px dashed #F43F5E',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 40,
+            animation: 'spin 2s linear infinite'
+          }}>
+            ⚙️
+          </div>
+
+          <h3 style={{ margin: '0 0 8px', color: '#9F1239', fontWeight: 900 }}>Mesin Sedang Berputar... 🎀</h3>
+          <p style={{ fontSize: 13, color: '#881337', marginBottom: 12 }}>
+            🎶 Musik imut sedang diputar melalui <strong>speaker laptop</strong>. Paket Blind Bag Anda sedang dikeluarkan ke boks loker!
+          </p>
+          <div style={{ display: 'inline-block', background: '#FFE4E6', color: '#E11D48', padding: '4px 14px', borderRadius: 20, fontSize: 11.5, fontWeight: 800 }}>
+            ● Motor Spiral Aktif (IoT Real-Time)
+          </div>
         </div>
       )}
 

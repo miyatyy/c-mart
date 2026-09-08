@@ -235,6 +235,51 @@ body {
     flex-direction: column !important;
   }
 }
+
+/* ── Cart Styles: 2-Column Product Grid & Enhancements ── */
+.am-cart-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(320px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+@media screen and (max-width: 960px) {
+  .am-cart-layout {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.am-cart-grid-2col {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 12px;
+}
+@media screen and (max-width: 480px) {
+  .am-cart-grid-2col {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px;
+  }
+}
+
+.am-cart-card {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+.am-cart-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(95, 168, 116, 0.12);
+}
+
+.am-cart-stepper-btn {
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.am-cart-stepper-btn:hover:not(:disabled) {
+  background-color: var(--am-primary-light) !important;
+  transform: scale(1.05);
+}
+.am-cart-stepper-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
 /* Hilangkan potensi space atau scroll horizontal di samping */
 html, body {
   max-width: 100vw;

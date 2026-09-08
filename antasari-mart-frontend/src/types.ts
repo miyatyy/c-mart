@@ -45,6 +45,8 @@ export interface Product {
   sellerId: string
   sellerName: string
   image: string
+  images?: string[] // Daftar multi-foto galeri (<= 200 KB per foto)
+  videoUrl?: string // Video demo produk (<= 5 MB)
   isKoperasi: boolean
   slotNumber?: number
   rating: number
