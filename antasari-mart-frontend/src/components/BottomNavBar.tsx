@@ -14,7 +14,7 @@ interface BottomNavBarProps {
   onOpenProfileModal?: () => void;
 }
 
-// 🎨 Standard SVG Vector Icons (3 Menu Utama: Beranda, Notifikasi/Pesan, Saya/Profil)
+// 🎨 Standard SVG Vector Icons (Beranda, Vending, Notifikasi, Saya)
 function renderNavIcon(key: string) {
   switch (key) {
     case 'home':
@@ -22,6 +22,16 @@ function renderNavIcon(key: string) {
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
           <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      );
+    case 'vending_simulator':
+      return (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="4" y="2" width="16" height="20" rx="3"/>
+          <line x1="8" y1="6" x2="16" y2="6"/>
+          <line x1="8" y1="10" x2="16" y2="10"/>
+          <line x1="8" y1="14" x2="16" y2="14"/>
+          <rect x="7" y="17" width="10" height="3" rx="1"/>
         </svg>
       );
     case 'notification':
@@ -101,12 +111,14 @@ export default function BottomNavBar({
     };
   }, []);
 
-  // 🌟 HANYA 3 MENU UTAMA SESUAI PERMINTAAN USER:
+  // 🌟 MENU NAVIGASI BAWAH LENGKAP:
   // 1. Beranda (Home 🏠)
-  // 2. Notifikasi / Pesan (🔔 / 💬)
-  // 3. Saya (Profil Orang 👤)
+  // 2. Vending (Vending Machine & Loker Pintar 🤖)
+  // 3. Notifikasi / Pesan (🔔)
+  // 4. Saya (Profil Orang 👤)
   const navItems: { key: AppTab | 'profile' | 'notification'; label: string; badge?: number }[] = [
     { key: 'home', label: 'Beranda' },
+    { key: 'vending_simulator', label: 'Vending' },
     { key: 'chat', label: 'Notifikasi', badge: chatUnread },
     { key: 'profile', label: 'Saya' }
   ];
@@ -152,7 +164,7 @@ export default function BottomNavBar({
           display: flex;
           align-items: center;
           justify-content: space-around;
-          padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+          padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
           max-width: 100vw;
@@ -168,7 +180,7 @@ export default function BottomNavBar({
           justify-content: center;
           background: transparent;
           border: none;
-          padding: 4px 6px;
+          padding: 4px 4px;
           cursor: pointer;
           position: relative;
           transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -191,9 +203,9 @@ export default function BottomNavBar({
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 44px;
+          width: 42px;
           height: 30px;
-          border-radius: 16px;
+          border-radius: 15px;
           transition: all 0.25s ease;
           color: inherit;
         }
@@ -205,7 +217,7 @@ export default function BottomNavBar({
         }
 
         .am-bottom-nav-label {
-          font-size: 11px;
+          font-size: 10.5px;
           margin-top: 3px;
           font-weight: 600;
           letter-spacing: 0.2px;
@@ -245,7 +257,7 @@ export default function BottomNavBar({
       `}</style>
 
       {navItems.map(tab => {
-        const isActive = (tab.key === 'home' && activeTab === 'home') ||
+        const isActive = tab.key === activeTab ||
                          ((tab.key === 'chat' || tab.key === 'notification') && activeTab === 'chat');
         return (
           <button
