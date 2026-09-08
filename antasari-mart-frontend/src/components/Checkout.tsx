@@ -175,31 +175,34 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     } catch (_e) {}
   }
 
-  function triggerEsp32Dispense(vendingObj?: any) {
-    const totalQty = items.reduce((sum, it) => sum + (it.quantity || 1), 0) || 1;
+    function triggerEsp32Dispense(vendingObj?: any) {
+    const totalQty = items.reduce((sum, item) => sum + (item.quantity || 1), 0) || 1;
+    const slotNum = vendingObj?.slotNumber || 1;
+    const prodName = items[0]?.product?.name || "Blind Bag Keychain Mystery";
 
-    // 1. Cloud Vercel/MongoDB Queue Trigger
-    try {
-      fetch('/api/vending/trigger-dispense', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: vendingObj?.orderId || `ANTASARI-${Date.now()}`,
-          productName: items[0]?.product?.name || "Blind Bag Keychain Mystery",
-          slotNumber: vendingObj?.slotNumber || 1,
-          quantity: totalQty,
-          qty: totalQty,
-          buyerName: "Mahasiswa UIN Antasari"
-        })
-      }).catch(err => console.warn("Vending trigger error:", err));
-    } catch (_e) {}
+    const payload = {
+      orderId: vendingObj?.orderId || `ANTASARI-${Date.now()}`,
+      productName: prodName,
+      slotNumber: slotNum,
+      slot: slotNum,
+      quantity: totalQty,
+      qty: totalQty,
+      buyerName: "Mahasiswa UIN Antasari"
+    };
+
+    // 1. Cloud Vercel / MongoDB Atlas Primary Trigger
+    fetch('https://ma-project-fix.vercel.app/api/vending/trigger-dispense', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json()).then(d => console.log('Vending cloud trigger OK:', d)).catch(err => console.warn("Vending trigger error:", err));
 
     // 2. Direct Local WiFi IP Hook to ESP32 (Instant 0.01s)
     try {
       const savedIp = localStorage.getItem('am_esp32_ip');
       if (savedIp) {
         const cleanIp = savedIp.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-        fetch(`http://${cleanIp}/dispense?qty=${totalQty}`, { mode: 'no-cors' }).catch(() => {});
+        fetch(`http://${cleanIp}/dispense?slot=${slotNum}&qty=${totalQty}`, { mode: 'no-cors' }).catch(() => {});
       }
     } catch (_e) {}
   }

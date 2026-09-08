@@ -407,30 +407,34 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
     });
   };
 
-  const triggerEsp32Hardware = (orderId?: string, productName?: string, slot?: number, quantity: number = 1) => {
+    const triggerEsp32Hardware = (orderId?: string, productName?: string, slot?: number, quantity: number = 1) => {
     const finalQty = quantity || 1;
-    // 1. Cloud MongoDB Atlas Queue
-    try {
-      fetch('/api/vending/trigger-dispense', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: orderId || `ANTASARI-${Date.now()}`,
-          productName: productName || 'Blind Bag Mystery Ganci',
-          slotNumber: slot || 1,
-          quantity: finalQty,
-          qty: finalQty,
-          buyerName: 'Pembeli Antasari Mart'
-        })
-      }).catch(e => console.warn('Trigger ESP32 cloud offline:', e));
-    } catch (_e) {}
+    const finalSlot = slot || 1;
+    const prod = productName || 'Blind Bag Mystery Ganci';
+
+    const payload = {
+      orderId: orderId || `ANTASARI-${Date.now()}`,
+      productName: prod,
+      slotNumber: finalSlot,
+      slot: finalSlot,
+      quantity: finalQty,
+      qty: finalQty,
+      buyerName: 'Pembeli Antasari Mart'
+    };
+
+    // 1. Cloud MongoDB Atlas Queue Trigger
+    fetch('https://ma-project-fix.vercel.app/api/vending/trigger-dispense', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json()).then(d => console.log('Vending simulator trigger OK:', d)).catch(e => console.warn('Trigger ESP32 cloud offline:', e));
 
     // 2. Direct Local WiFi IP Hook to ESP32 (Instant 0.01s)
     try {
       const savedIp = localStorage.getItem('am_esp32_ip');
       if (savedIp) {
         const cleanIp = savedIp.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-        fetch(`http://${cleanIp}/dispense?qty=${finalQty}`, { mode: 'no-cors' }).catch(() => {});
+        fetch(`http://${cleanIp}/dispense?slot=${finalSlot}&qty=${finalQty}`, { mode: 'no-cors' }).catch(() => {});
       }
     } catch (_e) {}
   };

@@ -1,12 +1,12 @@
 /*
   =============================================================================
-  🤖 SMART VENDING IOT ULTIMATE - ANTASARI MART (ESP32-S3 + TFT + STEPPER)
+  🤖 SMART VENDING IOT - ANTASARI MART (KHUSUS WIFI HOKIKU_REPEAT)
   =============================================================================
-  Fitur Terpadu:
-  1. 📺 Layar TFT SPI 240x320: Menampilkan Katalog Menu, IP, & Animasi Realtime
-  2. ⚙️ Motor Stepper 28BYJ-48: Berputar Fisik 360 Derajat per Jumlah Barang
-  3. 🌐 Web Server & IP Controller: Beli Langsung dari Browser HP/Laptop
-  4. ☁️ Cloud Polling: Sinkron dengan Website https://antasari-mart.web.app
+  Fitur:
+  1. 📶 Terhubung Langsung & Stabil ke WiFi Hokiku_repeat (Tanpa Hotspot AP)
+  2. 📺 Layar TFT SPI 240x320: Menampilkan Katalog, IP Address, & Animasi
+  3. ⚙️ Motor Stepper 28BYJ-48: Berputar Fisik 360 Derajat per Jumlah Barang
+  4. 🌐 Web Server & Cloud Polling: Terhubung ke https://antasari-mart.web.app
   =============================================================================
 */
 
@@ -19,10 +19,10 @@
 #include <Adafruit_ILI9341.h>
 
 // ==========================================
-// 📡 1. KONFIGURASI WIFI & CLOUD
+// 📡 1. KONFIGURASI WIFI HOKIKU_REPEAT
 // ==========================================
-const char* WIFI_SSID = "huehehe";
-const char* WIFI_PASS = "banjarmasinpride2";
+const char* WIFI_SSID = "Hokiku_repeat";
+const char* WIFI_PASS = "Banjarmasin89"; // Pastikan Huruf B Besar / Sesuai Sandi Router
 const char* SERVER_URL = "https://ma-project-fix.vercel.app/api/vending/dispense-status?claim=true";
 
 WebServer server(80);
@@ -73,7 +73,6 @@ const int stepSequence[8][4] = {
 const int STEPS_PER_REV = 4096; // 1 Putaran Penuh (360 Derajat)
 int currentStepIndex = 0;
 bool isDispensing = false;
-bool isApMode = false;
 
 // ==========================================
 // 🎨 4. FUNGSI GRAFIS LAYAR TFT
@@ -170,14 +169,10 @@ void drawIdleMenu() {
     char footerBuffer[64];
     snprintf(footerBuffer, sizeof(footerBuffer), "IP: http://%s/ | ONLINE 🟢", WiFi.localIP().toString().c_str());
     tft.print(footerBuffer);
-  } else if (isApMode) {
-    tft.setTextColor(COLOR_YELLOW);
-    tft.setCursor(8, 224);
-    tft.print("WIFI: Antasari-Vending | IP: 192.168.4.1");
   } else {
     tft.setTextColor(COLOR_YELLOW);
     tft.setCursor(10, 224);
-    tft.print("WIFI: Menghubungkan... | STANDBY 🟡");
+    tft.print("WIFI: Menghubungkan ke Hokiku_repeat... 🟡");
   }
 }
 
@@ -272,7 +267,7 @@ void executeDispense(int slotNumber, int quantity, const char* productName) {
         }
       }
       currentStepIndex = (currentStepIndex + 1) % 8;
-      delayMicroseconds(2500); // Torsi maksimal & putaran bertenaga // Kecepatan putaran halus & bertenaga
+      delayMicroseconds(2500); // Torsi maksimal & bertenaga
     }
 
     // Matikan koil motor
@@ -312,7 +307,7 @@ void handleRoot() {
   html += "</style></head><body>";
   html += "<div class='card'>";
   html += "<h2>🤖 Antasari Mart Vending</h2>";
-  html += "<p style='color:#64748B;font-size:13px;'>Status: <b>Layar TFT & Stepper Terhubung</b> 🟢</p>";
+  html += "<p style='color:#64748B;font-size:13px;'>Status: <b>Terhubung ke Hokiku_repeat</b> 🟢</p>";
   html += "<form action='/dispense' method='GET'>";
   html += "<label style='font-size:13px;font-weight:bold;'>Pilih Jumlah (Putaran):</label>";
   html += "<div class='qty-box'><input type='number' name='qty' class='qty-input' value='1' min='1' max='10'></div>";
@@ -347,7 +342,7 @@ void handleDispenseWeb() {
 unsigned long lastPollTime = 0;
 
 void checkDispenseQueue() {
-  if (WiFi.status() != WL_CONNECTED || isDispensing || isApMode) return;
+  if (WiFi.status() != WL_CONNECTED || isDispensing) return;
   if (millis() - lastPollTime < 2500) return;
   lastPollTime = millis();
 
@@ -378,9 +373,9 @@ void checkDispenseQueue() {
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("\n🚀 SISTEM ESP32-S3 TFT & STEPPER DIMULAI!");
+  Serial.println("\n🚀 SISTEM ESP32-S3 DIMULAI!");
 
-  // Inisialisasi Pin Motor Stepper (Pin 4, 5, 6, 7)
+  // Inisialisasi Pin Stepper
   pinMode(STEPPER_IN1, OUTPUT);
   pinMode(STEPPER_IN2, OUTPUT);
   pinMode(STEPPER_IN3, OUTPUT);
@@ -391,56 +386,48 @@ void setup() {
   digitalWrite(STEPPER_IN3, LOW);
   digitalWrite(STEPPER_IN4, LOW);
 
-  // Inisialisasi Layar TFT SPI (Pin 8, 9, 10, 11, 12)
+  // Inisialisasi Layar TFT
   SPI.begin(TFT_SCK, TFT_MISO, TFT_MOSI, TFT_CS);
   tft.begin();
   tft.setRotation(1); // Landscape (320x240)
   
   drawIdleMenu();
 
-  // Koneksi WiFi
+  // Konfigurasi WiFi Station Khusus Hokiku_repeat (Maksimal Daya Radio)
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(200);
-
-  Serial.printf("📡 Menghubungkan ke WiFi: %s\n", WIFI_SSID);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  WiFi.setSleep(false); // Matikan power saving agar sinyal WiFi sangat kuat
   WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
+  WiFi.disconnect(true);
+  delay(300);
 
-  int retry = 0;
-  while (WiFi.status() != WL_CONNECTED && retry < 25) {
+  Serial.printf("📡 Menghubungkan ke WiFi Router: %s\n", WIFI_SSID);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+  // Tunggu sampai terhubung (Terus mencoba tanpa membuat Hotspot AP darurat)
+  int dotCount = 0;
+  while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
-    retry++;
+    dotCount++;
+    if (dotCount % 30 == 0) {
+      Serial.println("\n⏳ Masih mencoba menghubungkan ke Hokiku_repeat...");
+      WiFi.disconnect();
+      delay(200);
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
+    }
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    isApMode = false;
-    Serial.printf("\n✅ WIFI TERHUBUNG! IP ADDRESS: http://%s/\n", WiFi.localIP().toString().c_str());
+  Serial.printf("\n✅ BERHASIL TERHUBUNG KE HOKIKU_REPEAT!\n");
+  Serial.printf("📡 ALAMAT IP: http://%s/\n", WiFi.localIP().toString().c_str());
 
-    server.on("/", HTTP_GET, handleRoot);
-    server.on("/dispense", HTTP_GET, handleDispenseWeb);
-    server.begin();
-    Serial.println("🌐 Web Server Vending Aktif di Port 80!");
-    
-    drawIdleMenu();
-  } else {
-    // Mode Hotspot Darurat Otomatis jika WiFi offline
-    Serial.println("\n⚠️ WiFi Gagal! Mengaktifkan Hotspot ESP32 'Antasari-Vending'...");
-    isApMode = true;
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP("Antasari-Vending", "12345678");
-
-    IPAddress apIP = WiFi.softAPIP();
-    Serial.printf("📡 HOTSPOT ESP32: 'Antasari-Vending' (PW: 12345678)\n");
-    Serial.printf("🌐 Buka Browser di HP: http://%s/\n", apIP.toString().c_str());
-
-    server.on("/", HTTP_GET, handleRoot);
-    server.on("/dispense", HTTP_GET, handleDispenseWeb);
-    server.begin();
-
-    drawIdleMenu();
-  }
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/dispense", HTTP_GET, handleDispenseWeb);
+  server.begin();
+  Serial.println("🌐 Web Server Vending Aktif di Port 80!");
+  
+  // Tampilkan IP Langsung di Layar TFT
+  drawIdleMenu();
 }
 
 // ==========================================

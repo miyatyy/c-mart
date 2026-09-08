@@ -20,7 +20,7 @@ const VendingQueueSchema = new mongoose.Schema({
   slotNumber: Number,
   quantity: { type: Number, default: 1 },
   status: { type: String, default: 'pending' },
-  createdAt: { type: Date, default: Date.now, expires: 60 }
+  createdAt: { type: Date, default: Date.now, expires: 120 }
 });
 
 const VendingQueue = mongoose.models.VendingQueue || mongoose.model('VendingQueue', VendingQueueSchema);
@@ -36,23 +36,26 @@ export default async function handler(req, res) {
 
   try {
     await connectToDatabase();
-    const { orderId, productName, buyerName, slotNumber, quantity, qty } = req.body || req.query || {};
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || req.query || {});
+    const { orderId, productName, buyerName, slotNumber, quantity, qty, slot } = body;
 
     const finalQty = parseInt(quantity || qty) || 1;
+    const finalSlot = parseInt(slotNumber || slot) || 1;
 
     const newQueue = await VendingQueue.create({
       orderId: orderId || `ANTASARI-${Date.now()}`,
       productName: productName || "Blind Bag Mystery Ganci",
       buyerName: buyerName || "Mahasiswa UIN Antasari",
-      slotNumber: parseInt(slotNumber) || 1,
+      slotNumber: finalSlot,
       quantity: finalQty,
       status: 'pending'
     });
 
     return res.status(200).json({
       success: true,
-      message: `Antrean Vending (${finalQty} putaran) berhasil disimpan di MongoDB Atlas Cloud!`,
+      message: `Antrean Vending Slot #${finalSlot} (${finalQty} pcs) berhasil disimpan di MongoDB Cloud!`,
       queueId: newQueue._id,
+      slotNumber: finalSlot,
       quantity: finalQty
     });
   } catch (err) {

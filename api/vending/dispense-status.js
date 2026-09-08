@@ -20,7 +20,7 @@ const VendingQueueSchema = new mongoose.Schema({
   slotNumber: Number,
   quantity: { type: Number, default: 1 },
   status: { type: String, default: 'pending' },
-  createdAt: { type: Date, default: Date.now, expires: 60 }
+  createdAt: { type: Date, default: Date.now, expires: 120 }
 });
 
 const VendingQueue = mongoose.models.VendingQueue || mongoose.model('VendingQueue', VendingQueueSchema);
@@ -37,7 +37,7 @@ export default async function handler(req, res) {
   try {
     await connectToDatabase();
     
-    const recentTime = new Date(Date.now() - 30000);
+    const recentTime = new Date(Date.now() - 60000);
     const pending = await VendingQueue.findOne({
       status: 'pending',
       createdAt: { $gte: recentTime }
@@ -50,6 +50,7 @@ export default async function handler(req, res) {
       }
       return res.status(200).json({
         hasPendingDispense: true,
+        shouldDispense: true,
         orderId: pending.orderId || "VEND-88219",
         slotNumber: pending.slotNumber || 1,
         quantity: pending.quantity || 1,
@@ -59,9 +60,9 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(200).json({ hasPendingDispense: false });
+    return res.status(200).json({ hasPendingDispense: false, shouldDispense: false });
   } catch (err) {
     console.error("Vending status error:", err);
-    return res.status(200).json({ hasPendingDispense: false, error: err.message });
+    return res.status(200).json({ hasPendingDispense: false, shouldDispense: false, error: err.message });
   }
 }
