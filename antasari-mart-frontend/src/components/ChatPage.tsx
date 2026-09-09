@@ -375,8 +375,12 @@ export default function ChatPage({ theme: _theme, campus: _campus, onBack }: Cha
       const data = await getContactsApi(identifier);
       let list = (data.success && Array.isArray(data.contacts)) ? data.contacts : [];
       
+      const cleanMyId = String(identifier).toLowerCase().trim();
+      // Filter out user's own account so user doesn't chat with self
+      list = list.filter((c: Contact) => String(c.email).toLowerCase().trim() !== cleanMyId);
+
       const hasMyammiy = list.some((c: Contact) => c.email === 'seller_1' || c.nama.toLowerCase().includes('myammiy'));
-      if (!hasMyammiy) {
+      if (!hasMyammiy && cleanMyId !== 'seller_1') {
         list.unshift({
           id: 9999,
           nama: 'Myammiy Craft (Katalog Resmi)',
@@ -729,9 +733,9 @@ export default function ChatPage({ theme: _theme, campus: _campus, onBack }: Cha
         const aiMsg: BackendChatMessage = {
           id: Date.now() + 1,
           roomId: activeRoom.roomId,
-          senderId: otherId,
+          senderId: otherId === currentUser.email ? `${otherId}_seller_ai` : otherId,
           senderName: otherName,
-          senderRole: otherRole,
+          senderRole: isCurrentRoomHandedOver ? (otherRole || 'seller') : 'ai',
           receiverId: currentUser.email,
           receiverName: currentUser.nama || currentUser.name || 'Pengguna',
           receiverRole: currentUser.role || 'buyer',
@@ -1576,9 +1580,30 @@ export default function ChatPage({ theme: _theme, campus: _campus, onBack }: Cha
                 </div>
               ) : (
                 activeRoom.messages.map((m, idx) => {
-                  const cleanSender = String(m.senderId).toLowerCase().trim();
-                  const cleanMyId = String(currentUser.email).toLowerCase().trim();
-                  const isMine = cleanSender === cleanMyId;
+                  const cleanSender = String(m.senderId || '').toLowerCase().trim();
+                  const cleanReceiver = String(m.receiverId || '').toLowerCase().trim();
+                  const cleanMyId = String(currentUser.email || '').toLowerCase().trim();
+                  const cleanOtherId = String(activeRoom.otherId || '').toLowerCase().trim();
+
+                  // 🎯 Logika Pemisahan Kolom Bubble (Kiri vs Kanan):
+                  // Pesan Lawan Bicara (Partner/Toko/AI - Sisi KIRI):
+                  // 1. Pesan memiliki peran 'ai' atau ID berakhiran '_seller_ai'
+                  // 2. Sender adalah lawan bicara (cleanSender === cleanOtherId dan cleanOtherId !== cleanMyId)
+                  // 3. Receiver adalah user saat ini (cleanReceiver === cleanMyId dan cleanSender !== cleanMyId)
+                  // 4. Jika dalam self-room/room yang sama, jika pesan adalah respon AI/seller
+                  const isPartnerReply = 
+                    m.senderRole === 'ai' ||
+                    cleanSender.endsWith('_seller_ai') ||
+                    (cleanSender === cleanOtherId && cleanOtherId !== cleanMyId) ||
+                    (cleanReceiver === cleanMyId && cleanSender !== cleanMyId) ||
+                    (cleanSender === cleanMyId && cleanReceiver === cleanMyId && (
+                      m.senderRole === 'seller' || 
+                      m.senderRole === 'ai' || 
+                      m.text?.toLowerCase().includes('terima kasih sudah menghubungi') || 
+                      m.text?.toLowerCase().includes('katalog produk kami siap dipesan')
+                    ));
+
+                  const isMine = !isPartnerReply && cleanSender === cleanMyId;
 
                   const prevMsg = idx > 0 ? activeRoom.messages[idx - 1] : null;
                   const showDateBadge = !prevMsg || formatMessageDateBadge(m.createdAt) !== formatMessageDateBadge(prevMsg.createdAt);
@@ -1642,12 +1667,24 @@ export default function ChatPage({ theme: _theme, campus: _campus, onBack }: Cha
                         </div>
                       ) : (
                         <div className="am-chat-msg-row-partner">
-                          <div className="am-chat-avatar-circle" style={{ width: 30, height: 30, fontSize: 14 }}>
-                            {ROLE_EMOJI[m.senderRole || activeRoom.otherRole] || '👤'}
+                          <div className="am-chat-avatar-circle" style={{ width: 34, height: 34, fontSize: 16, flexShrink: 0 }}>
+                            {ROLE_EMOJI[m.senderRole || activeRoom.otherRole] || '🏪'}
                           </div>
                           <div className="am-chat-bubble-partner">
-                            <div style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--am-primary, #10B981)', marginBottom: 2 }}>
-                              {m.senderName || activeRoom.otherName}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                              <span style={{ fontSize: 11.5, fontWeight: 900, color: 'var(--am-primary, #10B981)' }}>
+                                {m.senderName || activeRoom.otherName}
+                              </span>
+                              <span style={{
+                                fontSize: 9.5,
+                                fontWeight: 800,
+                                padding: '1px 6px',
+                                borderRadius: 6,
+                                background: (m.senderRole === 'ai' || !isCurrentRoomHandedOver) ? 'rgba(244, 63, 94, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                                color: (m.senderRole === 'ai' || !isCurrentRoomHandedOver) ? '#F43F5E' : '#10B981'
+                              }}>
+                                {(m.senderRole === 'ai' || !isCurrentRoomHandedOver) ? '🌸 Asisten AI' : (ROLE_LABEL[m.senderRole || activeRoom.otherRole] || 'Penjual')}
+                              </span>
                             </div>
 
                             {m.mediaType === 'image' && m.mediaUrl && (
