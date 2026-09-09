@@ -170,6 +170,10 @@ unsigned long lastWifiRetryTime = 0;
 unsigned long lastTouchDebounce = 0;
 bool eyesOpen = true;
 
+// Variabel Animasi Mobil Pengantar Berasap di Footer Bawah
+int footerCarX = 14;
+unsigned long lastFooterCarTime = 0;
+
 // ==========================================
 // 🐰 3 KELINCI WARNA-WARNI DI PANGGUNG HEADER (0% HALANGI KOTAK PRODUK)
 // ==========================================
@@ -241,6 +245,36 @@ void drawColorfulHoppingBunny(int bx, int by, int frame, uint16_t bodyCol, uint1
     tft.drawPixel(bx - 7, by + 1, COLOR_YELLOW);
     tft.drawPixel(bx - 8, by - 1, COLOR_GOLD);
   }
+}
+
+// ==========================================
+// 🚗 FUNGSI GAMBAR MOBIL PENGANTAR + KEPULAN ASAP DI BAGIAN BAWAH
+// ==========================================
+void drawMiniDeliveryCar(int cx, int cy, int frame) {
+  // 1. Asap Knalpot di Belakang Mobil (Exhaust Smoke Puffs)
+  tft.fillCircle(cx - 3, cy - 1, 2, 0xD6BA); // Kepulan 1 (Abu-abu lembut)
+  tft.fillCircle(cx - 7, cy - 3 - (frame % 2), 2, 0xCE59); // Kepulan 2 (Melayang naik)
+  if (frame % 2 == 1) {
+    tft.fillCircle(cx - 11, cy - 5, 2, 0xBDD7); // Kepulan 3 (Memudar)
+  }
+
+  // 2. Bodi Mobil Pengantar (Delivery Van)
+  tft.fillRoundRect(cx, cy - 6, 16, 8, 2, COLOR_PRIMARY);
+  tft.fillRect(cx + 4, cy - 8, 8, 3, COLOR_PRIMARY); // Atap
+
+  // 3. Kaca Depan & Samping (Windshield)
+  tft.fillRect(cx + 9, cy - 7, 3, 3, COLOR_WHITE);
+  tft.fillRect(cx + 4, cy - 7, 3, 3, 0xCE79);
+
+  // 4. Lampu Depan Menyala (Headlight Beam)
+  tft.fillRect(cx + 15, cy - 4, 2, 2, COLOR_YELLOW);
+  tft.drawPixel(cx + 17, cy - 3, COLOR_GOLD);
+
+  // 5. Roda Mobil Berputar (Wheels)
+  tft.fillCircle(cx + 4, cy + 3, 2, COLOR_DARK);
+  tft.fillCircle(cx + 12, cy + 3, 2, COLOR_DARK);
+  tft.drawPixel(cx + 4, cy + 3, COLOR_WHITE);
+  tft.drawPixel(cx + 12, cy + 3, COLOR_WHITE);
 }
 
 // ==========================================
@@ -818,6 +852,36 @@ void updateCuteAnimations() {
     drawCartoonBunny(192, 84, eyesOpen);
     drawCartoonBear(38, 172, eyesOpen);
     drawCartoonStar(192, 172, eyesOpen);
+  }
+
+  // 3. Animasi Mobil Pengantar Mengeluarkan Asap di Bagian Bawah Footer (Setiap 70ms)
+  if (currentMillis - lastFooterCarTime >= 70) {
+    lastFooterCarTime = currentMillis;
+    footerCarX += 3;
+    if (footerCarX > 290) {
+      footerCarX = 10;
+    }
+
+    // Bersihkan area baris bawah footer
+    tft.fillRoundRect(8, 216, 304, 18, 4, COLOR_DARK);
+
+    // Gambar Mobil & Asap Berjalan dari Ujung ke Ujung
+    static int carSmokeFrame = 0;
+    carSmokeFrame = (carSmokeFrame + 1) % 4;
+    drawMiniDeliveryCar(footerCarX, 224, carSmokeFrame);
+
+    // Info Teks di Samping Mobil
+    tft.setTextColor(COLOR_YELLOW);
+    tft.setTextSize(1);
+    tft.setCursor(footerCarX + 22, 221);
+    if (footerCarX < 170) {
+      if (WiFi.status() == WL_CONNECTED) {
+        tft.setTextColor(COLOR_GREEN_OK);
+        tft.printf("IP: %s 🟢", WiFi.localIP().toString().c_str());
+      } else {
+        tft.print("Kurir Antasari Mart OTW 💨");
+      }
+    }
   }
 }
 
