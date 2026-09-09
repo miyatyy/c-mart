@@ -157,101 +157,62 @@ unsigned long lastTouchDebounce = 0;
 bool eyesOpen = true;
 
 // ==========================================
-// 🐰 3 KELINCI WARNA-WARNI BERJALAN & LONCAT (KAWAII PATROL)
 // ==========================================
-struct PatrolBunny {
+// 🐰 3 KELINCI WARNA-WARNI DI PANGGUNG HEADER (0% HALANGI KOTAK PRODUK)
+// ==========================================
+struct HeaderBunny {
   int x;
-  int y;
-  int prevX;
-  int prevY;
-  int dir;          // 0: Kanan, 1: Bawah, 2: Kiri, 3: Atas
-  int frame;        // 0..3 hop cycle
+  int frame;
   uint16_t bodyCol;
   uint16_t earCol;
   uint16_t blushCol;
   uint16_t feetCol;
-  int track;        // 0: Outer Clockwise, 1: Outer Counter-Clockwise, 2: Header & Center Aisle
 };
 
-// Inisialisasi 3 Kelinci Lucu Warna-Warni
-PatrolBunny bunnies[3] = {
-  // Kelinci 1: 🌸 Strawberry Pink (Searah Jarum Jam di sekeliling kotak)
-  { 16, 38, 16, 38, 0, 0, COLOR_WHITE, COLOR_PINK, COLOR_PINK_DARK, COLOR_PINK, 0 },
-
-  // Kelinci 2: 🩵 Minty Blue (Berlawanan Jarum Jam di sekeliling kotak)
-  { 304, 214, 304, 214, 2, 2, 0xEFFE, COLOR_BLUE, COLOR_PINK, COLOR_BLUE, 1 },
-
-  // Kelinci 3: 💛 Sunshine Gold (Di Header & Lorong Tengah Antar Kotak)
-  { 174, 23, 174, 23, 0, 1, 0xFFF5, COLOR_GOLD, COLOR_PINK_DARK, COLOR_GOLD, 2 }
+// Inisialisasi 3 Kelinci Berparade Beriringan: Pink Strawberry, Minty Blue, & Sunny Gold
+HeaderBunny bunnies[3] = {
+  { 260, 0, COLOR_WHITE, COLOR_PINK, COLOR_PINK_DARK, COLOR_PINK },
+  { 220, 2, 0xEFFE, COLOR_BLUE, COLOR_PINK, COLOR_BLUE },
+  { 180, 1, 0xFFF5, COLOR_GOLD, COLOR_PINK_DARK, COLOR_GOLD }
 };
 
-// Hapus jejak kelinci sebelumnya secara presisi tanpa merusak latar
-void erasePatrolBunny(int px, int py) {
-  uint16_t bgCol = COLOR_BG;
-  if (py <= 34) {
-    bgCol = COLOR_PRIMARY; // Header Bar
-  } else if (py >= 216) {
-    bgCol = COLOR_DARK;    // Footer Bar
-  }
-  tft.fillRect(px - 8, py - 15, 17, 24, bgCol);
-}
-
-// Fungsi Gambar Kelinci Mini Warna-Warni dengan Animasi Meloncat
-void drawColorfulHoppingBunny(int bx, int by, int frame, int dir, uint16_t bodyCol, uint16_t earCol, uint16_t blushCol, uint16_t feetCol) {
+// Fungsi Gambar Kelinci Mini Warna-Warni dengan Animasi Meloncat (Khusus Header Bar)
+void drawColorfulHoppingBunny(int bx, int by, int frame, uint16_t bodyCol, uint16_t earCol, uint16_t blushCol, uint16_t feetCol) {
   // frame 0: stand, frame 1: jump up, frame 2: peak air, frame 3: landing
   int hopY = 0;
-  if (frame == 1) hopY = -3;
-  else if (frame == 2) hopY = -6;
-  else if (frame == 3) hopY = -2;
+  if (frame == 1) hopY = -2;
+  else if (frame == 2) hopY = -4;
+  else if (frame == 3) hopY = -1;
 
   int y = by + hopY;
-  bool faceLeft = (dir == 2); // Menghadap kiri jika bergerak ke kiri
 
   // 1. Ekor Bulat Fluffy
-  int tailX = faceLeft ? (bx + 5) : (bx - 5);
-  tft.fillCircle(tailX, y + 2, 2, (bodyCol == COLOR_WHITE) ? 0xDEFB : COLOR_WHITE);
+  tft.fillCircle(bx - 5, y + 2, 2, (bodyCol == COLOR_WHITE) ? 0xDEFB : COLOR_WHITE);
 
   // 2. Badan Kelinci (Body)
   tft.fillRoundRect(bx - 4, y - 2, 9, 7, 3, bodyCol);
 
   // 3. Kepala Kelinci (Head)
-  int headX = faceLeft ? (bx - 3) : (bx + 3);
-  tft.fillCircle(headX, y - 3, 4, bodyCol);
+  tft.fillCircle(bx + 3, y - 3, 4, bodyCol);
 
   // 4. Telinga Panjang Kelinci (Bergerak lentur dinamis saat meloncat)
-  if (faceLeft) {
-    if (frame == 1 || frame == 2) {
-      tft.fillRoundRect(bx + 1, y - 11, 2, 7, 1, bodyCol);
-      tft.fillRect(bx + 1, y - 9, 1, 4, earCol);
-      tft.fillRoundRect(bx - 2, y - 12, 2, 8, 1, bodyCol);
-      tft.fillRect(bx - 2, y - 10, 1, 5, earCol);
-    } else {
-      tft.fillRoundRect(bx - 1, y - 12, 2, 8, 1, bodyCol);
-      tft.fillRect(bx - 1, y - 10, 1, 5, earCol);
-      tft.fillRoundRect(bx - 3, y - 12, 2, 8, 1, bodyCol);
-      tft.fillRect(bx - 3, y - 10, 1, 5, earCol);
-    }
+  if (frame == 1 || frame == 2) {
+    tft.fillRoundRect(bx - 1, y - 10, 2, 6, 1, bodyCol);
+    tft.fillRect(bx - 1, y - 8, 1, 3, earCol);
+    tft.fillRoundRect(bx + 2, y - 11, 2, 7, 1, bodyCol);
+    tft.fillRect(bx + 2, y - 9, 1, 4, earCol);
   } else {
-    if (frame == 1 || frame == 2) {
-      tft.fillRoundRect(bx - 1, y - 11, 2, 7, 1, bodyCol);
-      tft.fillRect(bx - 1, y - 9, 1, 4, earCol);
-      tft.fillRoundRect(bx + 2, y - 12, 2, 8, 1, bodyCol);
-      tft.fillRect(bx + 2, y - 10, 1, 5, earCol);
-    } else {
-      tft.fillRoundRect(bx + 1, y - 12, 2, 8, 1, bodyCol);
-      tft.fillRect(bx + 1, y - 10, 1, 5, earCol);
-      tft.fillRoundRect(bx + 3, y - 12, 2, 8, 1, bodyCol);
-      tft.fillRect(bx + 3, y - 10, 1, 5, earCol);
-    }
+    tft.fillRoundRect(bx + 1, y - 10, 2, 6, 1, bodyCol);
+    tft.fillRect(bx + 1, y - 8, 1, 4, earCol);
+    tft.fillRoundRect(bx + 3, y - 10, 2, 6, 1, bodyCol);
+    tft.fillRect(bx + 3, y - 8, 1, 4, earCol);
   }
 
   // 5. Mata Hitam Imut Berbinar
-  int eyeX = faceLeft ? (bx - 5) : (bx + 5);
-  tft.fillCircle(eyeX, y - 4, 1, COLOR_DARK);
+  tft.fillCircle(bx + 5, y - 4, 1, COLOR_DARK);
 
   // 6. Pipi Merona (Blush)
-  int blushX = faceLeft ? (bx - 3) : (bx + 3);
-  tft.fillCircle(blushX, y - 2, 1, blushCol);
+  tft.fillCircle(bx + 3, y - 2, 1, blushCol);
 
   // 7. Kaki / Telapak Kaki
   if (frame == 1 || frame == 2) {
@@ -264,82 +225,9 @@ void drawColorfulHoppingBunny(int bx, int by, int frame, int dir, uint16_t bodyC
 
   // 8. Efek Bintang Kilau ✨ saat di Puncak Lompatan
   if (frame == 2) {
-    int sparkX = faceLeft ? (bx + 7) : (bx - 7);
-    tft.drawPixel(sparkX, by + 3, COLOR_YELLOW);
-    tft.drawPixel(sparkX + (faceLeft ? 1 : -1), by + 1, COLOR_GOLD);
+    tft.drawPixel(bx - 7, by + 1, COLOR_YELLOW);
+    tft.drawPixel(bx - 8, by - 1, COLOR_GOLD);
   }
-}
-
-// Update Pergerakan Setiap Kelinci di Jalur Patroli
-void updatePatrolBunny(int index) {
-  if (index < 0 || index >= 3) return;
-  PatrolBunny &b = bunnies[index];
-
-  // Hapus jejak posisi sebelumnya
-  erasePatrolBunny(b.prevX, b.prevY);
-
-  // Update koordinat berdasarkan Jalur (Track)
-  if (b.track == 0) {
-    // 🌸 Track 0: Keliling Luar Kotak Searah Jarum Jam (Clockwise)
-    // Atas: (16..304, Y=38) -> Kanan: (X=304, Y=38..214) -> Bawah: (X=304..16, Y=214) -> Kiri: (X=16, Y=214..38)
-    if (b.dir == 0) { // Kanan
-      b.x += 4;
-      if (b.x >= 304) { b.x = 304; b.dir = 1; }
-    } else if (b.dir == 1) { // Bawah
-      b.y += 4;
-      if (b.y >= 214) { b.y = 214; b.dir = 2; }
-    } else if (b.dir == 2) { // Kiri
-      b.x -= 4;
-      if (b.x <= 16) { b.x = 16; b.dir = 3; }
-    } else if (b.dir == 3) { // Atas
-      b.y -= 4;
-      if (b.y <= 38) { b.y = 38; b.dir = 0; }
-    }
-  } else if (b.track == 1) {
-    // 🩵 Track 1: Keliling Luar Kotak Berlawanan Jarum Jam (Counter-Clockwise)
-    // Bawah: (304..16, Y=214) -> Kiri: (X=16, Y=214..38) -> Atas: (16..304, Y=38) -> Kanan: (X=304, Y=38..214)
-    if (b.dir == 2) { // Kiri
-      b.x -= 4;
-      if (b.x <= 16) { b.x = 16; b.dir = 3; }
-    } else if (b.dir == 3) { // Atas
-      b.y -= 4;
-      if (b.y <= 38) { b.y = 38; b.dir = 0; }
-    } else if (b.dir == 0) { // Kanan
-      b.x += 4;
-      if (b.x >= 304) { b.x = 304; b.dir = 1; }
-    } else if (b.dir == 1) { // Bawah
-      b.y += 4;
-      if (b.y >= 214) { b.y = 214; b.dir = 2; }
-    }
-  } else if (b.track == 2) {
-    // 💛 Track 2: Header & Lorong Tengah Antar Kotak
-    // Di Header (Y=23, X=174..262) -> Turun ke lorong tengah (Y=127, X=262..45)
-    if (b.dir == 0) { // Header bergerak ke kanan
-      b.x += 4;
-      if (b.x >= 262) {
-        b.x = 262;
-        b.y = 127;
-        b.dir = 2; // Berbalik jalan ke kiri di lorong tengah
-      }
-    } else if (b.dir == 2) { // Lorong tengah bergerak ke kiri
-      b.x -= 4;
-      if (b.x <= 45) {
-        b.x = 174;
-        b.y = 23;
-        b.dir = 0; // Kembali ke Header
-      }
-    }
-  }
-
-  // Update Frame Loncat
-  b.frame = (b.frame + 1) % 4;
-
-  // Gambar Kelinci Warna-Warni di Posisi Baru
-  drawColorfulHoppingBunny(b.x, b.y, b.frame, b.dir, b.bodyCol, b.earCol, b.blushCol, b.feetCol);
-
-  // Simpan koordinat untuk penghapusan berikutnya
-  b.prevX = b.x;
-  b.prevY = b.y;
 }
 
 // ==========================================
@@ -362,6 +250,10 @@ void drawCartoonCat(int cx, int cy, bool open) {
   tft.fillTriangle(cx - 2, cy + 2, cx + 2, cy + 2, cx, cy + 4, COLOR_PINK_DARK);
   tft.drawLine(cx - 3, cy + 7, cx, cy + 5, COLOR_DARK);
   tft.drawLine(cx + 3, cy + 7, cx, cy + 5, COLOR_DARK);
+
+  // Area Mata (Blink)
+  tft.fillCircle(cx - 6, cy - 2, 4, COLOR_CARD_BG);
+  tft.fillCircle(cx + 6, cy - 2, 4, COLOR_CARD_BG);
 
   if (open) {
     tft.fillCircle(cx - 6, cy - 2, 3, COLOR_DARK);
@@ -401,6 +293,10 @@ void drawCartoonBunny(int cx, int cy, bool open) {
   tft.drawLine(cx - 3, cy + 8, cx, cy + 6, COLOR_DARK);
   tft.drawLine(cx + 3, cy + 8, cx, cy + 6, COLOR_DARK);
 
+  // Area Mata (Blink)
+  tft.fillCircle(cx - 6, cy, 4, COLOR_CARD_BG);
+  tft.fillCircle(cx + 6, cy, 4, COLOR_CARD_BG);
+
   if (open) {
     tft.fillCircle(cx - 6, cy, 3, COLOR_DARK);
     tft.fillCircle(cx + 6, cy, 3, COLOR_DARK);
@@ -428,6 +324,10 @@ void drawCartoonBear(int cx, int cy, bool open) {
 
   tft.fillCircle(cx - 11, cy + 5, 2, COLOR_PINK);
   tft.fillCircle(cx + 11, cy + 5, 2, COLOR_PINK);
+
+  // Area Mata (Blink)
+  tft.fillCircle(cx - 6, cy - 2, 4, COLOR_CARD_BG);
+  tft.fillCircle(cx + 6, cy - 2, 4, COLOR_CARD_BG);
 
   if (open) {
     tft.fillCircle(cx - 6, cy - 2, 3, COLOR_DARK);
@@ -458,6 +358,10 @@ void drawCartoonStar(int cx, int cy, bool open) {
   tft.drawLine(cx - 3, cy + 6, cx, cy + 8, COLOR_DARK);
   tft.drawLine(cx, cy + 8, cx + 3, cy + 6, COLOR_DARK);
 
+  // Area Mata (Blink)
+  tft.fillCircle(cx - 6, cy - 2, 4, COLOR_CARD_BG);
+  tft.fillCircle(cx + 6, cy - 2, 4, COLOR_CARD_BG);
+
   if (open) {
     tft.fillCircle(cx - 6, cy - 2, 3, COLOR_PURPLE);
     tft.fillCircle(cx + 6, cy - 2, 3, COLOR_PURPLE);
@@ -485,16 +389,10 @@ void drawProductCatalog() {
   tft.setCursor(14, 14);
   tft.print("MYammiy craft");
 
-  // Inisialisasi 3 Kelinci Lucu Warna-Warni Berjalan & Loncat di Sekeliling Kotak
+  // Inisialisasi 3 Kelinci Lucu Warna-Warni Berjalan & Loncat di Panggung Header (0% Menghalangi Produk)
   for (int i = 0; i < 3; i++) {
-    drawColorfulHoppingBunny(bunnies[i].x, bunnies[i].y, bunnies[i].frame, bunnies[i].dir, bunnies[i].bodyCol, bunnies[i].earCol, bunnies[i].blushCol, bunnies[i].feetCol);
-    bunnies[i].prevX = bunnies[i].x;
-    bunnies[i].prevY = bunnies[i].y;
+    drawColorfulHoppingBunny(bunnies[i].x, 25, bunnies[i].frame, bunnies[i].bodyCol, bunnies[i].earCol, bunnies[i].blushCol, bunnies[i].feetCol);
   }
-  tft.setTextColor(COLOR_YELLOW);
-  tft.setTextSize(1);
-  tft.setCursor(272, 18);
-  tft.print("3 BUNNY🐰");
 
   // --- KARTU PRODUK SLOT A (Kucing Cute) ---
   tft.fillRoundRect(10, 42, 146, 82, 8, COLOR_CARD_BG);
@@ -597,27 +495,31 @@ void updateCuteAnimations() {
 
   unsigned long currentMillis = millis();
 
-  // 1. Animasi 3 Kelinci Warna-Warni Berjalan & Melompat Mengelilingi Kotak Produk (Setiap 85ms)
-  if (currentMillis - lastBunnyWalkTime >= 85) {
+  // 1. Animasi 3 Kelinci Warna-Warni Berjalan & Melompat di Panggung Header (Setiap 80ms)
+  // 100% AMAN & BERSIH: Menghapus HANYA area panggung Header (Y: 9..35), TIDAK PERNAH menutupi teks produk!
+  if (currentMillis - lastBunnyWalkTime >= 80) {
     lastBunnyWalkTime = currentMillis;
 
+    // Bersihkan HANYA area panggung Header (kanan tulisan "MYammiy craft") dengan warna hijau
+    tft.fillRect(174, 9, 132, 26, COLOR_PRIMARY);
+
     for (int i = 0; i < 3; i++) {
-      updatePatrolBunny(i);
+      bunnies[i].x += 3;
+      bunnies[i].frame = (bunnies[i].frame + 1) % 4;
+      if (bunnies[i].x > 298) {
+        bunnies[i].x = 175;
+      }
+      drawColorfulHoppingBunny(bunnies[i].x, 25, bunnies[i].frame, bunnies[i].bodyCol, bunnies[i].earCol, bunnies[i].blushCol, bunnies[i].feetCol);
     }
   }
 
-  // 2. Animasi Kedip Karakter & Loncat Kelinci Slot B (Setiap 2.5 Detik)
+  // 2. Animasi Kedip Karakter Kartun di Kotak Produk (Setiap 2.6 Detik)
   if (currentMillis - lastBlinkTime >= (eyesOpen ? 2600 : 250)) {
     lastBlinkTime = currentMillis;
     eyesOpen = !eyesOpen;
 
     drawCartoonCat(38, 84, eyesOpen);
-
-    // Kelinci Slot B: Meloncat Bouncy naik-turun saat berkedip!
-    int bunnySlotY = eyesOpen ? 84 : 79;
-    tft.fillRect(174, 48, 38, 52, COLOR_CARD_BG);
-    drawCartoonBunny(192, bunnySlotY, eyesOpen);
-
+    drawCartoonBunny(192, 84, eyesOpen);
     drawCartoonBear(38, 172, eyesOpen);
     drawCartoonStar(192, 172, eyesOpen);
   }
