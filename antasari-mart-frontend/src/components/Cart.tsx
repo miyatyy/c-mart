@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import type { CartItem, ThemeMode, Product } from '../types';
+import { useState, useEffect } from 'react';
+import type { CartItem, ThemeMode, Product, SellerCoupon } from '../types';
 import { formatRupiah, MOCK_PRODUCTS } from '../data';
+import { getVouchersApi, validateVoucherApi } from '../lib/api';
 
 interface CartProps {
   theme: ThemeMode;
@@ -11,55 +12,6 @@ interface CartProps {
   onContinueShopping: () => void;
   onAddToCart?: (product: Product, qty: number) => void;
 }
-
-interface Coupon {
-  code: string;
-  name: string;
-  discountType: 'percentage' | 'fixed' | 'shipping';
-  value: number;
-  minSpend: number;
-  badge: string;
-  description: string;
-}
-
-const AVAILABLE_COUPONS: Coupon[] = [
-  {
-    code: 'MHSANTASARI',
-    name: 'Diskon Mahasiswa 10%',
-    discountType: 'percentage',
-    value: 10,
-    minSpend: 15000,
-    badge: '🔥 Populer',
-    description: 'Diskon 10% untuk seluruh produk kampus'
-  },
-  {
-    code: 'GRATISONGKIR',
-    name: 'Potongan Ongkir Rp 5.000',
-    discountType: 'shipping',
-    value: 5000,
-    minSpend: 10000,
-    badge: '🛵 Free Ongkir',
-    description: 'Bebas biaya antar kurir kampus'
-  },
-  {
-    code: 'KOPERASIHEMAT',
-    name: 'Cashback Koperasi Rp 3.000',
-    discountType: 'fixed',
-    value: 3000,
-    minSpend: 20000,
-    badge: '✨ Spesial',
-    description: 'Potongan langsung Rp 3.000'
-  },
-  {
-    code: 'MYAMMIYHEMAT',
-    name: 'Diskon Myammiy Rp 2.500',
-    discountType: 'fixed',
-    value: 2500,
-    minSpend: 15000,
-    badge: '🎀 Myammiy',
-    description: 'Potongan khusus produk DIY & Snack'
-  }
-];
 
 export default function Cart({
   theme,
@@ -76,7 +28,17 @@ export default function Cart({
     return (typeof window !== 'undefined' ? localStorage.getItem('am_delivery_method') : null) as any || 'delivery';
   });
 
-  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [availableCoupons, setAvailableCoupons] = useState<SellerCoupon[]>([]);
+  const [appliedCoupon, setAppliedCoupon] = useState<SellerCoupon | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const saved = sessionStorage.getItem('am_applied_coupon');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return null;
+  });
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [deliveryDiscount, setDeliveryDiscount] = useState(0);
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
   const [couponSuccess, setCouponSuccess] = useState('');
@@ -93,19 +55,61 @@ export default function Cart({
   const totalItemsCount = activeSelectedItems.reduce((sum, i) => sum + i.quantity, 0);
   const rawDeliveryFee = deliveryMethod === 'delivery' ? 5000 : 0;
 
-  // Calculate voucher discount
-  let discountAmount = 0;
-  let deliveryDiscount = 0;
+  // Load available coupons from sellers
+  useEffect(() => {
+    const fetchCoupons = async () => {
+      const res = await getVouchersApi(undefined, true);
+      if (res && res.success && res.vouchers) {
+        setAvailableCoupons(res.vouchers);
+      }
+    };
+    fetchCoupons();
+  }, []);
 
-  if (appliedCoupon && subtotal >= appliedCoupon.minSpend) {
-    if (appliedCoupon.discountType === 'percentage') {
-      discountAmount = Math.round((subtotal * appliedCoupon.value) / 100);
-    } else if (appliedCoupon.discountType === 'fixed') {
-      discountAmount = Math.min(subtotal, appliedCoupon.value);
-    } else if (appliedCoupon.discountType === 'shipping') {
-      deliveryDiscount = Math.min(rawDeliveryFee, appliedCoupon.value);
+  // Recalculate discount automatically whenever subtotal, items, or coupon changes
+  useEffect(() => {
+    if (!appliedCoupon) {
+      setDiscountAmount(0);
+      setDeliveryDiscount(0);
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('am_applied_coupon');
+      }
+      return;
     }
-  }
+
+    const recompute = async () => {
+      const res = await validateVoucherApi(
+        appliedCoupon.code,
+        activeSelectedItems,
+        subtotal,
+        rawDeliveryFee
+      );
+
+      if (res && res.success) {
+        setDiscountAmount(res.discountAmount || 0);
+        setDeliveryDiscount(res.deliveryDiscount || 0);
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('am_applied_coupon', JSON.stringify({
+            voucher: res.voucher || appliedCoupon,
+            discountAmount: res.discountAmount || 0,
+            deliveryDiscount: res.deliveryDiscount || 0,
+            totalSavings: res.totalSavings || 0
+          }));
+        }
+      } else {
+        // If conditions no longer met (e.g. subtotal dropped below minSpend)
+        setDiscountAmount(0);
+        setDeliveryDiscount(0);
+        setCouponError(res.message || 'Kupon tidak lagi memenuhi syarat minimal belanja.');
+        setAppliedCoupon(null);
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('am_applied_coupon');
+        }
+      }
+    };
+
+    recompute();
+  }, [appliedCoupon?.code, subtotal, activeSelectedItems.length, rawDeliveryFee]);
 
   const finalDeliveryFee = Math.max(0, rawDeliveryFee - deliveryDiscount);
   const total = Math.max(0, subtotal - discountAmount + (activeSelectedItems.length > 0 ? finalDeliveryFee : 0));
@@ -156,7 +160,7 @@ export default function Cart({
     }
   };
 
-  const handleApplyCoupon = (codeToApply?: string) => {
+  const handleApplyCoupon = async (codeToApply?: string) => {
     const code = (codeToApply || couponInput).trim().toUpperCase();
     setCouponError('');
     setCouponSuccess('');
@@ -166,20 +170,27 @@ export default function Cart({
       return;
     }
 
-    const found = AVAILABLE_COUPONS.find(c => c.code === code);
-    if (!found) {
-      setCouponError('Kode promo tidak valid atau sudah kadaluarsa.');
+    const res = await validateVoucherApi(code, activeSelectedItems, subtotal, rawDeliveryFee);
+    if (!res.success) {
+      setCouponError(res.message);
       return;
     }
 
-    if (subtotal < found.minSpend) {
-      setCouponError(`Minimal belanja ${formatRupiah(found.minSpend)} untuk voucher ini.`);
-      return;
+    if (res.voucher) {
+      setAppliedCoupon(res.voucher);
+      setDiscountAmount(res.discountAmount || 0);
+      setDeliveryDiscount(res.deliveryDiscount || 0);
+      setCouponSuccess(`Kupon "${res.voucher.name}" berhasil dipasang! Potongan ${formatRupiah((res.discountAmount || 0) + (res.deliveryDiscount || 0))} 🎉`);
+      setCouponInput('');
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('am_applied_coupon', JSON.stringify({
+          voucher: res.voucher,
+          discountAmount: res.discountAmount || 0,
+          deliveryDiscount: res.deliveryDiscount || 0,
+          totalSavings: (res.discountAmount || 0) + (res.deliveryDiscount || 0)
+        }));
+      }
     }
-
-    setAppliedCoupon(found);
-    setCouponSuccess(`Voucher "${found.name}" berhasil dipasang! 🎉`);
-    setCouponInput('');
   };
 
   const handleToggleSelectAll = () => {
@@ -1065,27 +1076,36 @@ export default function Cart({
             </div>
 
             {/* Quick Click Kupon Chips */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
-              {AVAILABLE_COUPONS.map(c => {
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 6 }}>
+              {availableCoupons.slice(0, 4).map(c => {
                 const isCurrent = appliedCoupon?.code === c.code;
                 return (
                   <button
                     key={c.code}
                     onClick={() => handleApplyCoupon(c.code)}
                     style={{
-                      padding: '6px 8px',
-                      borderRadius: 8,
+                      padding: '8px 10px',
+                      borderRadius: 10,
                       border: isCurrent ? '1.5px solid var(--am-primary)' : '1px dashed var(--am-border)',
                       background: isCurrent ? 'var(--am-primary-light, rgba(95,168,116,0.18))' : 'var(--am-bg2)',
                       color: isCurrent ? 'var(--am-primary)' : 'var(--am-text)',
                       fontSize: 10.5,
                       fontWeight: 800,
                       cursor: 'pointer',
-                      textAlign: 'left'
+                      textAlign: 'left',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2
                     }}
                   >
-                    <div>{c.badge}</div>
-                    <div style={{ fontSize: 10 }}>{c.code}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 10 }}>{c.badge || '🎟️'}</span>
+                      <span style={{ fontSize: 9, opacity: 0.8, color: 'var(--am-primary)' }}>{c.sellerName ? c.sellerName.split(' ')[0] : 'Toko'}</span>
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 900 }}>{c.code}</div>
+                    <div style={{ fontSize: 9.5, opacity: 0.85 }}>
+                      {c.discountType === 'percentage' ? `Diskon ${c.value}%` : `Potongan ${formatRupiah(c.value)}`}
+                    </div>
                   </button>
                 );
               })}

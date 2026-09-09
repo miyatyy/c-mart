@@ -635,3 +635,343 @@ export async function generateProductDescriptionApi(payload: {
   const fallback = `${payload.name} berkualitas premium siap dipesan di Antasari Mart! Dibuat dengan bahan terbaik, higienis, dan pas untuk kebutuhan mahasiswa kampus. Tersedia stok ready! 🌸✨`;
   return { success: true, description: fallback };
 }
+
+// ==========================================
+// 🎟️ VOUCHER & PROMO PENJUAL (SELLER COUPON SYSTEM)
+// ==========================================
+import type { SellerCoupon } from '../types';
+
+const INITIAL_MOCK_VOUCHERS: SellerCoupon[] = [
+  {
+    id: 'v_myammiy_10',
+    sellerId: 'seller_1',
+    sellerName: 'Myammiy Craft',
+    code: 'MYAMMIY10',
+    name: 'Diskon Spesial Myammiy 10%',
+    discountType: 'percentage',
+    value: 10,
+    minSpend: 20000,
+    maxDiscount: 10000,
+    quota: 100,
+    usedCount: 14,
+    startDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    endDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    badge: '🎀 Myammiy',
+    description: 'Diskon 10% untuk seluruh produk kerajinan ganci & suvenir',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'v_myammiy_5k',
+    sellerId: 'seller_1',
+    sellerName: 'Myammiy Craft',
+    code: 'GANCIHEMAT',
+    name: 'Potongan Langsung Rp 5.000',
+    discountType: 'fixed',
+    value: 5000,
+    minSpend: 25000,
+    quota: 50,
+    usedCount: 8,
+    startDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    badge: '🔥 Hot Promo',
+    description: 'Potongan Rp 5.000 untuk pembelian minimal Rp 25.000',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'v_kopma_ongkir',
+    sellerId: 's1',
+    sellerName: 'Koperasi UIN Antasari',
+    code: 'KOPMAFREE',
+    name: 'Free Ongkir Koperasi Kampus',
+    discountType: 'shipping',
+    value: 5000,
+    minSpend: 15000,
+    quota: 200,
+    usedCount: 42,
+    startDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    badge: '🛵 Free Ongkir',
+    description: 'Bebas ongkir kurir kampus untuk produk makanan & ATK Koperasi',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  }
+];
+
+function getStoredVouchers(): SellerCoupon[] {
+  if (typeof window === 'undefined') return INITIAL_MOCK_VOUCHERS;
+  const saved = localStorage.getItem('am_seller_vouchers');
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+  }
+  localStorage.setItem('am_seller_vouchers', JSON.stringify(INITIAL_MOCK_VOUCHERS));
+  return INITIAL_MOCK_VOUCHERS;
+}
+
+function saveStoredVouchers(vouchers: SellerCoupon[]) {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('am_seller_vouchers', JSON.stringify(vouchers));
+  }
+}
+
+export async function getVouchersApi(sellerId?: string, activeOnly = false): Promise<{ success: boolean; vouchers: SellerCoupon[] }> {
+  try {
+    const params = new URLSearchParams();
+    if (sellerId) params.append('sellerId', sellerId);
+    if (activeOnly) params.append('activeOnly', 'true');
+    const res = await request<{ success: boolean; vouchers: SellerCoupon[] }>(`/api/vouchers?${params.toString()}`);
+    if (res && res.success && Array.isArray(res.vouchers)) {
+      saveStoredVouchers(res.vouchers);
+      return res;
+    }
+  } catch (err) {
+    console.warn("Voucher API fallback to local storage:", err);
+  }
+
+  let list = getStoredVouchers();
+  if (sellerId) {
+    list = list.filter(v => v.sellerId === sellerId);
+  }
+  if (activeOnly) {
+    list = list.filter(v => v.isActive);
+  }
+  return { success: true, vouchers: list };
+}
+
+export async function createVoucherApi(voucherData: Partial<SellerCoupon>): Promise<{ success: boolean; message: string; voucher?: SellerCoupon }> {
+  try {
+    const res = await request<{ success: boolean; message: string; voucher: SellerCoupon }>('/api/vouchers', {
+      method: 'POST',
+      body: JSON.stringify(voucherData)
+    });
+    if (res && res.success && res.voucher) {
+      const list = getStoredVouchers();
+      saveStoredVouchers([res.voucher, ...list.filter(v => v.id !== res.voucher.id)]);
+      return res;
+    }
+  } catch (err: any) {
+    console.warn("Create Voucher API fallback to local storage:", err);
+  }
+
+  const list = getStoredVouchers();
+  const cleanCode = (voucherData.code || `PROMO${Math.floor(Math.random() * 900 + 100)}`).trim().toUpperCase();
+  
+  if (list.some(v => v.code === cleanCode)) {
+    return { success: false, message: `Kode voucher "${cleanCode}" sudah pernah dibuat. Gunakan kode lain.` };
+  }
+
+  const newVoucher: SellerCoupon = {
+    id: `v_${Date.now()}`,
+    sellerId: voucherData.sellerId || 'seller_1',
+    sellerName: voucherData.sellerName || 'Penjual',
+    code: cleanCode,
+    name: voucherData.name || 'Promo Toko',
+    discountType: voucherData.discountType || 'percentage',
+    value: Number(voucherData.value) || 10,
+    minSpend: Number(voucherData.minSpend) || 0,
+    maxDiscount: Number(voucherData.maxDiscount) || 0,
+    quota: Number(voucherData.quota) || 100,
+    usedCount: 0,
+    startDate: voucherData.startDate || new Date().toISOString().slice(0, 16),
+    endDate: voucherData.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    applicableProductIds: voucherData.applicableProductIds || [],
+    badge: voucherData.badge || '🎟️ Promo',
+    description: voucherData.description || '',
+    isActive: voucherData.isActive !== false,
+    createdAt: new Date().toISOString()
+  };
+
+  saveStoredVouchers([newVoucher, ...list]);
+  return { success: true, message: 'Kupon promo toko berhasil dibuat! 🎉', voucher: newVoucher };
+}
+
+export async function updateVoucherApi(id: string, voucherData: Partial<SellerCoupon>): Promise<{ success: boolean; message: string; voucher?: SellerCoupon }> {
+  try {
+    const res = await request<{ success: boolean; message: string; voucher: SellerCoupon }>(`/api/vouchers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(voucherData)
+    });
+    if (res && res.success && res.voucher) {
+      const list = getStoredVouchers();
+      saveStoredVouchers(list.map(v => v.id === id ? res.voucher : v));
+      return res;
+    }
+  } catch (err: any) {
+    console.warn("Update Voucher API fallback to local storage:", err);
+  }
+
+  const list = getStoredVouchers();
+  const index = list.findIndex(v => v.id === id);
+  if (index === -1) return { success: false, message: 'Kupon tidak ditemukan.' };
+
+  const updated: SellerCoupon = { ...list[index], ...voucherData };
+  list[index] = updated;
+  saveStoredVouchers(list);
+  return { success: true, message: 'Kupon promo berhasil diperbarui!', voucher: updated };
+}
+
+export async function deleteVoucherApi(id: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await request<{ success: boolean; message: string }>(`/api/vouchers/${id}`, {
+      method: 'DELETE'
+    });
+    if (res && res.success) {
+      const list = getStoredVouchers();
+      saveStoredVouchers(list.filter(v => v.id !== id));
+      return res;
+    }
+  } catch (err: any) {
+    console.warn("Delete Voucher API fallback to local storage:", err);
+  }
+
+  const list = getStoredVouchers();
+  saveStoredVouchers(list.filter(v => v.id !== id));
+  return { success: true, message: 'Kupon berhasil dihapus.' };
+}
+
+export async function toggleVoucherApi(id: string): Promise<{ success: boolean; message: string; voucher?: SellerCoupon }> {
+  try {
+    const res = await request<{ success: boolean; message: string; voucher: SellerCoupon }>(`/api/vouchers/${id}/toggle`, {
+      method: 'PATCH'
+    });
+    if (res && res.success && res.voucher) {
+      const list = getStoredVouchers();
+      saveStoredVouchers(list.map(v => v.id === id ? res.voucher : v));
+      return res;
+    }
+  } catch (err: any) {
+    console.warn("Toggle Voucher API fallback to local storage:", err);
+  }
+
+  const list = getStoredVouchers();
+  const index = list.findIndex(v => v.id === id);
+  if (index === -1) return { success: false, message: 'Kupon tidak ditemukan.' };
+
+  list[index].isActive = !list[index].isActive;
+  saveStoredVouchers(list);
+  return {
+    success: true,
+    message: `Kupon ${list[index].isActive ? 'diaktifkan' : 'dinonaktifkan'}!`,
+    voucher: list[index]
+  };
+}
+
+export async function validateVoucherApi(
+  code: string,
+  items: any[],
+  subtotal: number,
+  deliveryFee = 5000
+): Promise<{
+  success: boolean;
+  message: string;
+  voucher?: SellerCoupon;
+  discountAmount?: number;
+  deliveryDiscount?: number;
+  totalSavings?: number;
+}> {
+  try {
+    const res = await request<{
+      success: boolean;
+      message: string;
+      voucher: SellerCoupon;
+      discountAmount: number;
+      deliveryDiscount: number;
+      totalSavings: number;
+    }>('/api/vouchers/validate', {
+      method: 'POST',
+      body: JSON.stringify({ code, items, subtotal, deliveryFee })
+    });
+    if (res) return res;
+  } catch (err) {
+    console.warn("Validate Voucher API fallback to local client calculation:", err);
+  }
+
+  // Fallback Local Validation
+  const cleanCode = String(code).trim().toUpperCase();
+  const list = getStoredVouchers();
+  const voucher = list.find(v => v.code === cleanCode);
+
+  if (!voucher) {
+    return { success: false, message: 'Kode kupon tidak valid atau salah ketik.' };
+  }
+
+  if (!voucher.isActive) {
+    return { success: false, message: 'Kupon ini sedang tidak aktif.' };
+  }
+
+  // Cek Tanggal
+  const now = new Date();
+  if (voucher.startDate && now < new Date(voucher.startDate)) {
+    return {
+      success: false,
+      message: `Promo ini baru akan dimulai pada ${new Date(voucher.startDate).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}.`
+    };
+  }
+  if (voucher.endDate && now > new Date(voucher.endDate)) {
+    return {
+      success: false,
+      message: `Kupon ini sudah kedaluwarsa pada ${new Date(voucher.endDate).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}.`
+    };
+  }
+
+  // Cek Kuota
+  if (voucher.quota > 0 && voucher.usedCount >= voucher.quota) {
+    return { success: false, message: 'Kuota pemakaian kupon ini telah habis.' };
+  }
+
+  // Hitung Subtotal Produk Toko
+  let eligibleSubtotal = subtotal;
+  if (Array.isArray(items) && items.length > 0 && voucher.sellerId) {
+    const sellerItems = items.filter(i => {
+      const prod = i.product || i;
+      return prod.sellerId === voucher.sellerId;
+    });
+
+    if (sellerItems.length === 0) {
+      return {
+        success: false,
+        message: `Kupon "${voucher.code}" khusus untuk produk dari toko "${voucher.sellerName}".`
+      };
+    }
+
+    eligibleSubtotal = sellerItems.reduce((acc, i) => {
+      const prod = i.product || i;
+      return acc + (Number(prod.price) * (Number(i.quantity) || 1));
+    }, 0);
+  }
+
+  if (voucher.minSpend > 0 && eligibleSubtotal < voucher.minSpend) {
+    return {
+      success: false,
+      message: `Minimal belanja Rp ${voucher.minSpend.toLocaleString('id-ID')} untuk kupon ini (Subtotal toko saat ini: Rp ${eligibleSubtotal.toLocaleString('id-ID')}).`
+    };
+  }
+
+  let discountAmount = 0;
+  let deliveryDiscount = 0;
+
+  if (voucher.discountType === 'percentage') {
+    discountAmount = Math.round((eligibleSubtotal * voucher.value) / 100);
+    if (voucher.maxDiscount && voucher.maxDiscount > 0 && discountAmount > voucher.maxDiscount) {
+      discountAmount = voucher.maxDiscount;
+    }
+  } else if (voucher.discountType === 'fixed') {
+    discountAmount = Math.min(eligibleSubtotal, voucher.value);
+  } else if (voucher.discountType === 'shipping') {
+    deliveryDiscount = Math.min(deliveryFee, voucher.value);
+  }
+
+  return {
+    success: true,
+    message: `Kupon "${voucher.name}" berhasil diterapkan! 🎉`,
+    voucher,
+    discountAmount,
+    deliveryDiscount,
+    totalSavings: discountAmount + deliveryDiscount
+  };
+}

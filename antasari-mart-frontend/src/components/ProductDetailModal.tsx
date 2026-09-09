@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import type { Product, ThemeMode } from '../types';
+import type { Product, ThemeMode, SellerCoupon } from '../types';
 import { formatRupiah } from '../data';
+import { getVouchersApi } from '../lib/api';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -28,6 +29,8 @@ export default function ProductDetailModal({
   const [qty, setQty] = useState(1);
   const [addedToast, setAddedToast] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [sellerVouchers, setSellerVouchers] = useState<SellerCoupon[]>([]);
+  const [copiedVoucherCode, setCopiedVoucherCode] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedMediaIndex(0);
@@ -35,7 +38,18 @@ export default function ProductDetailModal({
     setQty(1);
     setAddedToast(false);
     setShowInfo(false);
-  }, [product?.id]);
+    setCopiedVoucherCode(null);
+
+    if (product) {
+      getVouchersApi(product.sellerId, true).then(res => {
+        if (res && res.success && res.vouchers) {
+          // Filter to vouchers that either belong to this seller or are global
+          const valid = res.vouchers.filter(v => !v.sellerId || v.sellerId === product.sellerId);
+          setSellerVouchers(valid);
+        }
+      }).catch(() => {});
+    }
+  }, [product?.id, product?.sellerId]);
 
   if (!product) return null;
 
@@ -512,6 +526,90 @@ export default function ProductDetailModal({
             </div>
           </div>
         </div>
+
+        {/* 🎟️ Seller Coupons / Vouchers List */}
+        {sellerVouchers.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(244, 63, 94, 0.12), rgba(251, 146, 60, 0.12))',
+            border: '1px dashed rgba(244, 63, 94, 0.4)',
+            borderRadius: 14,
+            padding: '8px 12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, fontWeight: 800, color: '#FDA4AF' }}>
+              <span>🏷️ PROMO TOKO TERSEDIA</span>
+              <span>{sellerVouchers.length} Kupon Aktif</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
+              {sellerVouchers.map(v => {
+                const isCopied = copiedVoucherCode === v.code;
+                const discountLabel = v.discountType === 'percentage'
+                  ? `Diskon ${v.discountValue}%`
+                  : v.discountType === 'shipping'
+                  ? `Gratis Ongkir ${formatRupiah(v.discountValue)}`
+                  : `Potongan ${formatRupiah(v.discountValue)}`;
+
+                return (
+                  <div
+                    key={v.id}
+                    onClick={() => {
+                      navigator.clipboard.writeText(v.code);
+                      setCopiedVoucherCode(v.code);
+                      setTimeout(() => setCopiedVoucherCode(null), 2000);
+                    }}
+                    style={{
+                      flexShrink: 0,
+                      background: 'rgba(15, 23, 42, 0.75)',
+                      border: '1px solid rgba(244, 63, 94, 0.35)',
+                      borderRadius: 10,
+                      padding: '5px 10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Klik untuk salin kode voucher"
+                  >
+                    <div style={{ fontSize: 14 }}>🎟️</div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 900, color: '#FFE4E6', fontSize: 11.5 }}>
+                          {v.code}
+                        </span>
+                        <span style={{ fontSize: 9.5, background: 'rgba(244, 63, 94, 0.3)', color: '#FECDD3', padding: '1px 5px', borderRadius: 4, fontWeight: 800 }}>
+                          {discountLabel}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 9.5, color: '#94A3B8' }}>
+                        {v.minSpend > 0 ? `Min. ${formatRupiah(v.minSpend)}` : 'Tanpa Min. Belanja'}
+                        {v.endDate ? ` • s/d ${new Date(v.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}` : ''}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      style={{
+                        padding: '3px 7px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: isCopied ? '#10B981' : '#E11D48',
+                        color: 'white',
+                        fontSize: 10,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {isCopied ? '✓ Tersalin' : 'Salin'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Collapsible Info Deskripsi (Hanya muncul jika di-klik pengguna) */}
         {showInfo && (

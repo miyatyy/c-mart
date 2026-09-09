@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import type { CartItem, DeliveryMethod, PaymentMethod, ThemeMode, Campus } from '../types';
+import type { CartItem, DeliveryMethod, PaymentMethod, ThemeMode, Campus, SellerCoupon } from '../types';
 import { formatRupiah } from '../data';
 import { QRCodeSVG } from 'qrcode.react';
-import { checkoutApi, deductStockApi, MIDTRANS_CLIENT_KEY } from '../lib/api';
+import { checkoutApi, deductStockApi, getVouchersApi, validateVoucherApi, MIDTRANS_CLIENT_KEY } from '../lib/api';
 import { playCuteVendingSpinningMusic, playCuteVendingSuccessJingle } from '../lib/vendingAudio';
 
 declare global {
@@ -87,6 +87,16 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   const [countdown, setCountdown] = useState(10);
   const [loadingPayment, setLoadingPayment] = useState(false);
 
+  // Coupon / Voucher promotion states
+  const [appliedCoupon, setAppliedCoupon] = useState<SellerCoupon | null>(null);
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [deliveryDiscount, setDeliveryDiscount] = useState<number>(0);
+  const [couponInput, setCouponInput] = useState<string>('');
+  const [couponLoading, setCouponLoading] = useState<boolean>(false);
+  const [couponMsg, setCouponMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [availableCoupons, setAvailableCoupons] = useState<SellerCoupon[]>([]);
+  const [showCouponList, setShowCouponList] = useState<boolean>(false);
+
   const [vendingData, setVendingResult] = useState<{
     vendingToken: string;
     slotNumber: number;
@@ -100,8 +110,102 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   } | null>(null);
 
   const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
-  const deliveryFee = delivery === 'courier' ? 5000 : 0;
-  const total = subtotal + deliveryFee;
+  const rawDeliveryFee = delivery === 'courier' ? 5000 : 0;
+  const finalDeliveryFee = Math.max(0, rawDeliveryFee - deliveryDiscount);
+  const total = Math.max(0, subtotal - discountAmount + (delivery === 'vending' || delivery === 'pickup' ? 0 : finalDeliveryFee));
+  const totalSavings = discountAmount + (delivery === 'courier' ? deliveryDiscount : 0);
+
+  // Load available coupons and applied coupon from sessionStorage
+  useEffect(() => {
+    getVouchersApi(undefined, true).then(res => {
+      if (res && res.success && res.vouchers) {
+        setAvailableCoupons(res.vouchers);
+      }
+    }).catch(() => {});
+
+    try {
+      const saved = sessionStorage.getItem('am_applied_coupon');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.voucher) {
+          setAppliedCoupon(parsed.voucher);
+          setCouponInput(parsed.voucher.code);
+          if (parsed.discountAmount) setDiscountAmount(parsed.discountAmount);
+          if (parsed.deliveryDiscount) setDeliveryDiscount(parsed.deliveryDiscount);
+        }
+      }
+    } catch (_e) {}
+  }, []);
+
+  // Recalculate discount automatically if items, subtotal or delivery changes
+  useEffect(() => {
+    if (!appliedCoupon) {
+      setDiscountAmount(0);
+      setDeliveryDiscount(0);
+      return;
+    }
+    const rawDelivery = delivery === 'courier' ? 5000 : 0;
+    validateVoucherApi(appliedCoupon.code, items, subtotal, rawDelivery).then(res => {
+      if (res && res.success) {
+        setDiscountAmount(res.discountAmount || 0);
+        setDeliveryDiscount(res.deliveryDiscount || 0);
+        sessionStorage.setItem('am_applied_coupon', JSON.stringify({
+          voucher: res.voucher || appliedCoupon,
+          discountAmount: res.discountAmount || 0,
+          deliveryDiscount: res.deliveryDiscount || 0,
+          totalSavings: res.totalSavings || 0
+        }));
+      } else {
+        setDiscountAmount(0);
+        setDeliveryDiscount(0);
+        setCouponMsg({ type: 'error', text: res.message || 'Kupon tidak lagi memenuhi syarat minimal belanja.' });
+        setAppliedCoupon(null);
+        sessionStorage.removeItem('am_applied_coupon');
+      }
+    }).catch(() => {});
+  }, [appliedCoupon?.code, subtotal, delivery, items.length]);
+
+  const handleApplyCoupon = async (codeToApply?: string) => {
+    const code = (codeToApply || couponInput).trim().toUpperCase();
+    if (!code) {
+      setCouponMsg({ type: 'error', text: 'Silakan masukkan kode kupon promo.' });
+      return;
+    }
+    setCouponLoading(true);
+    setCouponMsg(null);
+    try {
+      const rawDelivery = delivery === 'courier' ? 5000 : 0;
+      const res = await validateVoucherApi(code, items, subtotal, rawDelivery);
+      if (res && res.success && res.voucher) {
+        setAppliedCoupon(res.voucher);
+        setCouponInput(res.voucher.code);
+        setDiscountAmount(res.discountAmount || 0);
+        setDeliveryDiscount(res.deliveryDiscount || 0);
+        setCouponMsg({ type: 'success', text: `🎉 Kupon ${res.voucher.code} berhasil diterapkan!` });
+        sessionStorage.setItem('am_applied_coupon', JSON.stringify({
+          voucher: res.voucher,
+          discountAmount: res.discountAmount || 0,
+          deliveryDiscount: res.deliveryDiscount || 0,
+          totalSavings: res.totalSavings || 0
+        }));
+      } else {
+        setCouponMsg({ type: 'error', text: res.message || 'Kode voucher tidak valid atau kedaluwarsa.' });
+      }
+    } catch (err: any) {
+      setCouponMsg({ type: 'error', text: err?.message || 'Gagal memvalidasi kupon.' });
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput('');
+    setDiscountAmount(0);
+    setDeliveryDiscount(0);
+    setCouponMsg(null);
+    sessionStorage.removeItem('am_applied_coupon');
+  };
 
   const LOCATIONS = campus === 'banjarmasin'
     ? ['Gedung Syariah Lt. 1', 'Gedung Syariah Lt. 2', 'Gedung Dakwah Lt. 3', 'Gedung Tarbiyah', 'Kantin Belakang Tarbiyah', 'Perpustakaan Pusat', 'Masjid Kampus', 'Gedung Rektorat', 'Area Parkir Utama']
@@ -562,17 +666,269 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
             )}
           </div>
 
+          {/* 🎟️ Kupon & Voucher Promo Diskon */}
+          <div className="am-card" style={{ padding: 20, borderRadius: 20, background: 'var(--am-surface)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>🎟️</span>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--am-text)' }}>Kupon & Voucher Promo</h3>
+              </div>
+              {availableCoupons.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowCouponList(!showCouponList)}
+                  style={{
+                    border: 'none',
+                    background: 'rgba(95, 168, 116, 0.12)',
+                    color: 'var(--am-primary)',
+                    padding: '4px 10px',
+                    borderRadius: 8,
+                    fontSize: 11.5,
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {showCouponList ? 'Tutup Daftar ▲' : `Lihat Kupon (${availableCoupons.length}) ▼`}
+                </button>
+              )}
+            </div>
+
+            {/* Input & Terapkan */}
+            {!appliedCoupon ? (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="Ketik kode kupon (contoh: MYAMMIY10)..."
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleApplyCoupon();
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    border: '1.5px dashed var(--am-border)',
+                    background: 'var(--am-bg2)',
+                    color: 'var(--am-text)',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    letterSpacing: 1
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleApplyCoupon()}
+                  disabled={couponLoading || !couponInput.trim()}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: 'var(--am-primary)',
+                    color: 'white',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: (couponLoading || !couponInput.trim()) ? 'not-allowed' : 'pointer',
+                    opacity: (couponLoading || !couponInput.trim()) ? 0.6 : 1,
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {couponLoading ? 'Memeriksa...' : 'Terapkan'}
+                </button>
+              </div>
+            ) : (
+              /* Kupon Terpasang */
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(95, 168, 116, 0.12), rgba(16, 185, 129, 0.15))',
+                border: '1.5px solid var(--am-primary)',
+                borderRadius: 14,
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    background: 'var(--am-primary)',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 18
+                  }}>
+                    🏷️
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: 13, color: 'var(--am-primary)' }}>
+                        {appliedCoupon.code}
+                      </span>
+                      <span style={{ fontSize: 10, background: 'var(--am-primary)', color: 'white', padding: '1px 6px', borderRadius: 6, fontWeight: 800 }}>
+                        {appliedCoupon.discountType === 'percentage'
+                          ? `Diskon ${appliedCoupon.discountValue}%`
+                          : appliedCoupon.discountType === 'shipping'
+                          ? `Gratis Ongkir ${formatRupiah(appliedCoupon.discountValue)}`
+                          : `Potongan ${formatRupiah(appliedCoupon.discountValue)}`}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--am-text-muted)', marginTop: 2 }}>
+                      {appliedCoupon.sellerName ? `Voucher Toko: ${appliedCoupon.sellerName}` : 'Voucher Seluruh Toko'}
+                      {appliedCoupon.minSpend > 0 ? ` • Min. ${formatRupiah(appliedCoupon.minSpend)}` : ''}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRemoveCoupon}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #ef4444',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    color: '#ef4444',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✕ Hapus
+                </button>
+              </div>
+            )}
+
+            {/* Pesan Feedback Kupon */}
+            {couponMsg && (
+              <div style={{
+                marginTop: 8,
+                padding: '8px 12px',
+                borderRadius: 10,
+                fontSize: 12,
+                fontWeight: 700,
+                background: couponMsg.type === 'success' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                color: couponMsg.type === 'success' ? '#10B981' : '#EF4444',
+                border: `1px solid ${couponMsg.type === 'success' ? '#10B981' : '#EF4444'}`
+              }}>
+                {couponMsg.text}
+              </div>
+            )}
+
+            {/* List Kupon Tersedia */}
+            {showCouponList && availableCoupons.length > 0 && (
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 10, borderTop: '1px solid var(--am-border)' }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--am-text-muted)' }}>
+                  PILIH DARI KUPON TOKO AKTIF:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+                  {availableCoupons.map(c => {
+                    const isSelected = appliedCoupon?.code === c.code;
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() => handleApplyCoupon(c.code)}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 12,
+                          border: `1.5px dashed ${isSelected ? 'var(--am-primary)' : 'var(--am-border)'}`,
+                          background: isSelected ? 'var(--am-primary-light, rgba(95, 168, 116, 0.12))' : 'var(--am-bg2)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 6
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 900, color: 'var(--am-primary)', fontSize: 12 }}>
+                              {c.code}
+                            </span>
+                            <span style={{ fontSize: 9.5, background: 'rgba(95, 168, 116, 0.18)', color: 'var(--am-primary)', padding: '1px 5px', borderRadius: 4, fontWeight: 800 }}>
+                              {c.discountType === 'percentage' ? `${c.discountValue}%` : formatRupiah(c.discountValue)}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--am-text-muted)', marginTop: 2 }}>
+                            {c.sellerName ? `🏪 ${c.sellerName}` : '🌐 Semua Toko'}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: 6,
+                            border: 'none',
+                            background: isSelected ? '#10B981' : 'var(--am-primary)',
+                            color: 'white',
+                            fontSize: 10,
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {isSelected ? '✓ Terpasang' : 'Pilih'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Ringkasan Total & Tombol Konfirmasi */}
           <div className="am-card" style={{ padding: 20, borderRadius: 20, background: 'var(--am-surface)' }}>
+            <h3 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700, color: 'var(--am-text)' }}>Ringkasan Pembayaran</h3>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13, color: 'var(--am-text-muted)' }}>
               <span>Subtotal Produk</span>
               <span>{formatRupiah(subtotal)}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontSize: 13, color: 'var(--am-text-muted)' }}>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13, color: 'var(--am-text-muted)' }}>
               <span>Biaya Pengantaran</span>
-              <span>{formatRupiah(deliveryFee)}</span>
+              <span>{delivery === 'courier' ? formatRupiah(rawDeliveryFee) : (delivery === 'vending' ? 'Ambil di Vending (Rp0)' : 'Ambil Mandiri (Rp0)')}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, fontSize: 16, fontWeight: 900, color: 'var(--am-primary)', borderTop: '1px solid var(--am-border)', paddingTop: 12 }}>
+
+            {discountAmount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13, color: '#10B981', fontWeight: 700 }}>
+                <span>🏷️ Diskon Kupon Toko ({appliedCoupon?.code})</span>
+                <span>-{formatRupiah(discountAmount)}</span>
+              </div>
+            )}
+
+            {deliveryDiscount > 0 && delivery === 'courier' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13, color: '#10B981', fontWeight: 700 }}>
+                <span>🛵 Diskon Biaya Ongkir</span>
+                <span>-{formatRupiah(deliveryDiscount)}</span>
+              </div>
+            )}
+
+            {totalSavings > 0 && (
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(52, 211, 153, 0.18))',
+                border: '1px solid #10B981',
+                padding: '8px 12px',
+                borderRadius: 10,
+                fontSize: 12,
+                fontWeight: 800,
+                color: '#059669',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                margin: '10px 0 14px'
+              }}>
+                <span>🎉 Total Hemat Kupon Promosi:</span>
+                <span>{formatRupiah(totalSavings)}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, fontSize: 17, fontWeight: 900, color: 'var(--am-primary)', borderTop: '1px solid var(--am-border)', paddingTop: 12 }}>
               <span>Total Pembayaran</span>
               <span>{formatRupiah(total)}</span>
             </div>

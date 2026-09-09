@@ -120,3 +120,26 @@ export interface Tenant {
   totalProducts: number
   totalRevenue: number
 }
+
+export type CouponDiscountType = 'percentage' | 'fixed' | 'shipping'
+
+export interface SellerCoupon {
+  id: string
+  sellerId: string
+  sellerName: string
+  code: string
+  name: string
+  discountType: CouponDiscountType
+  value: number
+  minSpend: number
+  maxDiscount?: number
+  quota: number
+  usedCount: number
+  startDate: string // ISO / YYYY-MM-DDTHH:mm
+  endDate: string   // ISO / YYYY-MM-DDTHH:mm
+  applicableProductIds?: string[]
+  badge: string
+  description: string
+  isActive: boolean
+  createdAt: string
+}

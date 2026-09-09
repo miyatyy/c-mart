@@ -10,8 +10,10 @@ import {
   generateProductDescriptionApi,
   sendChatApi,
   compressImageToTargetSize,
-  validateAndProcessVideo
+  validateAndProcessVideo,
+  getVouchersApi
 } from '../lib/api';
+import SellerCouponManager from './SellerCouponManager';
 
 interface SellerDashboardProps {
   theme: ThemeMode;
@@ -1158,40 +1160,13 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
 
       {/* ── TAB 5: PROMO & DISKON TOKO ── */}
       {tab === 'promo' && (
-        <div className="am-card" style={{ padding: 24, borderRadius: 20, background: 'var(--am-surface)' }}>
-          <h3 className="am-heading" style={{ margin: '0 0 8px', fontSize: 18, color: 'var(--am-text)' }}>
-            🏷️ Buat Promo & Kupon Diskon Toko
-          </h3>
-          <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--am-text-muted)' }}>
-            Tingkatkan penjualan tokomu dengan memberikan potongan harga khusus untuk mahasiswa kampus!
-          </p>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
-            <div style={{ padding: 18, borderRadius: 16, border: '1.5px dashed var(--am-primary)', background: 'var(--am-primary-light, rgba(95,168,116,0.1))' }}>
-              <div style={{ fontSize: 20, marginBottom: 4 }}>🎟️</div>
-              <h4 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 800, color: 'var(--am-text)' }}>Kupon Diskon Persentase</h4>
-              <p style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 12 }}>Diskon 10% s/d 20% untuk pembelian di atas nominal tertentu.</p>
-              <button
-                onClick={() => setAlertPopup({ message: 'Fitur kupon diskon toko berhasil diaktifkan! ✨', type: 'success' })}
-                style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
-              >
-                + Pasang Diskon Toko
-              </button>
-            </div>
-
-            <div style={{ padding: 18, borderRadius: 16, border: '1.5px dashed #3B82F6', background: 'rgba(59, 130, 246, 0.08)' }}>
-              <div style={{ fontSize: 20, marginBottom: 4 }}>⚡</div>
-              <h4 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 800, color: 'var(--am-text)' }}>Flash Deal Jam Makan Siang</h4>
-              <p style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 12 }}>Turunkan harga makanan otomatis antara jam 11:30 - 13:00.</p>
-              <button
-                onClick={() => setAlertPopup({ message: 'Flash deal jam makan siang berhasil dijadwalkan! ⚡', type: 'success' })}
-                style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#3B82F6', color: 'white', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
-              >
-                + Jadwalkan Flash Deal
-              </button>
-            </div>
-          </div>
-        </div>
+        <SellerCouponManager
+          sellerId={sellerId}
+          sellerName={sellerName}
+          theme={_theme}
+          products={products}
+          onNotify={(message, type) => setAlertPopup({ message, type })}
+        />
       )}
 
       {/* ── MODAL TARIK SALDO ── */}

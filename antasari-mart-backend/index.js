@@ -192,8 +192,20 @@ OrderItem.belongsTo(Order);
 
 const Voucher = sequelize.define('Voucher', {
   sellerId: { type: DataTypes.STRING, allowNull: false },
+  sellerName: { type: DataTypes.STRING, defaultValue: '' },
   code: { type: DataTypes.STRING, allowNull: false, unique: true },
-  discountPercent: { type: DataTypes.INTEGER, allowNull: false },
+  name: { type: DataTypes.STRING, defaultValue: 'Promo Toko' },
+  discountType: { type: DataTypes.STRING, defaultValue: 'percentage' }, // 'percentage' | 'fixed' | 'shipping'
+  value: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 10 },
+  minSpend: { type: DataTypes.INTEGER, defaultValue: 0 },
+  maxDiscount: { type: DataTypes.INTEGER, defaultValue: 0 },
+  quota: { type: DataTypes.INTEGER, defaultValue: 100 },
+  usedCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+  startDate: { type: DataTypes.STRING, defaultValue: '' },
+  endDate: { type: DataTypes.STRING, defaultValue: '' },
+  applicableProductIds: { type: DataTypes.TEXT, defaultValue: '[]' },
+  badge: { type: DataTypes.STRING, defaultValue: '🎟️ Promo' },
+  description: { type: DataTypes.TEXT, defaultValue: '' },
   isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
 });
 
@@ -1244,13 +1256,18 @@ app.get('/api/chats/status', async (req, res) => {
   }
 });
 
-// VOUCHERS
+// VOUCHERS & PROMO SYSTEM
 app.get('/api/vouchers', async (req, res) => {
   try {
-    const { sellerId } = req.query;
+    const { sellerId, activeOnly } = req.query;
     let whereClause = {};
     if (sellerId) whereClause.sellerId = sellerId;
-    const vouchers = await Voucher.findAll({ where: whereClause });
+    if (activeOnly === 'true') whereClause.isActive = true;
+    
+    const vouchers = await Voucher.findAll({
+      where: whereClause,
+      order: [['createdAt', 'DESC']]
+    });
     res.json({ success: true, vouchers });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -1259,9 +1276,213 @@ app.get('/api/vouchers', async (req, res) => {
 
 app.post('/api/vouchers', async (req, res) => {
   try {
-    const { sellerId, code, discountPercent } = req.body;
-    const voucher = await Voucher.create({ sellerId, code, discountPercent, isActive: true });
-    res.json({ success: true, message: 'Voucher berhasil dibuat!', voucher });
+    const {
+      sellerId,
+      sellerName,
+      code,
+      name,
+      discountType,
+      value,
+      minSpend,
+      maxDiscount,
+      quota,
+      startDate,
+      endDate,
+      applicableProductIds,
+      badge,
+      description,
+      isActive
+    } = req.body;
+
+    if (!sellerId || !code || value === undefined) {
+      return res.status(400).json({ success: false, message: 'sellerId, code, dan value wajib diisi!' });
+    }
+
+    const cleanCode = String(code).trim().toUpperCase();
+
+    // Cek duplikasi kode kupon
+    const existing = await Voucher.findOne({ where: { code: cleanCode } });
+    if (existing) {
+      return res.status(400).json({ success: false, message: `Kode kupon "${cleanCode}" sudah digunakan. Silakan gunakan kode lain.` });
+    }
+
+    const voucher = await Voucher.create({
+      sellerId,
+      sellerName: sellerName || '',
+      code: cleanCode,
+      name: name || 'Promo Spesial Toko',
+      discountType: discountType || 'percentage',
+      value: parseInt(value) || 0,
+      minSpend: parseInt(minSpend) || 0,
+      maxDiscount: parseInt(maxDiscount) || 0,
+      quota: parseInt(quota) || 100,
+      usedCount: 0,
+      startDate: startDate || new Date().toISOString(),
+      endDate: endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      applicableProductIds: typeof applicableProductIds === 'string' ? applicableProductIds : JSON.stringify(applicableProductIds || []),
+      badge: badge || '🎟️ Promo',
+      description: description || '',
+      isActive: isActive !== false
+    });
+
+    res.json({ success: true, message: 'Kupon promosi toko berhasil dibuat! 🎉', voucher });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.put('/api/vouchers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const voucher = await Voucher.findByPk(id);
+    if (!voucher) {
+      return res.status(404).json({ success: false, message: 'Kupon tidak ditemukan' });
+    }
+
+    const updateData = { ...req.body };
+    if (updateData.code) {
+      updateData.code = String(updateData.code).trim().toUpperCase();
+      // Pastikan tidak tabrakan dengan kode lain
+      const existing = await Voucher.findOne({ where: { code: updateData.code } });
+      if (existing && existing.id !== voucher.id) {
+        return res.status(400).json({ success: false, message: `Kode "${updateData.code}" sudah dipakai voucher lain.` });
+      }
+    }
+    if (updateData.applicableProductIds && typeof updateData.applicableProductIds !== 'string') {
+      updateData.applicableProductIds = JSON.stringify(updateData.applicableProductIds);
+    }
+
+    await voucher.update(updateData);
+    res.json({ success: true, message: 'Kupon berhasil diperbarui!', voucher });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.delete('/api/vouchers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const voucher = await Voucher.findByPk(id);
+    if (!voucher) {
+      return res.status(404).json({ success: false, message: 'Kupon tidak ditemukan' });
+    }
+    await voucher.destroy();
+    res.json({ success: true, message: 'Kupon promosi berhasil dihapus.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.patch('/api/vouchers/:id/toggle', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const voucher = await Voucher.findByPk(id);
+    if (!voucher) {
+      return res.status(404).json({ success: false, message: 'Kupon tidak ditemukan' });
+    }
+    await voucher.update({ isActive: !voucher.isActive });
+    res.json({ success: true, message: `Kupon ${voucher.isActive ? 'diaktifkan' : 'dinonaktifkan'}!`, voucher });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/vouchers/validate', async (req, res) => {
+  try {
+    const { code, subtotal, items, deliveryFee } = req.body;
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Masukkan kode voucher terlebih dahulu.' });
+    }
+
+    const cleanCode = String(code).trim().toUpperCase();
+    const voucher = await Voucher.findOne({ where: { code: cleanCode } });
+
+    if (!voucher) {
+      return res.status(404).json({ success: false, message: 'Kode kupon tidak ditemukan atau salah ketik.' });
+    }
+
+    if (!voucher.isActive) {
+      return res.status(400).json({ success: false, message: 'Kupon ini sedang dinonaktifkan oleh penjual.' });
+    }
+
+    // Cek Batas Waktu Promo (Start Date & End Date)
+    const now = new Date();
+    if (voucher.startDate) {
+      const start = new Date(voucher.startDate);
+      if (now < start) {
+        return res.status(400).json({
+          success: false,
+          message: `Promo ini belum dimulai. Periode promo dimulai pada ${start.toLocaleString('id-ID')}.`
+        });
+      }
+    }
+    if (voucher.endDate) {
+      const end = new Date(voucher.endDate);
+      if (now > end) {
+        return res.status(400).json({
+          success: false,
+          message: `Kupon ini sudah kedaluwarsa pada ${end.toLocaleString('id-ID')}.`
+        });
+      }
+    }
+
+    // Cek Kuota Pemakaian
+    if (voucher.quota > 0 && voucher.usedCount >= voucher.quota) {
+      return res.status(400).json({ success: false, message: 'Kuota pemakaian kupon ini telah habis.' });
+    }
+
+    // Hitung Subtotal Produk Toko yang Berlaku
+    let eligibleSubtotal = Number(subtotal) || 0;
+    if (Array.isArray(items) && items.length > 0 && voucher.sellerId) {
+      const sellerItems = items.filter(i => {
+        const prod = i.product || i;
+        return prod.sellerId === voucher.sellerId;
+      });
+
+      if (sellerItems.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Kupon ini khusus untuk produk dari toko ${voucher.sellerName || voucher.sellerId}.`
+        });
+      }
+      eligibleSubtotal = sellerItems.reduce((acc, i) => {
+        const prod = i.product || i;
+        return acc + (Number(prod.price) * (Number(i.quantity) || 1));
+      }, 0);
+    }
+
+    // Cek Minimal Belanja
+    if (voucher.minSpend > 0 && eligibleSubtotal < voucher.minSpend) {
+      return res.status(400).json({
+        success: false,
+        message: `Minimal belanja Rp ${voucher.minSpend.toLocaleString('id-ID')} untuk kupon ini (Subtotal toko: Rp ${eligibleSubtotal.toLocaleString('id-ID')}).`
+      });
+    }
+
+    // Hitung Nominal Potongan
+    let discountAmount = 0;
+    let deliveryDiscount = 0;
+
+    if (voucher.discountType === 'percentage') {
+      discountAmount = Math.round((eligibleSubtotal * voucher.value) / 100);
+      if (voucher.maxDiscount > 0 && discountAmount > voucher.maxDiscount) {
+        discountAmount = voucher.maxDiscount;
+      }
+    } else if (voucher.discountType === 'fixed') {
+      discountAmount = Math.min(eligibleSubtotal, voucher.value);
+    } else if (voucher.discountType === 'shipping') {
+      const rawDelivery = Number(deliveryFee) || 5000;
+      deliveryDiscount = Math.min(rawDelivery, voucher.value);
+    }
+
+    res.json({
+      success: true,
+      message: `Kupon "${voucher.name}" berhasil diterapkan! 🎉`,
+      voucher,
+      discountAmount,
+      deliveryDiscount,
+      totalSavings: discountAmount + deliveryDiscount
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
