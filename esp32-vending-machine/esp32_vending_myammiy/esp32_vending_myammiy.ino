@@ -1,13 +1,18 @@
 /*
   =============================================================================
-  🤖 SMART VENDING IOT - ANTASARI MART (TOUCH SCREEN & EDISI KARTUN LUCU)
+  🤖 SMART VENDING IOT - ANTASARI MART (MYAMMIY CRAFT EDISI KARTUN LUCU & ANIMASI)
   =============================================================================
   Fitur Lengkap:
-  1. 👆 Layar Sentuh Aktif (XPT2046 Touchscreen): Sentuh Langsung Slot A, B, C, D
-  2. 🐱 Karakter Kartun Lucu (Kucing, Kelinci, Beruang, Bintang Mahkota) Berkedip
-  3. 🔲 Desain Bingkai Bersih, Rapi & Tulisan Statis Elegan
-  4. ⚙️ Motor Stepper 28BYJ-48 Berputar Fisik 360 Derajat per Jumlah Barang
-  5. 🌐 Terhubung Otomatis ke WiFi Hokiku_repeat & Website antasari-mart.web.app
+  1. ⏳ Booting Loading Screen Lucu dengan Progress Bar Interaktif
+  2. 👀 Mascot Eyes Standby Mode (Mata Kawaii Melirik Kiri/Kanan & Tidur Mengantuk Zzz...)
+  3. 🌟 Animasi Transisi Fade-In / Pop-In Kotak Produk (A, B, C, D)
+  4. ⏱️ Siklus Aktif Katalog 10 Detik & Animasi Fade-Out Otomatis ke Sleep Mode
+  5. 👆 Touch to Wake: Sentuh Layar saat Tidur untuk Membuka Menu Seketika
+  6. 👆 Layar Sentuh Aktif (XPT2046 Touchscreen): Sentuh Langsung Slot A, B, C, D
+  7. 🐱 Karakter Kartun Lucu (Kucing, Kelinci, Beruang, Bintang Mahkota) Berkedip
+  8. 🐰 3 Kelinci Lucu Warna-Warni Berparade Meloncat di Header (0% Halangi Teks)
+  9. ⚙️ Motor Stepper 28BYJ-48 Berputar Fisik 360 Derajat per Jumlah Barang
+  10. 🌐 Terhubung Otomatis ke WiFi & Cloud Website antasari-mart.web.app
   =============================================================================
 */
 
@@ -18,7 +23,6 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
-
 
 // ==========================================
 // 📡 1. KONFIGURASI WIFI & CLOUD
@@ -50,11 +54,6 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 // ==========================================
 // 👆 2. DRIVER SENTUH NATIVE BIT-BANG XPT2046 (100% AKURAT & ANTI-CONFLICT)
 // ==========================================
-#define TOUCH_CLK  16  // T_CLK (Clock)
-#define TOUCH_DIN  17  // T_DIN (Data In / MOSI)
-#define TOUCH_DO   14  // T_DO  (Data Out / MISO)
-#define TOUCH_CS   21  // T_CS  (Chip Select)
-
 uint16_t xpt2046_transfer(uint8_t cmd) {
   digitalWrite(TOUCH_CS, LOW);
   delayMicroseconds(2);
@@ -86,12 +85,10 @@ uint16_t xpt2046_transfer(uint8_t cmd) {
 }
 
 bool getTouchCoordinates(int &screenX, int &screenY) {
-  // Baca koordinat X dan Y langsung dari XPT2046
   uint16_t rawX = xpt2046_transfer(0xD0);
   uint16_t rawY = xpt2046_transfer(0x90);
   uint16_t z1   = xpt2046_transfer(0xB0);
 
-  // Jika nilai di luar rentang pembacaan fisik
   if (rawX < 120 || rawX > 3980 || rawY < 120 || rawY > 3980) {
     return false;
   }
@@ -108,8 +105,6 @@ bool getTouchCoordinates(int &screenX, int &screenY) {
   Serial.printf("🎯 TOUCH AKTIF TERDETEKSI: RawX=%d, RawY=%d, Z=%d -> Layar (X=%d, Y=%d)\n", rawX, rawY, z1, screenX, screenY);
   return true;
 }
-
-
 
 // Palet Warna 16-Bit RGB565 Estetik Antasari Mart
 #define COLOR_BG        0xF7BE // Soft Ivory Beige (#FAFDFB)
@@ -148,6 +143,25 @@ const int STEPS_PER_REV = 4096; // 360 Derajat
 int currentStepIndex = 0;
 bool isDispensing = false;
 
+// ==========================================
+// 📺 4. STATE MACHINE LAYAR TFT
+// ==========================================
+enum ScreenState {
+  STATE_BOOT_LOADING,
+  STATE_EYES_IDLE,
+  STATE_FADE_IN_CATALOG,
+  STATE_CATALOG_ACTIVE,
+  STATE_FADE_OUT
+};
+
+ScreenState currentScreenState = STATE_BOOT_LOADING;
+unsigned long stateStartTime = 0;
+unsigned long lastEyesMoveTime = 0;
+unsigned long lastZzzTime = 0;
+int mascotLookDir = 0;       // -1: Kiri, 0: Tengah, 1: Kanan
+bool mascotIsSleepy = false;  // true jika standby lama (>5.5s)
+int zzzStep = 0;
+
 // Variabel Waktu & Animasi Karakter Lucu
 unsigned long lastBlinkTime = 0;
 unsigned long lastBunnyWalkTime = 0;
@@ -156,7 +170,6 @@ unsigned long lastWifiRetryTime = 0;
 unsigned long lastTouchDebounce = 0;
 bool eyesOpen = true;
 
-// ==========================================
 // ==========================================
 // 🐰 3 KELINCI WARNA-WARNI DI PANGGUNG HEADER (0% HALANGI KOTAK PRODUK)
 // ==========================================
@@ -231,7 +244,7 @@ void drawColorfulHoppingBunny(int bx, int by, int frame, uint16_t bodyCol, uint1
 }
 
 // ==========================================
-// 🎨 4. FUNGSI MENGGAMBAR KARAKTER KARTUN LUCU
+// 🎨 5. FUNGSI MENGGAMBAR KARAKTER KARTUN LUCU
 // ==========================================
 
 // --- Karakter 1: Kucing Lucu (Cat Kawaii) di Slot A ---
@@ -374,27 +387,21 @@ void drawCartoonStar(int cx, int cy, bool open) {
 }
 
 // ==========================================
-// 🎨 5. TAMPILAN UTAMA PRODUK & TOUCH SCREEN
+// 🎨 6. MODULAR DRAWERS KARTU PRODUK & HEADER
 // ==========================================
-void drawProductCatalog() {
-  tft.fillScreen(COLOR_BG);
-
-  // Bingkai Luar Tipis Elegan
-  tft.drawRoundRect(4, 4, 312, 232, 10, COLOR_PRIMARY);
-
-  // Header Bar Bersih
+void drawCatalogHeader() {
   tft.fillRoundRect(8, 8, 304, 28, 6, COLOR_PRIMARY);
   tft.setTextColor(COLOR_WHITE);
   tft.setTextSize(2);
   tft.setCursor(14, 14);
   tft.print("MYammiy craft");
 
-  // Inisialisasi 3 Kelinci Lucu Warna-Warni Berjalan & Loncat di Panggung Header (0% Menghalangi Produk)
   for (int i = 0; i < 3; i++) {
     drawColorfulHoppingBunny(bunnies[i].x, 25, bunnies[i].frame, bunnies[i].bodyCol, bunnies[i].earCol, bunnies[i].blushCol, bunnies[i].feetCol);
   }
+}
 
-  // --- KARTU PRODUK SLOT A (Kucing Cute) ---
+void drawCatalogSlotA() {
   tft.fillRoundRect(10, 42, 146, 82, 8, COLOR_CARD_BG);
   tft.drawRoundRect(10, 42, 146, 82, 8, COLOR_PRIMARY);
   tft.fillRoundRect(10, 42, 146, 18, 6, COLOR_PRIMARY);
@@ -413,8 +420,9 @@ void drawProductCatalog() {
   tft.setTextSize(2);
   tft.setCursor(68, 88);
   tft.print("35K");
+}
 
-  // --- KARTU PRODUK SLOT B (Kelinci Pastel) ---
+void drawCatalogSlotB() {
   tft.fillRoundRect(164, 42, 146, 82, 8, COLOR_CARD_BG);
   tft.drawRoundRect(164, 42, 146, 82, 8, COLOR_PINK);
   tft.fillRoundRect(164, 42, 146, 18, 6, COLOR_PINK);
@@ -433,8 +441,9 @@ void drawProductCatalog() {
   tft.setTextSize(2);
   tft.setCursor(222, 88);
   tft.print("45K");
+}
 
-  // --- KARTU PRODUK SLOT C (Beruang Glow) ---
+void drawCatalogSlotC() {
   tft.fillRoundRect(10, 130, 146, 82, 8, COLOR_CARD_BG);
   tft.drawRoundRect(10, 130, 146, 82, 8, COLOR_BLUE);
   tft.fillRoundRect(10, 130, 146, 18, 6, COLOR_BLUE);
@@ -453,8 +462,9 @@ void drawProductCatalog() {
   tft.setTextSize(2);
   tft.setCursor(68, 176);
   tft.print("50K");
+}
 
-  // --- KARTU PRODUK SLOT D (Bintang Mahkota Rare) ---
+void drawCatalogSlotD() {
   tft.fillRoundRect(164, 130, 146, 82, 8, COLOR_CARD_BG);
   tft.drawRoundRect(164, 130, 146, 82, 8, COLOR_PURPLE);
   tft.fillRoundRect(164, 130, 146, 18, 6, COLOR_PURPLE);
@@ -473,8 +483,9 @@ void drawProductCatalog() {
   tft.setTextSize(2);
   tft.setCursor(222, 176);
   tft.print("60K");
+}
 
-  // Footer Statis Bersih di Bawah
+void drawCatalogFooter() {
   tft.fillRoundRect(8, 216, 304, 18, 4, COLOR_DARK);
   tft.setTextColor(COLOR_YELLOW);
   tft.setTextSize(1);
@@ -487,20 +498,305 @@ void drawProductCatalog() {
   }
 }
 
+void drawProductCatalog() {
+  tft.fillScreen(COLOR_BG);
+  tft.drawRoundRect(4, 4, 312, 232, 10, COLOR_PRIMARY);
+  drawCatalogHeader();
+  drawCatalogSlotA();
+  drawCatalogSlotB();
+  drawCatalogSlotC();
+  drawCatalogSlotD();
+  drawCatalogFooter();
+}
+
 // ==========================================
-// 🐰 6. ANIMASI KELINCI BERJALAN/LONCAT & KEDIP
+// ⏳ 7. ANIMASI BOOTING LOADING AWAL
+// ==========================================
+void drawBootLoadingScreen() {
+  tft.fillScreen(COLOR_BG);
+  tft.drawRoundRect(8, 8, 304, 224, 12, COLOR_PRIMARY);
+
+  tft.setTextColor(COLOR_PRIMARY);
+  tft.setTextSize(2);
+  tft.setCursor(70, 26);
+  tft.print("MYammiy craft");
+
+  tft.setTextColor(COLOR_DARK);
+  tft.setTextSize(1);
+  tft.setCursor(95, 48);
+  tft.print("Smart Vending IoT 🐰");
+
+  // Maskot Kelinci di Tengah Layar Loading
+  tft.fillRoundRect(146, 68, 10, 30, 5, COLOR_CARD_BG);
+  tft.drawRoundRect(146, 68, 10, 30, 5, COLOR_PINK);
+  tft.fillRoundRect(148, 72, 6, 22, 3, COLOR_PINK);
+
+  tft.fillRoundRect(164, 68, 10, 30, 5, COLOR_CARD_BG);
+  tft.drawRoundRect(164, 68, 10, 30, 5, COLOR_PINK);
+  tft.fillRoundRect(166, 72, 6, 22, 3, COLOR_PINK);
+
+  tft.fillCircle(160, 108, 24, COLOR_CARD_BG);
+  tft.drawCircle(160, 108, 24, COLOR_PINK);
+
+  tft.fillCircle(146, 115, 4, COLOR_PINK);
+  tft.fillCircle(174, 115, 4, COLOR_PINK);
+
+  tft.fillTriangle(158, 111, 162, 111, 160, 114, COLOR_PINK_DARK);
+  tft.drawLine(156, 117, 160, 115, COLOR_DARK);
+  tft.drawLine(160, 115, 164, 117, COLOR_DARK);
+
+  tft.fillCircle(151, 104, 4, COLOR_DARK);
+  tft.fillCircle(169, 104, 4, COLOR_DARK);
+  tft.fillCircle(150, 102, 1, COLOR_WHITE);
+  tft.fillCircle(168, 102, 1, COLOR_WHITE);
+
+  // Progress Bar Loading
+  tft.fillRoundRect(48, 156, 224, 20, 6, COLOR_DARK);
+
+  for (int p = 0; p <= 100; p += 10) {
+    int fillW = (int)((float)p / 100.0 * 220.0);
+    if (fillW > 0) {
+      tft.fillRoundRect(50, 158, fillW, 16, 4, COLOR_PRIMARY);
+    }
+
+    tft.fillRect(40, 186, 240, 18, COLOR_BG);
+    tft.setTextColor(COLOR_DARK);
+    tft.setTextSize(1);
+    tft.setCursor(65, 188);
+    if (p < 30) {
+      tft.print("Memuat Modul Sistem... ⚙️");
+    } else if (p < 70) {
+      tft.print("Menyiapkan Karakter Lucu... 🐰");
+    } else if (p < 100) {
+      tft.print("Menghubungkan Sensor Sentuh... ✨");
+    } else {
+      tft.print("Sistem Siap! Membuka Vending... 🎉");
+    }
+    delay(110);
+  }
+  delay(350);
+}
+
+// ==========================================
+// 👀 8. MASCOT EYES (MELIRIK KIRI-KANAN & TIDUR ZZZ...)
+// ==========================================
+void drawMascotFace(int lookDir, bool isSleepy, int zzzFrame) {
+  tft.fillScreen(COLOR_BG);
+  tft.drawRoundRect(6, 6, 308, 228, 12, COLOR_PRIMARY);
+
+  // Header Title
+  tft.setTextColor(COLOR_PRIMARY);
+  tft.setTextSize(2);
+  tft.setCursor(75, 16);
+  tft.print("MYammiy craft");
+
+  // Telinga Kelinci Cantik
+  tft.fillRoundRect(70, 36, 26, 46, 12, COLOR_CARD_BG);
+  tft.drawRoundRect(70, 36, 26, 46, 12, COLOR_PINK);
+  tft.fillRoundRect(75, 42, 16, 34, 8, COLOR_PINK);
+
+  tft.fillRoundRect(224, 36, 26, 46, 12, COLOR_CARD_BG);
+  tft.drawRoundRect(224, 36, 26, 46, 12, COLOR_PINK);
+  tft.fillRoundRect(229, 42, 16, 34, 8, COLOR_PINK);
+
+  // Pipi Merona (Blush Kawaii)
+  tft.fillCircle(55, 138, 14, COLOR_PINK);
+  tft.fillCircle(265, 138, 14, COLOR_PINK);
+
+  // Kumis Imut
+  tft.drawLine(38, 132, 14, 128, COLOR_DARK);
+  tft.drawLine(38, 140, 14, 144, COLOR_DARK);
+  tft.drawLine(282, 132, 306, 128, COLOR_DARK);
+  tft.drawLine(282, 140, 306, 144, COLOR_DARK);
+
+  // Hidung & Mulut Kelinci (W-Smile)
+  tft.fillTriangle(155, 132, 165, 132, 160, 137, COLOR_PINK_DARK);
+  tft.drawLine(153, 142, 160, 145, COLOR_DARK);
+  tft.drawLine(160, 145, 167, 142, COLOR_DARK);
+  tft.drawLine(160, 137, 160, 145, COLOR_DARK);
+
+  // Sepasang Mata Besar Anime
+  int eyeCenters[2] = { 100, 220 };
+
+  for (int i = 0; i < 2; i++) {
+    int cx = eyeCenters[i];
+    int cy = 105;
+
+    if (!isSleepy) {
+      // Kelopak / Bola Mata Putih Besar
+      tft.fillRoundRect(cx - 28, cy - 35, 56, 70, 24, COLOR_WHITE);
+      tft.drawRoundRect(cx - 28, cy - 35, 56, 70, 24, COLOR_DARK);
+
+      // Posisi Pupil Melirik
+      int pupilShiftX = lookDir * 11;
+      int px = cx + pupilShiftX;
+      int py = cy + 2;
+
+      tft.fillCircle(px, py, 19, COLOR_PRIMARY);
+      tft.fillCircle(px, py + 4, 14, COLOR_PINK_DARK);
+      tft.fillCircle(px, py, 11, COLOR_DARK);
+
+      // Glint Berbinar ✨
+      tft.fillCircle(px - 4, py - 5, 5, COLOR_WHITE);
+      tft.fillCircle(px + 4, py + 5, 2, COLOR_WHITE);
+
+      // Bulu Mata Atas
+      tft.fillRoundRect(cx - 24, cy - 40, 48, 4, 2, COLOR_DARK);
+      if (i == 0) {
+        tft.drawLine(cx - 24, cy - 38, cx - 30, cy - 44, COLOR_DARK);
+      } else {
+        tft.drawLine(cx + 24, cy - 38, cx + 30, cy - 44, COLOR_DARK);
+      }
+    } else {
+      // Mata Mengantuk / Tidur Nyenyak (^_^)
+      tft.fillRoundRect(cx - 28, cy - 35, 56, 70, 24, COLOR_BG);
+
+      for (int t = 0; t <= 2; t++) {
+        tft.drawLine(cx - 22, cy + 4 - t, cx - 10, cy - 6 - t, COLOR_DARK);
+        tft.drawLine(cx - 10, cy - 6 - t, cx + 10, cy - 6 - t, COLOR_DARK);
+        tft.drawLine(cx + 10, cy - 6 - t, cx + 22, cy + 4 - t, COLOR_DARK);
+      }
+    }
+  }
+
+  // Efek Animasi Balon Zzz...
+  if (isSleepy) {
+    tft.setTextColor(COLOR_PRIMARY);
+    tft.setTextSize(1 + (zzzFrame % 2));
+    int zX = 240 + ((zzzFrame % 3) * 6);
+    int zY = 75 - ((zzzFrame % 3) * 8);
+    tft.setCursor(zX, zY);
+    tft.print("Zzz... ✨");
+  }
+
+  // Banner Bawah
+  tft.fillRoundRect(12, 192, 296, 28, 8, COLOR_DARK);
+  tft.setTextColor(COLOR_YELLOW);
+  tft.setTextSize(1);
+  tft.setCursor(24, 202);
+  if (isSleepy) {
+    tft.print("😴 Sedang Tidur... Sentuh Layar untuk Bangun! ✨");
+  } else {
+    tft.print("👆 SENTUH LAYAR UNTUK MEMILIH BLIND BAG! 🎁");
+  }
+}
+
+void updateMascotEyesAnimation() {
+  unsigned long now = millis();
+
+  // Jika sudah lebih dari 5.5 detik di mode idle, ubah ke Sleepy Mode (Mengantuk / Tidur)
+  if (!mascotIsSleepy && (now - stateStartTime >= 5500)) {
+    mascotIsSleepy = true;
+    drawMascotFace(0, true, 0);
+  }
+
+  // 1. Animasi Mata Melirik & Kedip saat Belum Tidur
+  if (!mascotIsSleepy) {
+    if (now - lastEyesMoveTime >= 1200) {
+      lastEyesMoveTime = now;
+      static int lookCycle = 0;
+      lookCycle = (lookCycle + 1) % 4;
+      if (lookCycle == 0) mascotLookDir = 0;
+      else if (lookCycle == 1) mascotLookDir = -1;
+      else if (lookCycle == 2) mascotLookDir = 0;
+      else if (lookCycle == 3) mascotLookDir = 1;
+
+      drawMascotFace(mascotLookDir, false, 0);
+    }
+  } else {
+    // 2. Animasi Zzz Mengambang saat Tidur (Setiap 700ms)
+    if (now - lastZzzTime >= 700) {
+      lastZzzTime = now;
+      zzzStep = (zzzStep + 1) % 4;
+
+      // Bersihkan area Zzz lama
+      tft.fillRect(235, 45, 75, 45, COLOR_BG);
+
+      // Redraw telinga kanan agar bersih
+      tft.fillRoundRect(224, 36, 26, 46, 12, COLOR_CARD_BG);
+      tft.drawRoundRect(224, 36, 26, 46, 12, COLOR_PINK);
+      tft.fillRoundRect(229, 42, 16, 34, 8, COLOR_PINK);
+
+      tft.setTextColor(COLOR_PRIMARY);
+      tft.setTextSize(1 + (zzzStep % 2));
+      int zX = 240 + (zzzStep * 5);
+      int zY = 72 - (zzzStep * 6);
+      tft.setCursor(zX, zY);
+      tft.print("Zzz..");
+    }
+  }
+
+  // Setelah 11 detik total di mode mata, otomatis Fade In ke katalog produk!
+  if (now - stateStartTime >= 11000) {
+    currentScreenState = STATE_FADE_IN_CATALOG;
+  }
+}
+
+// ==========================================
+// 🌟 9. ANIMASI FADE IN & FADE OUT PRODUK
+// ==========================================
+void playCatalogFadeInAnimation() {
+  tft.fillScreen(COLOR_BG);
+  tft.drawRoundRect(4, 4, 312, 232, 10, COLOR_PRIMARY);
+  delay(40);
+
+  // 1. Header Bar Drop-in
+  drawCatalogHeader();
+  delay(60);
+
+  // 2. Kotak Slot A Masuk (Cute Cat)
+  drawCatalogSlotA();
+  delay(70);
+
+  // 3. Kotak Slot B Masuk (Pastel Bunny)
+  drawCatalogSlotB();
+  delay(70);
+
+  // 4. Kotak Slot C Masuk (Glow Bear)
+  drawCatalogSlotC();
+  delay(70);
+
+  // 5. Kotak Slot D Masuk (Secret Rare)
+  drawCatalogSlotD();
+  delay(70);
+
+  // 6. Footer Masuk
+  drawCatalogFooter();
+
+  // Beralih ke state Katalog Aktif (10 Detik)
+  currentScreenState = STATE_CATALOG_ACTIVE;
+  stateStartTime = millis();
+}
+
+void playCatalogFadeOutAnimation() {
+  // Efek transisi Fade Out (Curtain Wipe Horizontal Lembut)
+  for (int w = 0; w <= 160; w += 20) {
+    tft.fillRect(0, 0, w, 240, COLOR_BG);
+    tft.fillRect(320 - w, 0, w, 240, COLOR_BG);
+    delay(20);
+  }
+  tft.fillScreen(COLOR_BG);
+
+  // Masuk kembali ke Mode Mata Maskot
+  currentScreenState = STATE_EYES_IDLE;
+  stateStartTime = millis();
+  mascotIsSleepy = false;
+  mascotLookDir = 0;
+  drawMascotFace(0, false, 0);
+}
+
+// ==========================================
+// 🐰 10. ANIMASI KELINCI BERJALAN/LONCAT & KEDIP
 // ==========================================
 void updateCuteAnimations() {
-  if (isDispensing) return;
+  if (isDispensing || currentScreenState != STATE_CATALOG_ACTIVE) return;
 
   unsigned long currentMillis = millis();
 
   // 1. Animasi 3 Kelinci Warna-Warni Berjalan & Melompat di Panggung Header (Setiap 80ms)
-  // 100% AMAN & BERSIH: Menghapus HANYA area panggung Header (Y: 9..35), TIDAK PERNAH menutupi teks produk!
   if (currentMillis - lastBunnyWalkTime >= 80) {
     lastBunnyWalkTime = currentMillis;
 
-    // Bersihkan HANYA area panggung Header (kanan tulisan "MYammiy craft") dengan warna hijau
     tft.fillRect(174, 9, 132, 26, COLOR_PRIMARY);
 
     for (int i = 0; i < 3; i++) {
@@ -526,7 +822,7 @@ void updateCuteAnimations() {
 }
 
 // ==========================================
-// 🎁 7. ANIMASI PENGELUARAN BARANG & MOTOR
+// 🎁 11. ANIMASI PENGELUARAN BARANG & MOTOR
 // ==========================================
 void drawDispensingScreen(const char* productName, int slotNumber, int currentItem, int totalItems) {
   tft.fillScreen(COLOR_BG);
@@ -540,7 +836,6 @@ void drawDispensingScreen(const char* productName, int slotNumber, int currentIt
   tft.fillRoundRect(12, 50, 296, 158, 10, COLOR_CARD_BG);
   tft.drawRoundRect(12, 50, 296, 158, 10, COLOR_PRIMARY);
 
-  // Gambar Karakter Kartun Sesuai Slot
   if (slotNumber == 1) drawCartoonCat(45, 105, true);
   else if (slotNumber == 2) drawCartoonBunny(45, 105, true);
   else if (slotNumber == 3) drawCartoonBear(45, 105, true);
@@ -650,13 +945,16 @@ void executeDispense(int slotNumber, int quantity, const char* productName) {
   drawSuccessScreen(quantity);
   delay(3500);
 
+  // Kembali ke katalog produk aktif dan perbarui timer 10 detik
   drawProductCatalog();
+  currentScreenState = STATE_CATALOG_ACTIVE;
+  stateStartTime = millis();
   isDispensing = false;
   Serial.println("✅ Selesai & Kembali ke Menu!");
 }
 
 // ==========================================
-// 👆 8. LOGIKA DETEKSI SENTUHAN LAYAR (TOUCH)
+// 👆 12. LOGIKA DETEKSI SENTUHAN LAYAR (TOUCH)
 // ==========================================
 void handleTouchScreen() {
   if (isDispensing) return;
@@ -668,39 +966,51 @@ void handleTouchScreen() {
   if (now - lastTouchDebounce < 700) return; // Debounce 700ms
   lastTouchDebounce = now;
 
-  Serial.print("👆 SENTUHAN ASLI DITERIMA! Layar X=");
-  Serial.print(screenX);
-  Serial.print(", Y=");
-  Serial.println(screenY);
+  Serial.printf("👆 SENTUHAN DITERIMA (State=%d)! Layar X=%d, Y=%d\n", currentScreenState, screenX, screenY);
 
-  // --- KOTAK SLOT A (Kiri Atas - Kucing Cute) ---
-  if (screenX >= 5 && screenX <= 158 && screenY >= 38 && screenY <= 126) {
-    Serial.println("🎯 Sentuhan Sukses: SLOT A - Seri 1 Cute!");
-    tft.drawRoundRect(10, 42, 146, 82, 8, COLOR_YELLOW);
-    executeDispense(1, 1, "Blind Bag Seri 1 Cute");
+  // JIKA SEDANG DI MODE MATA (IDLE / SLEEP) -> WAKE UP & FADE IN KE KATALOG!
+  if (currentScreenState == STATE_EYES_IDLE) {
+    Serial.println("✨ Maskot Terbangun Gembira! Beralih ke Katalog Produk...");
+    drawMascotFace(0, false, 0);
+    delay(150);
+    playCatalogFadeInAnimation();
+    return;
   }
-  // --- KOTAK SLOT B (Kanan Atas - Kelinci Pastel) ---
-  else if (screenX >= 160 && screenX <= 315 && screenY >= 38 && screenY <= 126) {
-    Serial.println("🎯 Sentuhan Sukses: SLOT B - Seri 2 Pastel!");
-    tft.drawRoundRect(164, 42, 146, 82, 8, COLOR_YELLOW);
-    executeDispense(2, 1, "Blind Bag Seri 2 Pastel");
-  }
-  // --- KOTAK SLOT C (Kiri Bawah - Beruang Glow) ---
-  else if (screenX >= 5 && screenX <= 158 && screenY >= 128 && screenY <= 216) {
-    Serial.println("🎯 Sentuhan Sukses: SLOT C - Seri 3 Glow!");
-    tft.drawRoundRect(10, 130, 146, 82, 8, COLOR_YELLOW);
-    executeDispense(3, 1, "Blind Bag Seri 3 Glow");
-  }
-  // --- KOTAK SLOT D (Kanan Bawah - Bintang Mahkota Rare) ---
-  else if (screenX >= 160 && screenX <= 315 && screenY >= 128 && screenY <= 216) {
-    Serial.println("🎯 Sentuhan Sukses: SLOT D - Secret Rare!");
-    tft.drawRoundRect(164, 130, 146, 82, 8, COLOR_YELLOW);
-    executeDispense(4, 1, "Blind Bag Secret Rare");
+
+  // JIKA SEDANG DI MODE KATALOG AKTIF -> PILIH SLOT PRODUK
+  if (currentScreenState == STATE_CATALOG_ACTIVE) {
+    // Reset timer 10 detik agar tetap di katalog jika disentuh
+    stateStartTime = millis();
+
+    // --- KOTAK SLOT A (Kiri Atas - Kucing Cute) ---
+    if (screenX >= 5 && screenX <= 158 && screenY >= 38 && screenY <= 126) {
+      Serial.println("🎯 Sentuhan Sukses: SLOT A - Seri 1 Cute!");
+      tft.drawRoundRect(10, 42, 146, 82, 8, COLOR_YELLOW);
+      executeDispense(1, 1, "Blind Bag Seri 1 Cute");
+    }
+    // --- KOTAK SLOT B (Kanan Atas - Kelinci Pastel) ---
+    else if (screenX >= 160 && screenX <= 315 && screenY >= 38 && screenY <= 126) {
+      Serial.println("🎯 Sentuhan Sukses: SLOT B - Seri 2 Pastel!");
+      tft.drawRoundRect(164, 42, 146, 82, 8, COLOR_YELLOW);
+      executeDispense(2, 1, "Blind Bag Seri 2 Pastel");
+    }
+    // --- KOTAK SLOT C (Kiri Bawah - Beruang Glow) ---
+    else if (screenX >= 5 && screenX <= 158 && screenY >= 128 && screenY <= 216) {
+      Serial.println("🎯 Sentuhan Sukses: SLOT C - Seri 3 Glow!");
+      tft.drawRoundRect(10, 130, 146, 82, 8, COLOR_YELLOW);
+      executeDispense(3, 1, "Blind Bag Seri 3 Glow");
+    }
+    // --- KOTAK SLOT D (Kanan Bawah - Bintang Mahkota Rare) ---
+    else if (screenX >= 160 && screenX <= 315 && screenY >= 128 && screenY <= 216) {
+      Serial.println("🎯 Sentuhan Sukses: SLOT D - Secret Rare!");
+      tft.drawRoundRect(164, 130, 146, 82, 8, COLOR_YELLOW);
+      executeDispense(4, 1, "Blind Bag Secret Rare");
+    }
   }
 }
 
 // ==========================================
-// 🌐 9. WEB SERVER LOKAL
+// 🌐 13. WEB SERVER LOKAL
 // ==========================================
 void handleRoot() {
   String html = "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>";
@@ -743,7 +1053,7 @@ void handleDispenseWeb() {
 }
 
 // ==========================================
-// 📡 10. CLOUD POLLING & SINKRONISASI 1.5 DETIK
+// 📡 14. CLOUD POLLING & SINKRONISASI 1.5 DETIK
 // ==========================================
 void checkDispenseQueue() {
   if (WiFi.status() != WL_CONNECTED || isDispensing) return;
@@ -786,13 +1096,6 @@ void checkWiFiStatus() {
     if (!printed) {
       printed = true;
       String ipStr = WiFi.localIP().toString();
-      
-      tft.fillRoundRect(8, 216, 304, 18, 4, COLOR_DARK);
-      tft.setTextColor(COLOR_GREEN_OK);
-      tft.setTextSize(1);
-      tft.setCursor(14, 221);
-      tft.printf("IP: http://%s/ | Sentuh / Web 🟢", ipStr.c_str());
-      
       Serial.printf("\n🎉 TERKONEKSI KE %s! IP: http://%s/\n", WIFI_SSID, ipStr.c_str());
       server.on("/", HTTP_GET, handleRoot);
       server.on("/dispense", HTTP_GET, handleDispenseWeb);
@@ -811,7 +1114,7 @@ void checkWiFiStatus() {
 }
 
 // ==========================================
-// 🚀 11. SETUP UTAMA ESP32-S3
+// 🚀 15. SETUP UTAMA ESP32-S3
 // ==========================================
 void setup() {
   Serial.begin(115200);
@@ -833,7 +1136,7 @@ void setup() {
   SPI.begin(TFT_SCK, -1, TFT_MOSI, TFT_CS);
   tft.begin();
   tft.setRotation(1);
-  tft.fillScreen(COLOR_PRIMARY); // Uji layar warna hijau
+  tft.fillScreen(COLOR_PRIMARY);
   delay(100);
 
   // Inisialisasi Pin Layar Sentuh Bit-Bang Native
@@ -846,27 +1149,51 @@ void setup() {
   digitalWrite(TOUCH_CLK, LOW);
   digitalWrite(TOUCH_DIN, LOW);
   Serial.println("👆 Native Bit-Bang Touch Aktif di Pin CLK:16, DIN:17, DO:14, CS:21!");
-  Serial.println("👆 Touchscreen XPT2046 Aktif!");
-
-  // Tampilkan Katalog Produk Karakter Kartun
-  drawProductCatalog();
 
   // Mulai WiFi di Latar Belakang
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.setSleep(false);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+  // 2. Tampilkan Layar Animasi Loading Awal (Booting)
+  drawBootLoadingScreen();
+
+  // 3. Masuk ke Mode Animasi Mata Kawaii Melirik / Idle
+  currentScreenState = STATE_EYES_IDLE;
+  stateStartTime = millis();
+  mascotIsSleepy = false;
+  mascotLookDir = 0;
+  drawMascotFace(0, false, 0);
 }
 
 // ==========================================
-// 🔄 12. LOOP UTAMA
+// 🔄 16. LOOP UTAMA
 // ==========================================
 void loop() {
   // 1. Deteksi Sentuhan Layar Langsung (Touchscreen)
   handleTouchScreen();
 
-  // 2. Animasi Kelinci Berjalan/Loncat & Karakter Lucu
-  updateCuteAnimations();
+  // 2. Eksekusi State Layar Aktif
+  if (!isDispensing) {
+    if (currentScreenState == STATE_EYES_IDLE) {
+      updateMascotEyesAnimation();
+    }
+    else if (currentScreenState == STATE_FADE_IN_CATALOG) {
+      playCatalogFadeInAnimation();
+    }
+    else if (currentScreenState == STATE_CATALOG_ACTIVE) {
+      updateCuteAnimations();
+
+      // Cek timeout 10 detik tanpa sentuhan -> Fade Out kembali ke Mata Tidur
+      if (millis() - stateStartTime >= 10000) {
+        currentScreenState = STATE_FADE_OUT;
+      }
+    }
+    else if (currentScreenState == STATE_FADE_OUT) {
+      playCatalogFadeOutAnimation();
+    }
+  }
 
   // 3. Status WiFi & Server Lokal
   checkWiFiStatus();
