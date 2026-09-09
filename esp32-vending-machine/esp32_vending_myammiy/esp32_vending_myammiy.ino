@@ -522,15 +522,12 @@ void drawCatalogSlotD() {
 }
 
 void drawCatalogFooter() {
+  // Jalur Jalan Aspal Mulus di Bagian Bawah Layar (Hanya Animasi Visual Mobil & Asap - 0% Teks)
   tft.fillRoundRect(8, 216, 304, 18, 4, COLOR_DARK);
-  tft.setTextColor(COLOR_YELLOW);
-  tft.setTextSize(1);
-  tft.setCursor(14, 221);
-  if (WiFi.status() == WL_CONNECTED) {
-    tft.setTextColor(COLOR_GREEN_OK);
-    tft.printf("IP: http://%s/ | MYammiy craft 🟢", WiFi.localIP().toString().c_str());
-  } else {
-    tft.print("🐰 MYammiy Craft ✨ Sentuh Layar / Web IoT");
+
+  // Garis Marka Putus-Putus di Tengah Jalan
+  for (int x = 16; x < 304; x += 24) {
+    tft.drawFastHLine(x, 225, 12, COLOR_YELLOW);
   }
 }
 
@@ -856,34 +853,26 @@ void updateCuteAnimations() {
     drawCartoonStar(192, 172, eyesOpen);
   }
 
-  // 3. Animasi Mobil Kartun Lucu Mengeluarkan Asap di Bagian Bawah Footer (Setiap 70ms)
-  if (currentMillis - lastFooterCarTime >= 70) {
+  // 3. Animasi Mobil Kartun Lucu Mengeluarkan Asap di Bagian Bawah (HANYA Animasi Visual Mobil - 0% Teks)
+  if (currentMillis - lastFooterCarTime >= 65) {
     lastFooterCarTime = currentMillis;
     footerCarX += 3;
-    if (footerCarX > 295) {
-      footerCarX = 10;
+    if (footerCarX > 315) {
+      footerCarX = -22; // Keluar di kanan, masuk kembali dari sisi kiri secara mulus!
     }
 
-    // Bersihkan area baris bawah footer
+    // Bersihkan area jalan bawah
     tft.fillRoundRect(8, 216, 304, 18, 4, COLOR_DARK);
 
-    // Gambar Mobil Kartun & Asap Berjalan dari Ujung ke Ujung
+    // Gambar garis marka jalan putus-putus
+    for (int x = 16; x < 304; x += 24) {
+      tft.drawFastHLine(x, 225, 12, COLOR_YELLOW);
+    }
+
+    // Gambar Mobil Kartun & Kepulan Asap Berjalan dari Ujung ke Ujung
     static int carSmokeFrame = 0;
     carSmokeFrame = (carSmokeFrame + 1) % 4;
     drawCuteCartoonCar(footerCarX, 224, carSmokeFrame);
-
-    // Teks MYammiy Craft di Samping Mobil (0% teks kurir)
-    tft.setTextColor(COLOR_YELLOW);
-    tft.setTextSize(1);
-    tft.setCursor(footerCarX + 24, 221);
-    if (footerCarX < 165) {
-      if (WiFi.status() == WL_CONNECTED) {
-        tft.setTextColor(COLOR_GREEN_OK);
-        tft.printf("IP: %s | MYammiy 🟢", WiFi.localIP().toString().c_str());
-      } else {
-        tft.print("🚗💨 MYammiy Craft ✨ Sentuh Layar");
-      }
-    }
   }
 }
 
