@@ -271,7 +271,10 @@ void drawColorfulHoppingBunny(int bx, int by, int frame, int dir, uint16_t bodyC
 }
 
 // Update Pergerakan Setiap Kelinci di Jalur Patroli
-void updatePatrolBunny(PatrolBunny &b) {
+void updatePatrolBunny(int index) {
+  if (index < 0 || index >= 3) return;
+  PatrolBunny &b = bunnies[index];
+
   // Hapus jejak posisi sebelumnya
   erasePatrolBunny(b.prevX, b.prevY);
 
@@ -599,7 +602,7 @@ void updateCuteAnimations() {
     lastBunnyWalkTime = currentMillis;
 
     for (int i = 0; i < 3; i++) {
-      updatePatrolBunny(bunnies[i]);
+      updatePatrolBunny(i);
     }
   }
 
