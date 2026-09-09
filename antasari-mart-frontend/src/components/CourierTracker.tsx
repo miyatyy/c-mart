@@ -440,147 +440,13 @@ export default function CourierTracker({
       gap: 5px;
       transition: all 0.2s ease;
     }
-    @keyframes amRoadLineMove {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-40px); }
-    }
-    @keyframes amDriveHighway {
-      0% { left: -100px; }
-      100% { left: calc(100% + 70px); }
-    }
-    @keyframes amCarSuspension {
-      0% { transform: translateY(0px) rotate(0deg); }
-      50% { transform: translateY(-2px) rotate(-0.5deg); }
-      100% { transform: translateY(0px) rotate(0.5deg); }
-    }
-    @keyframes amSmokePuff1 {
-      0% { opacity: 0.95; transform: translate(0, 0) scale(0.35); }
-      40% { opacity: 0.7; transform: translate(-14px, -6px) scale(0.85); }
-      100% { opacity: 0; transform: translate(-34px, -14px) scale(1.6); }
-    }
-    @keyframes amSmokePuff2 {
-      0% { opacity: 0.95; transform: translate(0, 0) scale(0.3); }
-      45% { opacity: 0.65; transform: translate(-20px, -4px) scale(1.0); }
-      100% { opacity: 0; transform: translate(-44px, -10px) scale(1.9); }
-    }
-    @keyframes amSmokePuff3 {
-      0% { opacity: 0.85; transform: translate(0, 0) scale(0.25); }
-      50% { opacity: 0.5; transform: translate(-26px, -8px) scale(1.2); }
-      100% { opacity: 0; transform: translate(-54px, -18px) scale(2.3); }
-    }
-    @keyframes amHeadlightGlow {
-      0%, 100% { opacity: 0.5; }
-      50% { opacity: 0.85; }
+    .am-layer-chip.active {
+      background: var(--am-primary);
+      color: white;
+      border-color: var(--am-primary);
+      box-shadow: 0 2px 8px rgba(74,197,108,0.35);
     }
   `
-
-  const renderDeliveryHighway = () => (
-    <div style={{
-      marginTop: 20, marginBottom: 16,
-      background: 'linear-gradient(180deg, #1E293B 0%, #0F172A 100%)',
-      borderRadius: 18, padding: '14px 16px 12px',
-      border: '1.5px solid rgba(74, 222, 128, 0.3)',
-      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.25)',
-      overflow: 'hidden', position: 'relative'
-    }}>
-      {/* Top Header Badge */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, position: 'relative', zIndex: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16 }}>🚚💨</span>
-          <span style={{ fontSize: 12, fontWeight: 800, color: '#4ADE80', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            Ekspres Kurir Kampus Antasari Mart
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(74, 222, 128, 0.15)', padding: '3px 9px', borderRadius: 20, border: '1px solid rgba(74, 222, 128, 0.3)' }}>
-          <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#22C55E', boxShadow: '0 0 8px #22C55E' }} />
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#86EFAC' }}>Kecepatan Optimal · Real-Time</span>
-        </div>
-      </div>
-
-      {/* Road Highway Canvas */}
-      <div style={{
-        height: 60, background: '#334155', borderRadius: 12, position: 'relative',
-        overflow: 'hidden', border: '2px solid #475569', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.5)'
-      }}>
-        {/* Top & Bottom Curbs */}
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: 'repeating-linear-gradient(90deg, #22C55E 0, #22C55E 15px, #FFFFFF 15px, #FFFFFF 30px)' }} />
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'repeating-linear-gradient(90deg, #22C55E 0, #22C55E 15px, #FFFFFF 15px, #FFFFFF 30px)' }} />
-
-        {/* Dashed Center Road Line */}
-        <div style={{
-          position: 'absolute', top: '50%', left: '-40px', right: '-40px', height: 4,
-          marginTop: -2, background: 'repeating-linear-gradient(90deg, #FDE047 0, #FDE047 20px, transparent 20px, transparent 40px)',
-          animation: 'amRoadLineMove 0.8s linear infinite'
-        }} />
-
-        {/* The Moving Delivery Car with Exhaust Smoke Puffs */}
-        <div style={{
-          position: 'absolute', top: 11,
-          animation: 'amDriveHighway 7.5s linear infinite',
-          display: 'flex', alignItems: 'center'
-        }}>
-          {/* Animated Exhaust Smoke Puffs trailing behind */}
-          <div style={{ position: 'absolute', left: -6, bottom: 6, pointerEvents: 'none' }}>
-            <div style={{
-              position: 'absolute', width: 14, height: 14, borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(203,213,225,0.7) 60%, transparent 100%)',
-              animation: 'amSmokePuff1 0.7s ease-out infinite',
-              filter: 'blur(1px)'
-            }} />
-            <div style={{
-              position: 'absolute', width: 18, height: 18, borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(248,250,252,0.9) 0%, rgba(148,163,184,0.6) 60%, transparent 100%)',
-              animation: 'amSmokePuff2 0.7s ease-out infinite 0.22s',
-              filter: 'blur(1.2px)'
-            }} />
-            <div style={{
-              position: 'absolute', width: 22, height: 22, borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(241,245,249,0.85) 0%, rgba(203,213,225,0.5) 60%, transparent 100%)',
-              animation: 'amSmokePuff3 0.7s ease-out infinite 0.44s',
-              filter: 'blur(1.5px)'
-            }} />
-          </div>
-
-          {/* Car Body Container with Suspension Animation */}
-          <div style={{
-            position: 'relative',
-            animation: 'amCarSuspension 0.25s ease-in-out infinite alternate',
-            display: 'flex', alignItems: 'center'
-          }}>
-            {/* SVG Cute Delivery Car */}
-            <svg width="70" height="34" viewBox="0 0 70 34" fill="none" xmlns="http://www.w3.org/2000/svg">
-              {/* Car Body */}
-              <path d="M4 18C4 13.578 7.578 10 12 10H44L54 18H64C66.209 18 68 19.791 68 22V27C68 28.105 67.105 29 66 29H60C60 26.239 57.761 24 55 24C52.239 24 50 26.239 50 29H24C24 26.239 21.761 24 19 24C16.239 24 14 26.239 14 29H6C4.895 29 4 28.105 4 27V18Z" fill="#16A34A" />
-              {/* Car Roof & Cabin */}
-              <path d="M14 10L22 4H42L48 10H14Z" fill="#22C55E" />
-              {/* Windshield */}
-              <path d="M43 5L48 10H36V5H43Z" fill="#E0F2FE" />
-              {/* Side Window */}
-              <rect x="24" y="5" width="10" height="5" rx="1" fill="#E0F2FE" />
-              {/* Antasari Mart Text Logo on Side */}
-              <text x="14" y="21" fill="#FFFFFF" fontSize="6.5" fontWeight="bold" fontFamily="sans-serif">AM-MART</text>
-              {/* Headlight */}
-              <circle cx="66" cy="22" r="2.5" fill="#FEF08A" />
-              {/* Taillight */}
-              <rect x="4" y="20" width="2" height="4" rx="1" fill="#EF4444" />
-              {/* Wheels */}
-              <circle cx="19" cy="28" r="5" fill="#0F172A" />
-              <circle cx="19" cy="28" r="2.5" fill="#94A3B8" />
-              <circle cx="55" cy="28" r="5" fill="#0F172A" />
-              <circle cx="55" cy="28" r="2.5" fill="#94A3B8" />
-            </svg>
-
-            {/* Front Headlight Beam */}
-            <div style={{
-              position: 'absolute', right: -42, top: 5, width: 44, height: 24,
-              background: 'radial-gradient(ellipse at left, rgba(254, 240, 138, 0.65) 0%, rgba(254, 240, 138, 0.15) 50%, transparent 80%)',
-              pointerEvents: 'none', animation: 'amHeadlightGlow 1.2s ease-in-out infinite'
-            }} />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
 
   if (isPickupActive) {
     return (
@@ -658,8 +524,6 @@ export default function CourierTracker({
             </button>
           </div>
         </div>
-
-        {renderDeliveryHighway()}
       </div>
     )
   }
@@ -819,8 +683,6 @@ export default function CourierTracker({
             </MapContainer>
           </div>
         </div>
-
-        {renderDeliveryHighway()}
 
         {showRatingModal && (
           <div style={{
@@ -1208,8 +1070,6 @@ export default function CourierTracker({
           ))}
         </div>
       </div>
-
-      {renderDeliveryHighway()}
 
       <div style={{ display: 'flex', gap: 12 }}>
         <button
