@@ -243,21 +243,21 @@
                 </span>
               </div>
 
-              <!-- ↩️ QUOTE PREVIEW PESAN YANG DIBALAS -->
+              <!-- ↩️ QUOTE PREVIEW PESAN YANG DIBALAS (Tampil identik di kedua layar: Pengirim & Penerima) -->
               <div
                 v-if="!(msg.is_deleted || msg.isDeleted) && (msg.replyTo || msg.reply_to)"
                 :class="[
                   'mb-1.5 p-2 rounded-lg text-xs border-l-4 transition flex flex-col gap-0.5 select-none shadow-2xs',
                   isMyMessage(msg)
                     ? 'bg-black/15 text-emerald-100 border-emerald-300'
-                    : 'bg-black/5 dark:bg-white/10 text-gray-700 dark:text-gray-300 border-emerald-500'
+                    : 'bg-gray-100 dark:bg-gray-700/60 text-gray-800 dark:text-gray-200 border-emerald-500'
                 ]"
               >
                 <span class="font-bold text-[10.5px] opacity-90">
-                  {{ (msg.replyTo?.senderName || msg.reply_to?.sender_name) || 'Pesan' }}
+                  {{ (msg.replyTo?.senderName || msg.replyTo?.sender_name || msg.reply_to?.senderName || msg.reply_to?.sender_name) || 'Pesan' }}
                 </span>
-                <span class="truncate text-[11px] opacity-80 italic">
-                  {{ (msg.replyTo?.text || msg.reply_to?.text) || '...' }}
+                <span class="truncate text-[11px] opacity-85 italic">
+                  {{ (msg.replyTo?.text || msg.replyTo?.content || msg.reply_to?.text || msg.reply_to?.content) || '...' }}
                 </span>
               </div>
 
@@ -637,8 +637,8 @@ export interface ChatMessage {
   isDeleted?: boolean;
   reactions?: Record<string, number>;
   client_instance_id?: string;
-  reply_to?: { id?: string | number; text?: string; sender_name?: string };
-  replyTo?: { id?: string | number; text?: string; senderName?: string };
+  reply_to?: { id?: string | number; text?: string; content?: string; sender_name?: string; senderName?: string } | null;
+  replyTo?: { id?: string | number; text?: string; content?: string; sender_name?: string; senderName?: string } | null;
 }
 
 // 🛡️ MODUL LEVEL SINGLETON LISTENER REFERENCES (Mencegah Double Listener Saat Remount/Re-render)
@@ -1584,6 +1584,46 @@ const appendMessageSafe = (newMsg: any): boolean => {
 
   const messageKey = String(newMsg.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)));
   const isMine = newMsg.is_self !== undefined ? Boolean(newMsg.is_self) : isSender(newMsg);
+
+  // ↩️ Normalisasi data balasan (Reply) lengkap dengan pencarian referensi ID
+  let safeReply: any = newMsg.replyTo || newMsg.reply_to || null;
+  if (typeof safeReply === 'string') {
+    if (safeReply.startsWith('{')) {
+      try { safeReply = JSON.parse(safeReply); } catch (_) {}
+    } else {
+      const refMsg = Array.from(rawMessagesMap.values()).find(m => String(m.id) === String(safeReply)) ||
+                     messages.value.find((m: any) => String(m.id) === String(safeReply));
+      if (refMsg) {
+        safeReply = {
+          id: refMsg.id,
+          senderName: refMsg.senderName || refMsg.sender_name || 'Pengguna',
+          sender_name: refMsg.senderName || refMsg.sender_name || 'Pengguna',
+          text: refMsg.text || refMsg.content || '',
+          content: refMsg.text || refMsg.content || ''
+        };
+      }
+    }
+  }
+  if (safeReply && typeof safeReply === 'object') {
+    if (safeReply.id && (!safeReply.text && !safeReply.content)) {
+      const refMsg = Array.from(rawMessagesMap.values()).find(m => String(m.id) === String(safeReply.id)) ||
+                     messages.value.find((m: any) => String(m.id) === String(safeReply.id));
+      if (refMsg) {
+        safeReply.text = refMsg.text || refMsg.content || '';
+        safeReply.content = refMsg.text || refMsg.content || '';
+        safeReply.senderName = safeReply.senderName || safeReply.sender_name || refMsg.senderName || refMsg.sender_name || 'Pengguna';
+        safeReply.sender_name = safeReply.senderName || safeReply.sender_name || refMsg.senderName || refMsg.sender_name || 'Pengguna';
+      }
+    }
+    safeReply = {
+      id: safeReply.id,
+      senderName: safeReply.senderName || safeReply.sender_name || 'Pengguna',
+      sender_name: safeReply.senderName || safeReply.sender_name || 'Pengguna',
+      text: safeReply.text || safeReply.content || '',
+      content: safeReply.text || safeReply.content || ''
+    };
+  }
+
   const safeMsg = {
     ...newMsg,
     id: messageKey,
@@ -1601,7 +1641,9 @@ const appendMessageSafe = (newMsg: any): boolean => {
     createdAt: newMsg.createdAt || newMsg.created_at || new Date().toISOString(),
     time: rawTime || formatTime(new Date().toISOString()),
     is_self: isMine,
-    isSelf: isMine
+    isSelf: isMine,
+    replyTo: safeReply,
+    reply_to: safeReply
   };
 
   rawMessagesMap.set(messageKey, safeMsg);
@@ -2037,12 +2079,63 @@ const handleTypingInput = () => {
 // ==========================================
 const handleIncomingMessage = (rawMsg: any) => {
   if (!rawMsg) return;
+  if (typeof rawMsg === 'string') {
+    try { rawMsg = JSON.parse(rawMsg); } catch (_) {}
+  }
+  if (rawMsg?.data && typeof rawMsg.data === 'object') {
+    rawMsg = { ...rawMsg.data, ...rawMsg };
+  } else if (typeof rawMsg?.data === 'string') {
+    try {
+      const parsedData = JSON.parse(rawMsg.data);
+      rawMsg = { ...parsedData, ...rawMsg };
+    } catch (_) {}
+  }
+
   const msgText = rawMsg.text || rawMsg.content || rawMsg.message || '';
   if (!msgText && !rawMsg.mediaUrl) return;
 
   const rawSenderId = rawMsg.senderId || rawMsg.sender_id || rawMsg.sender || '';
   const msgTime = rawMsg.time || formatTime(rawMsg.timestamp || rawMsg.createdAt || rawMsg.created_at);
   const msgTimestamp = rawMsg.timestamp || rawMsg.createdAt || rawMsg.created_at || new Date().toISOString();
+
+  // ↩️ NORMALISASI & RESOLUSI DATA BALASAN (REPLY) DI SISI PENERIMA
+  let normalizedReply: any = rawMsg.replyTo || rawMsg.reply_to || null;
+  if (typeof normalizedReply === 'string') {
+    if (normalizedReply.startsWith('{')) {
+      try { normalizedReply = JSON.parse(normalizedReply); } catch (_) {}
+    } else {
+      const refMsg = Array.from(rawMessagesMap.values()).find(m => String(m.id) === String(normalizedReply)) ||
+                     messages.value.find((m: any) => String(m.id) === String(normalizedReply));
+      if (refMsg) {
+        normalizedReply = {
+          id: refMsg.id,
+          senderName: refMsg.senderName || refMsg.sender_name || 'Pengguna',
+          sender_name: refMsg.senderName || refMsg.sender_name || 'Pengguna',
+          text: refMsg.text || refMsg.content || '',
+          content: refMsg.text || refMsg.content || ''
+        };
+      }
+    }
+  }
+  if (normalizedReply && typeof normalizedReply === 'object') {
+    if (normalizedReply.id && (!normalizedReply.text && !normalizedReply.content)) {
+      const refMsg = Array.from(rawMessagesMap.values()).find(m => String(m.id) === String(normalizedReply.id)) ||
+                     messages.value.find((m: any) => String(m.id) === String(normalizedReply.id));
+      if (refMsg) {
+        normalizedReply.text = refMsg.text || refMsg.content || '';
+        normalizedReply.content = refMsg.text || refMsg.content || '';
+        normalizedReply.senderName = normalizedReply.senderName || normalizedReply.sender_name || refMsg.senderName || refMsg.sender_name || 'Pengguna';
+        normalizedReply.sender_name = normalizedReply.senderName || normalizedReply.sender_name || refMsg.senderName || refMsg.sender_name || 'Pengguna';
+      }
+    }
+    normalizedReply = {
+      id: normalizedReply.id,
+      senderName: normalizedReply.senderName || normalizedReply.sender_name || 'Pengguna',
+      sender_name: normalizedReply.senderName || normalizedReply.sender_name || 'Pengguna',
+      text: normalizedReply.text || normalizedReply.content || '',
+      content: normalizedReply.text || normalizedReply.content || ''
+    };
+  }
 
   const msg = {
     id: rawMsg.id || Date.now().toString(),
@@ -2058,20 +2151,26 @@ const handleIncomingMessage = (rawMsg: any) => {
     createdAt: msgTimestamp,
     created_at: msgTimestamp,
     time: msgTime,
-    replyTo: rawMsg.replyTo || rawMsg.reply_to || null,
-    reply_to: rawMsg.replyTo || rawMsg.reply_to || null,
+    replyTo: normalizedReply,
+    reply_to: normalizedReply,
     reactions: rawMsg.reactions || {}
   };
 
   // Cek apakah pesan sudah ada di list agar tidak duplikat
-  const exists = messages.value.some((m: any) => m.id === msg.id || String(m.id) === String(msg.id));
-  if (!exists) {
+  const existingMsg = messages.value.find((m: any) => m.id === msg.id || String(m.id) === String(msg.id));
+  if (!existingMsg) {
     messages.value.push(msg);
     rawMessagesMap.set(String(msg.id), msg);
     if (!isMyMessage(msg)) {
       triggerNotificationBeepAndToast(msg);
     }
     scrollToBottom();
+  } else {
+    // Sinkronkan data reply jika sebelumnya belum terpasang
+    if (!existingMsg.replyTo && normalizedReply) {
+      existingMsg.replyTo = normalizedReply;
+      existingMsg.reply_to = normalizedReply;
+    }
   }
 };
 
@@ -2267,12 +2366,13 @@ const handleKirimPesan = () => {
   const myName = currentUser.value?.name || (currentUser.value?.role === 'seller' ? 'Udin' : 'Raisa');
   const myRole = currentUser.value?.role || 'seller';
 
-  const replyData = replyingToMessage.value ? {
+  const replyPayload = replyingToMessage.value ? {
     id: replyingToMessage.value.id,
+    senderName: replyingToMessage.value.senderName || replyingToMessage.value.sender_name || 'Pengguna',
+    sender_name: replyingToMessage.value.senderName || replyingToMessage.value.sender_name || 'Pengguna',
     text: (replyingToMessage.value.text || replyingToMessage.value.content || '').slice(0, 120),
-    sender_name: replyingToMessage.value.sender_name || replyingToMessage.value.senderName || 'Pengguna',
-    senderName: replyingToMessage.value.sender_name || replyingToMessage.value.senderName || 'Pengguna'
-  } : undefined;
+    content: (replyingToMessage.value.text || replyingToMessage.value.content || '').slice(0, 120)
+  } : null;
 
   const payload: ChatMessage = {
     id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
@@ -2292,8 +2392,8 @@ const handleKirimPesan = () => {
     receiverRole: partnerRole,
     text: textToSend,
     content: textToSend,
-    replyTo: replyData,
-    reply_to: replyData,
+    replyTo: replyPayload,
+    reply_to: replyPayload,
     is_self: true,
     isSelf: true,
     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -2327,7 +2427,9 @@ const handleKirimPesan = () => {
         toName: partnerName,
         toRole: partnerRole,
         toAvatar: activePartnerAvatar.value,
-        text: textToSend
+        text: textToSend,
+        replyTo: replyPayload,
+        reply_to: replyPayload
       });
     } catch (_e) {}
   }
@@ -2382,7 +2484,9 @@ const handleKirimPesan = () => {
       receiverName: partnerName,
       text: textToSend,
       time: payload.time,
-      createdAt: payload.created_at
+      createdAt: payload.created_at,
+      replyTo: replyPayload,
+      reply_to: replyPayload
     } as any);
   } catch (_e) {}
 
