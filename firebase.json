@@ -6,6 +6,17 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://app.sandbox.midtrans.com https://snap-assets.sandbox.midtrans.com https://api.sandbox.midtrans.com https://pay.google.com https://gwk.gopayapi.com https://*.dicebear.com https://cdn.jsdelivr.net; frame-src 'self' https://app.sandbox.midtrans.com https://api.sandbox.midtrans.com https://pay.google.com; connect-src 'self' https: wss: ws: http://localhost:5000 http://127.0.0.1:5000 https://app.sandbox.midtrans.com https://api.sandbox.midtrans.com https://snap-assets.sandbox.midtrans.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; media-src 'self' data: blob: https:;"
+          }
+        ]
+      }
+    ],
     "rewrites": [
       {
         "source": "**",

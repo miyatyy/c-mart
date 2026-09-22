@@ -1,14 +1,25 @@
-import type { Product, ProductCategory, Campus, SessionUser } from '../types';
+import type { Product, ProductCategory, Campus, SessionUser, ProductModerationStatus, AiProductAnalysis } from '../types';
+import { PRODUCTS } from '../data';
 
-export const API_BASE_URL = 
-  import.meta.env.VITE_API_BASE_URL || 
-  (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:5000'
-    : 'https://antasari-mart-api.vercel.app');
+export const API_BASE_URL = (() => {
+  if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
+  if (typeof window !== 'undefined') {
+    const isHttps = window.location.protocol === 'https:';
+    const hn = window.location.hostname;
+    // Hindari request insecure HTTP di halaman HTTPS Firebase Hosting
+    if (isHttps && (hn === 'antasari-mart.web.app' || hn.endsWith('.web.app') || hn.endsWith('.firebaseapp.com'))) {
+      return 'https://antasari-mart-backend.vercel.app';
+    }
+    if (hn) {
+      return `${window.location.protocol}//${hn}:5000`;
+    }
+  }
+  return '';
+})();
 
 export const MIDTRANS_CLIENT_KEY = import.meta.env.VITE_MIDTRANS_CLIENT_KEY || 'Mid-client-8jHsm2sYfBK8gz1A';
 
-// Helper Generic Request
+// Helper Generic Request with strict timeout & non-throwing safe response parsing
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   
@@ -20,13 +31,38 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers
-  });
+  // Strict 2500ms timeout to prevent hanging UI thread
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2500);
 
-  const data = await response.json();
-  return data as T;
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      signal: options.signal || controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      return { success: false, message: `HTTP ${response.status}` } as unknown as T;
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await response.json();
+      return data as T;
+    } else {
+      const text = await response.text();
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        return { success: false, message: text } as unknown as T;
+      }
+    }
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    return { success: false, message: err?.message || 'Offline' } as unknown as T;
+  }
 }
 
 // 🔁 MAPPER: Mengubah field PostgreSQL/Backend ke format frontend Product
@@ -38,13 +74,20 @@ export function mapBackendProductToFrontend(raw: any): Product {
     price: typeof raw.harga === 'number' ? raw.harga : (raw.price || 0),
     stock: typeof raw.stok === 'number' ? raw.stok : (raw.stock || 0),
     category: (raw.kategori || raw.category || 'makanan') as ProductCategory,
+    material: raw.material || raw.bahan || undefined,
     campus: (raw.kampus || 'banjarmasin').toLowerCase().trim() as Campus,
     sellerId: raw.sellerId || 'seller_1',
     sellerName: raw.sellerName || 'Penjual Antasari',
     image: raw.foto || raw.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format',
+    images: Array.isArray(raw.images) && raw.images.length > 0 ? raw.images : (raw.foto || raw.image ? [raw.foto || raw.image] : []),
+    videoUrl: raw.videoUrl,
     isKoperasi: raw.isKoperasi || false,
     rating: raw.rating || 5.0,
     sold: raw.sold || 0,
+    status: raw.status || 'approved',
+    aiAnalysis: raw.aiAnalysis || undefined,
+    moderationReason: raw.moderationReason || undefined,
+    moderatedAt: raw.moderatedAt || undefined
   };
 }
 
@@ -88,7 +131,145 @@ export async function registerApi(payload: {
 }
 
 // ==========================================
-// 📦 PRODUCTS API
+// 🛡️ AI PRODUCT SAFETY & QUALITY ANALYZER
+// ==========================================
+
+export function evaluateProductSuitabilityLocally(payload: {
+  name: string;
+  description?: string;
+  price?: number;
+  category?: string;
+  campus?: string;
+  sellerName?: string;
+}): AiProductAnalysis {
+  const name = (payload.name || '').toLowerCase();
+  const desc = (payload.description || '').toLowerCase();
+  const price = Number(payload.price || 0);
+  const category = (payload.category || 'makanan').toLowerCase();
+
+  const PROHIBITED_KEYWORDS = [
+    'narkoba', 'ganja', 'sabu', 'miras', 'alkohol', 'senjata', 'pistol',
+    'peluru', 'judi', 'slot', 'bokep', 'porn', 'seks', 'joki skripsi',
+    'joki tugas', 'surat palsu', 'rokok elektrik', 'vape illegal'
+  ];
+  const CAMPUS_FAVORITES = [
+    'kopi', 'teh', 'ganci', 'keychain', 'tas', 'snack', 'roti', 'buku',
+    'alat tulis', 'pulpen', 'binder', 'totebag', 'jaket', 'hijab', 'mukena',
+    'pipe cleaner', 'blind bag', 'donat', 'brownies'
+  ];
+
+  let score = 93;
+  const reasons: string[] = [];
+  const flags: string[] = [];
+  let safety: 'PASS' | 'FLAGGED' | 'FAIL' = 'PASS';
+  let campusEthics: 'PASS' | 'FLAGGED' | 'FAIL' = 'PASS';
+  let fairPricing: 'PASS' | 'FLAGGED' | 'FAIL' = 'PASS';
+  let mediaQuality: 'PASS' | 'FLAGGED' | 'FAIL' = 'PASS';
+
+  // 1. Prohibited items
+  const foundProhibited = PROHIBITED_KEYWORDS.find(kw => name.includes(kw) || desc.includes(kw));
+  if (foundProhibited) {
+    score = 15;
+    safety = 'FAIL';
+    campusEthics = 'FAIL';
+    flags.push(`Terdeteksi indikasi kata terlarang/tidak diizinkan ("${foundProhibited}")`);
+  } else {
+    reasons.push('Lolos uji keamanan: Bebas dari obat terlarang, senjata, dan konten berbahaya');
+  }
+
+  // 2. Campus ethics
+  if (name.includes('babi') || desc.includes('non halal') || name.includes('haram')) {
+    score = Math.min(score, 25);
+    campusEthics = 'FAIL';
+    flags.push('Tidak memenuhi standar kehalalan dan norma etika kampus UIN Antasari');
+  } else {
+    reasons.push('Sesuai dengan etika norma syariah & kesopanan kampus UIN Antasari');
+  }
+
+  // 3. Pricing
+  if (price > 0 && price < 500) {
+    score -= 20;
+    fairPricing = 'FLAGGED';
+    flags.push('Harga terlampau rendah (< Rp 500), mohon periksa apakah nominal sudah benar');
+  } else if (category === 'makanan' && price > 250000) {
+    score -= 15;
+    fairPricing = 'FLAGGED';
+    flags.push('Harga makanan relatif tinggi untuk standar konsumsi harian mahasiswa');
+  } else if (price >= 1000 && price <= 200000) {
+    reasons.push(`Harga Rp ${price.toLocaleString('id-ID')} sangat wajar & terjangkau untuk mahasiswa`);
+  }
+
+  // 4. Clarity & detail
+  if (name.length < 4) {
+    score -= 15;
+    mediaQuality = 'FLAGGED';
+    flags.push('Nama produk terlalu singkat');
+  }
+  if (!desc || desc.length < 10) {
+    score -= 10;
+    mediaQuality = 'FLAGGED';
+    flags.push('Deskripsi produk sebaiknya diperlengkap untuk meyakinkan pembeli');
+  } else {
+    reasons.push('Deskripsi dan informasi produk cukup detail dan informatif');
+  }
+
+  if (CAMPUS_FAVORITES.some(kw => name.includes(kw) || desc.includes(kw))) {
+    score = Math.min(99, score + 4);
+    reasons.push('Produk sangat relevan dan digemari oleh sivitas akademika UIN Antasari');
+  }
+
+  score = Math.max(10, Math.min(99, score));
+  const isEligible = score >= 70 && safety === 'PASS' && campusEthics === 'PASS';
+  const recommendation: 'approve' | 'flagged' | 'reject' = score >= 85 ? 'approve' : (score >= 60 ? 'flagged' : 'reject');
+
+  let verdict = 'Sangat Layak Dijual & Memenuhi Standar Kampus Antasari';
+  if (recommendation === 'reject') {
+    verdict = 'Tidak Layak Dijual (Melanggar Aturan / Keamanan)';
+  } else if (recommendation === 'flagged') {
+    verdict = 'Perlu Tinjauan Khusus oleh Super Admin';
+  }
+
+  return {
+    score,
+    isEligible,
+    recommendation,
+    verdict,
+    reasons,
+    flags,
+    checks: { safety, campusEthics, fairPricing, mediaQuality },
+    analyzedAt: new Date().toISOString(),
+    model: 'Antasari-AI-Safety-Engine v2.4'
+  };
+}
+
+export async function analyzeProductAiApi(payload: {
+  name: string;
+  description?: string;
+  price?: number;
+  category?: string;
+  campus?: string;
+  sellerName?: string;
+}): Promise<{ success: boolean; analysis: AiProductAnalysis }> {
+  try {
+    const res = await request<{ success: boolean; analysis: AiProductAnalysis }>('/api/ai/analyze-product', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    if (res && res.success && res.analysis) {
+      return res;
+    }
+  } catch (err) {
+    console.warn("AI Product Analysis backend offline, using local AI engine:", err);
+  }
+
+  return {
+    success: true,
+    analysis: evaluateProductSuitabilityLocally(payload)
+  };
+}
+
+// ==========================================
+// 📦 PRODUCTS API & MODERATION
 // ==========================================
 export async function deductStockApi(items: any[]) {
   try {
@@ -102,7 +283,7 @@ export async function deductStockApi(items: any[]) {
   }
 }
 
-export async function getProductsApi(sellerId?: string): Promise<{ success: boolean; products: Product[] }> {
+export async function getProductsApi(sellerId?: string, status?: string): Promise<{ success: boolean; products: Product[] }> {
   let customProducts: Product[] = [];
   try {
     customProducts = JSON.parse(localStorage.getItem('am_custom_products') || '[]');
@@ -110,17 +291,29 @@ export async function getProductsApi(sellerId?: string): Promise<{ success: bool
     customProducts = [];
   }
 
+  let pendingProducts: Product[] = [];
+  try {
+    pendingProducts = JSON.parse(localStorage.getItem('am_pending_moderations') || '[]');
+  } catch (e) {
+    pendingProducts = [];
+  }
+
   const stockOverrides: Record<string, number> = JSON.parse(localStorage.getItem('am_stock_overrides') || '{}');
 
   try {
-    const query = sellerId ? `?sellerId=${encodeURIComponent(sellerId)}` : '';
+    const params = new URLSearchParams();
+    if (sellerId) params.append('sellerId', sellerId);
+    if (status) params.append('status', status);
+    const query = params.toString() ? `?${params.toString()}` : '';
+
     const data = await request<{ success: boolean; products: any[] }>(`/api/products${query}`, {
       method: 'GET'
     });
 
-    if (data.success && Array.isArray(data.products)) {
+    if (data.success && Array.isArray(data.products) && data.products.length > 0) {
       const serverProducts = data.products.map(mapBackendProductToFrontend);
-      const combined = [...customProducts, ...serverProducts.filter(sp => !customProducts.some(cp => cp.id === sp.id))];
+      const allLocal = [...pendingProducts, ...customProducts.filter(cp => !pendingProducts.some(p => p.id === cp.id))];
+      const combined = [...allLocal, ...serverProducts.filter(sp => !allLocal.some(cp => cp.id === sp.id))];
       
       const mapped = combined.map(p => ({
         ...p,
@@ -129,8 +322,16 @@ export async function getProductsApi(sellerId?: string): Promise<{ success: bool
 
       if (sellerId) {
         const filtered = mapped.filter(p => p.sellerId === sellerId || p.sellerName === sellerId);
+        if (status && status !== 'all') {
+          return { success: true, products: filtered.filter(p => (p.status || 'approved') === status) };
+        }
         return { success: true, products: filtered };
       }
+
+      if (status && status !== 'all') {
+        return { success: true, products: mapped.filter(p => (p.status || 'approved') === status) };
+      }
+
       return {
         success: true,
         products: mapped
@@ -140,21 +341,35 @@ export async function getProductsApi(sellerId?: string): Promise<{ success: bool
     console.warn("Backend getProducts offline, using local cache:", err);
   }
 
-  if (customProducts.length > 0) {
-    const mapped = customProducts.map(p => ({
-      ...p,
-      stock: stockOverrides[p.id] !== undefined ? stockOverrides[p.id] : (p.stock !== undefined ? p.stock : 50)
-    }));
-    if (sellerId) {
-      const filtered = mapped.filter(p => p.sellerId === sellerId || p.sellerName === sellerId);
-      return { success: true, products: filtered };
+  // Fallback with base PRODUCTS from data.ts
+  const baseApproved = PRODUCTS.map(p => ({
+    ...p,
+    status: (p.status || 'approved') as ProductModerationStatus
+  }));
+
+  const allLocal = [...pendingProducts, ...customProducts.filter(cp => !pendingProducts.some(p => p.id === cp.id))];
+  const combined = [...allLocal, ...baseApproved.filter(bp => !allLocal.some(al => al.id === bp.id))];
+  const mapped = combined.map(p => ({
+    ...p,
+    stock: stockOverrides[p.id] !== undefined ? stockOverrides[p.id] : (p.stock !== undefined ? p.stock : 50)
+  }));
+
+  if (sellerId) {
+    const filtered = mapped.filter(p => p.sellerId === sellerId || p.sellerName === sellerId);
+    if (status && status !== 'all') {
+      return { success: true, products: filtered.filter(p => (p.status || 'approved') === status) };
     }
-    return {
-      success: true,
-      products: mapped
-    };
+    return { success: true, products: filtered };
   }
-  return { success: false, products: [] };
+
+  if (status && status !== 'all') {
+    return { success: true, products: mapped.filter(p => (p.status || 'approved') === status) };
+  }
+
+  return {
+    success: true,
+    products: mapped
+  };
 }
 
 export async function createProductApi(payload: {
@@ -170,10 +385,22 @@ export async function createProductApi(payload: {
   sellerId?: string;
   sellerName?: string;
   slotNumber?: number;
+  status?: ProductModerationStatus;
+  aiAnalysis?: AiProductAnalysis;
 }) {
   const imagesArr = payload.images && payload.images.length > 0
     ? payload.images
     : (payload.image ? [payload.image] : ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format']);
+
+  // Analisis AI Otomatis jika belum ada
+  const aiAnalysis = payload.aiAnalysis || evaluateProductSuitabilityLocally({
+    name: payload.name,
+    description: payload.description,
+    price: payload.price,
+    category: payload.category,
+    campus: payload.campus,
+    sellerName: payload.sellerName
+  });
 
   const localProduct: Product = {
     id: `prod_${Date.now()}`,
@@ -191,13 +418,38 @@ export async function createProductApi(payload: {
     isKoperasi: false,
     rating: 5.0,
     sold: 0,
-    slotNumber: payload.slotNumber
+    slotNumber: payload.slotNumber,
+    status: payload.status || 'pending', // ⏳ DEFAULT: Tertahan / Menunggu Seleksi
+    aiAnalysis: aiAnalysis,
+    moderationReason: undefined,
+    moderatedAt: undefined
   };
 
   try {
-    const existing = JSON.parse(localStorage.getItem('am_custom_products') || '[]');
+    const existing: Product[] = JSON.parse(localStorage.getItem('am_custom_products') || '[]');
     existing.unshift(localProduct);
     localStorage.setItem('am_custom_products', JSON.stringify(existing));
+
+    // Sinkronkan ke antrean moderasi Super Admin
+    const pendingQueue: Product[] = JSON.parse(localStorage.getItem('am_pending_moderations') || '[]');
+    pendingQueue.unshift(localProduct);
+    localStorage.setItem('am_pending_moderations', JSON.stringify(pendingQueue));
+
+    // 🔔 Kirim notifikasi instan ke Super Admin & seluruh sistem
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('am_trigger_notification', {
+        detail: {
+          id: `mod_req_${Date.now()}`,
+          senderId: 'system_ai',
+          senderName: '🛡️ AI Product Moderation',
+          senderRole: 'super_admin',
+          senderAvatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=AntasariAI',
+          text: `🛡️ Penjual "${localProduct.sellerName}" mengajukan produk baru "${localProduct.name}" (Skor AI: ${aiAnalysis.score}%). Perlu kurasi Super Admin!`,
+          time: 'Baru saja'
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('am_product_submitted', { detail: localProduct }));
+    }
   } catch (e) {
     console.error("Local storage error:", e);
   }
@@ -217,7 +469,10 @@ export async function createProductApi(payload: {
         kampus: payload.campus,
         sellerId: payload.sellerId,
         sellerName: payload.sellerName,
-        slotNumber: payload.slotNumber
+        slotNumber: payload.slotNumber,
+        status: localProduct.status,
+        aiScore: aiAnalysis.score,
+        aiAnalysis: aiAnalysis
       })
     });
     if (data && data.success) return data;
@@ -227,8 +482,79 @@ export async function createProductApi(payload: {
 
   return {
     success: true,
-    message: "Produk berhasil diterbitkan! 🎉",
+    message: "Produk berhasil diajukan dan sedang dalam antrean kurasi AI & Super Admin! 🎉",
     product: localProduct
+  };
+}
+
+export async function moderateProductApi(
+  id: string | number,
+  status: 'approved' | 'rejected',
+  reason?: string,
+  moderatorEmail?: string
+): Promise<{ success: boolean; message: string; product?: Product }> {
+  const nowStr = new Date().toISOString();
+  let targetProd: Product | undefined;
+
+  try {
+    const existing: Product[] = JSON.parse(localStorage.getItem('am_custom_products') || '[]');
+    const updated = existing.map(p => {
+      if (p.id === id) {
+        targetProd = {
+          ...p,
+          status,
+          moderationReason: reason || (status === 'approved' ? 'Disetujui dan lolos kurasi Super Admin' : 'Tidak memenuhi kriteria produk'),
+          moderatedAt: nowStr
+        };
+        return targetProd;
+      }
+      return p;
+    });
+    localStorage.setItem('am_custom_products', JSON.stringify(updated));
+
+    // Update antrean moderasi
+    const pendingQueue: Product[] = JSON.parse(localStorage.getItem('am_pending_moderations') || '[]');
+    const updatedPending = pendingQueue.map(p => p.id === id ? { ...p, status, moderationReason: reason, moderatedAt: nowStr } : p);
+    localStorage.setItem('am_pending_moderations', JSON.stringify(updatedPending));
+
+    // Dispatch global event
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('am_product_moderated', { detail: { id, status, reason } }));
+      
+      if (targetProd) {
+        window.dispatchEvent(new CustomEvent('am_trigger_notification', {
+          detail: {
+            id: `mod_result_${Date.now()}`,
+            senderId: 'super_admin',
+            senderName: 'Super Admin Campus Mart',
+            senderRole: 'super_admin',
+            senderAvatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=SuperAdmin',
+            text: status === 'approved' 
+              ? `🎉 Selamat! Produk "${targetProd.name}" telah disetujui Super Admin & kini aktif di etalase publik!`
+              : `⚠️ Produk "${targetProd.name}" ditolak oleh Super Admin. Alasan: ${reason || 'Belum memenuhi kriteria'}.`,
+            time: 'Baru saja'
+          }
+        }));
+      }
+    }
+  } catch (e) {
+    console.error("Local storage moderation update error:", e);
+  }
+
+  try {
+    const res = await request<{ success: boolean; message: string; product: any }>(`/api/products/${id}/moderate`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, reason, moderatorEmail })
+    });
+    if (res && res.success) return res;
+  } catch (err) {
+    console.warn("Backend moderateProduct offline, used local state:", err);
+  }
+
+  return {
+    success: true,
+    message: `Produk berhasil ${status === 'approved' ? 'disetujui dan dipublikasikan' : 'ditolak'}!`,
+    product: targetProd
   };
 }
 
@@ -270,9 +596,11 @@ export interface BackendChatMessage {
   senderId: string;
   senderName: string;
   senderRole: string;
+  senderAvatar?: string;
   receiverId: string;
   receiverName: string;
   receiverRole: string;
+  receiverAvatar?: string;
   text: string;
   time: string;
   createdAt?: string;
@@ -280,31 +608,52 @@ export interface BackendChatMessage {
   mediaUrl?: string;
   audioDuration?: number;
   status?: 'sending' | 'sent' | 'delivered' | 'read';
+  isRead?: boolean;
   reactions?: Record<string, number>;
 }
 
+import { fetchCloudChats, sendCloudChat, markCloudChatAsRead, getCloudContacts } from './cloudChatSync';
+
 export async function getChatsApi(identifier: string) {
-  return request<{ success: boolean; chats: BackendChatMessage[] }>(`/api/chats/${encodeURIComponent(identifier)}`, {
-    method: 'GET'
-  });
+  try {
+    const cloudRes = await fetchCloudChats(identifier);
+    if (cloudRes && cloudRes.success) {
+      return cloudRes;
+    }
+  } catch (_e) {}
+
+  try {
+    return await request<{ success: boolean; chats: BackendChatMessage[] }>(`/api/chats/${encodeURIComponent(identifier)}`, {
+      method: 'GET'
+    });
+  } catch (_e) {
+    return fetchCloudChats(identifier);
+  }
 }
 
 export async function sendChatApi(payload: {
+  id?: number | string;
   fromId: string;
   fromName: string;
   fromRole?: string;
+  fromAvatar?: string;
   toId: string;
   toName: string;
   toRole?: string;
+  toAvatar?: string;
   text: string;
   mediaType?: 'text' | 'image' | 'audio' | 'location';
   mediaUrl?: string;
   audioDuration?: number;
 }) {
-  return request<{ success: boolean; message: string; chat: BackendChatMessage }>('/api/chats', {
+  // Kirim ke backend jika online (background)
+  request<{ success: boolean; message: string; chat: BackendChatMessage }>('/api/chats', {
     method: 'POST',
     body: JSON.stringify(payload)
-  });
+  }).catch(() => {});
+
+  // Simpan & pancarkan ke Cloud Sync Engine (Sinkronisasi Instan Laptop & HP Mobile)
+  return sendCloudChat(payload);
 }
 
 export async function deleteChatApi(id: number | string) {
@@ -313,10 +662,27 @@ export async function deleteChatApi(id: number | string) {
   });
 }
 
+export async function markChatAsReadApi(identifier: string, roomId?: string) {
+  request<{ success: boolean; message: string; modifiedCount?: number }>('/api/chats/read', {
+    method: 'PUT',
+    body: JSON.stringify({ identifier, roomId })
+  }).catch(() => {});
+
+  markCloudChatAsRead(identifier, roomId);
+  return { success: true, message: 'Tandai sudah dibaca' };
+}
+
 export async function getContactsApi(userEmail: string) {
-  return request<{ success: boolean; contacts: Array<{ id: number; nama: string; email: string; role: string; avatar?: string; isPro?: boolean }> }>(`/api/users/contacts/${encodeURIComponent(userEmail)}`, {
-    method: 'GET'
-  });
+  try {
+    const res = await request<{ success: boolean; contacts: Array<{ id: number; nama: string; email: string; role: string; avatar?: string; isPro?: boolean }> }>(`/api/users/contacts/${encodeURIComponent(userEmail)}`, {
+      method: 'GET'
+    });
+    if (res && res.success && Array.isArray(res.contacts) && res.contacts.length > 0) {
+      return res;
+    }
+  } catch (_e) {}
+
+  return getCloudContacts(userEmail);
 }
 
 // ==========================================
@@ -593,24 +959,53 @@ export async function askMyammiyAIApi(message: string, history?: any[]): Promise
   }
 }
 
-// 🤖 SMART AI SELLER AGENT (DEEPSEEK AI SELLER REPRESENTATIVE)
+// 🤖 SMART AI SELLER AGENT (DEEPSEEK / GEMINI AI SELLER COPILOT)
 export async function askSellerAIApi(payload: {
-  sellerId: string;
-  sellerName: string;
+  sellerId?: string;
+  sellerName?: string;
   sellerRole?: string;
-  buyerName: string;
-  message: string;
+  buyerName?: string;
+  message?: string;
+  userMessage?: string;
+  productName?: string;
+  campus?: string;
   history?: any[];
 }): Promise<{ success: boolean; reply: string }> {
+  const query = (payload.message || payload.userMessage || '').trim().toLowerCase();
+  const bName = payload.buyerName || 'Kakak';
+  const sName = payload.sellerName || 'Penjual Antasari';
+
   try {
-    return await request<{ success: boolean; reply: string }>('/api/ai/seller-chat', {
+    const res = await request<{ success: boolean; reply: string }>('/api/ai/seller-chat', {
       method: 'POST',
       body: JSON.stringify(payload)
     });
-  } catch (err: any) {
-    console.warn("DeepSeek Seller AI API request fallback to local smart generator:", err);
-    return { success: false, reply: '' };
+    if (res && res.success && res.reply && res.reply.trim()) {
+      return res;
+    }
+  } catch (_err) {}
+
+  // 🧠 Smart Knowledge Base Generator (Contextual & Instant)
+  let fallbackReply = '';
+  if (query.includes('bahan') || query.includes('kawat') || query.includes('rajut') || query.includes('pipe cleaner') || query.includes('material')) {
+    fallbackReply = `Hai Kak ${bName}! 🌸 Untuk gantungan kunci di ${sName} kami buat 100% HANDMADE DARI PIPE CLEANER (KAWAT BULU CHENILLE) premium yaa, bukan rajut! Bahannya lembut, padat, dan dibentuk sangat rapi! 🥰✨`;
+  } else if (query.includes('stok') || query.includes('ready') || query.includes('ada') || query.includes('masih')) {
+    fallbackReply = `Stoknya masih ready banget Kak ${bName}! Siap dipesan dan bisa langsung diambil di Vending Machine kampus atau COD yaa! 🌸🥰`;
+  } else if (query.includes('harga') || query.includes('diskon') || query.includes('berapa') || query.includes('biaya')) {
+    fallbackReply = `Harganya spesial cuma Rp 35.000 (lagi promo dari Rp 40.000 lho!). Sudah dapat blind bag mystery aesthetic dan ganci unik siap pakai! 🎁✨`;
+  } else if (query.includes('cod') || query.includes('antar') || query.includes('lokasi') || query.includes('ketemu') || query.includes('kampus')) {
+    fallbackReply = `Bisa banget COD di Kampus 1 & Kampus 2 UIN Antasari Banjarmasin kak! Mau ketemuan di fakultas / lobi mana hari ini? 🛵✨`;
+  } else if (query.includes('vending') || query.includes('mesin') || query.includes('posisi') || query.includes('ambil')) {
+    fallbackReply = `Posisi Vending Machine Campus Mart ada di Lobi Gedung Rektorat & Gedung Perkuliahan Terpadu yaa kak! 🎟️✨`;
+  } else if (query.includes('bayar') || query.includes('transfer') || query.includes('qris') || query.includes('rekening') || query.includes('tf')) {
+    fallbackReply = `Bisa bayar langsung via QRIS, E-Wallet (GoPay/ShopeePay/Dana/OVO), atau Transfer Bank melalui sistem checkout aman Campus Mart yaa kak! 💳✨`;
+  } else if (query.includes('halo') || query.includes('hai') || query.includes('pagi') || query.includes('siang') || query.includes('malam') || query.includes('kak')) {
+    fallbackReply = `Halo Kak ${bName}! 🌸 Selamat datang di ${sName}. Produk kami siap dipesan. Ada yang mau ditanyakan seputar stok atau pemesanan hari ini? 😊✨`;
+  } else {
+    fallbackReply = `Halo Kak ${bName}! Terima kasih sudah menghubungi ${sName}. Pesan Kakak sudah kami terima dan katalog kami siap dipesan yaa! Mau pesan atau tanya detail produk apa? 😊🛍️`;
   }
+
+  return { success: true, reply: fallbackReply };
 }
 
 // ✨ AI PRODUCT DESCRIPTION GENERATOR
@@ -632,7 +1027,7 @@ export async function generateProductDescriptionApi(payload: {
     console.warn("AI Description API fallback:", err);
   }
 
-  const fallback = `${payload.name} berkualitas premium siap dipesan di Antasari Mart! Dibuat dengan bahan terbaik, higienis, dan pas untuk kebutuhan mahasiswa kampus. Tersedia stok ready! 🌸✨`;
+  const fallback = `${payload.name} berkualitas premium siap dipesan di Campus Mart! Dibuat dengan bahan terbaik, higienis, dan pas untuk kebutuhan mahasiswa kampus. Tersedia stok ready! 🌸✨`;
   return { success: true, description: fallback };
 }
 
@@ -975,3 +1370,109 @@ export async function validateVoucherApi(
     totalSavings: discountAmount + deliveryDiscount
   };
 }
+
+// 🐛 LAPOR BUG & DEBUG API
+export async function submitBugReportApi(payload: {
+  category: string;
+  description: string;
+  deviceInfo?: any;
+  userInfo?: any;
+  userEmail?: string;
+  userName?: string;
+  userRole?: string;
+  url?: string;
+}) {
+  return request<{ success: boolean; message: string; report?: any }>('/api/bugs', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function getBugReportsApi() {
+  return request<{ success: boolean; reports?: any[]; message?: string }>('/api/bugs');
+}
+
+// ==========================================
+// 🎓 VERIFIKASI PENJUAL MAHASISWA AKTIF (KTM)
+// ==========================================
+export async function submitSellerKtmVerificationApi(formData: FormData) {
+  return request<{
+    success: boolean;
+    message: string;
+    warning?: string;
+    verification?: any;
+  }>('/api/seller/verify-ktm', {
+    method: 'POST',
+    body: formData
+  });
+}
+
+export async function getSellerVerificationStatusApi(email: string) {
+  return request<{
+    success: boolean;
+    verification?: any;
+    message?: string;
+  }>(`/api/seller/verification-status/${encodeURIComponent(email)}`);
+}
+
+export async function getAdminSellerVerificationsApi(status?: string) {
+  const query = status && status !== 'all' ? `?status=${encodeURIComponent(status)}` : '';
+  return request<{
+    success: boolean;
+    verifications?: any[];
+    message?: string;
+  }>(`/api/admin/seller-verifications${query}`);
+}
+
+export async function updateSellerVerificationApi(
+  email: string,
+  payload: {
+    verificationStatus?: string;
+    isActiveStudent?: boolean;
+    rejectionReason?: string;
+    adminEmail?: string;
+    adminName?: string;
+  }
+) {
+  return request<{
+    success: boolean;
+    message: string;
+    user?: any;
+  }>(`/api/admin/seller-verifications/${encodeURIComponent(email)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getAdminKtmPhotoUrl(filename: string): string {
+  if (!filename) return '';
+  return `${API_BASE_URL}/api/admin/ktm/${encodeURIComponent(filename)}`;
+}
+
+// ==========================================
+// 🛍️ UNIVERSAL ORDERS / PESANAN PRIBADI API
+// ==========================================
+export async function getUserOrdersApi(email: string) {
+  try {
+    const res = await request<{ success: boolean; orders?: any[]; message?: string }>(
+      `/api/orders/user/${encodeURIComponent(email)}`
+    );
+    if (res && res.success && res.orders) {
+      return res;
+    }
+  } catch (_e) {}
+
+  // Local storage fallback
+  try {
+    const saved = localStorage.getItem('am_my_orders');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { success: true, orders: Array.isArray(parsed) ? parsed : [] };
+    }
+  } catch (_err) {}
+
+  return { success: true, orders: [] };
+}
+
+
+

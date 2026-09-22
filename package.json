@@ -7,7 +7,17 @@
     "antasari-mart-backend"
   ],
   "scripts": {
+    "soketi": "node soketi-bridge.js",
     "build": "npm run build --prefix antasari-mart-frontend",
     "start": "npm start --prefix antasari-mart-backend"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "vite": "^8.3.0",
+    "vue": "^3.5.42"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
   }
 }

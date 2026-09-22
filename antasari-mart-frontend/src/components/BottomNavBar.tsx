@@ -1,20 +1,19 @@
-import { useState, useEffect } from 'react';
 import type { AppTab, CartItem } from '../types';
 
 interface BottomNavBarProps {
   activeTab: AppTab;
   setActiveTab: (t: AppTab) => void;
-  cartItems: CartItem[];
-  chatUnread: number;
+  cartItems?: CartItem[];
+  chatUnread?: number;
   isGuest?: boolean;
   onRequireLogin?: () => void;
-  userRoles: string[];
+  userRoles?: string[];
   isSuperAdmin?: boolean;
   hasActiveOrder?: boolean;
   onOpenProfileModal?: () => void;
 }
 
-// 🎨 Standard SVG Vector Icons (Beranda, Vending, Notifikasi, Saya)
+// 🎨 Clean Modern Vector Icons (Beranda, Vending, Notifikasi, Saya)
 function renderNavIcon(key: string) {
   switch (key) {
     case 'home':
@@ -56,62 +55,12 @@ function renderNavIcon(key: string) {
 export default function BottomNavBar({
   activeTab,
   setActiveTab,
-  chatUnread,
+  chatUnread = 0,
   isGuest,
   onRequireLogin,
   onOpenProfileModal
 }: BottomNavBarProps) {
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-
-  // 📱 Otomatis sembunyikan saat keyboard HP terbuka
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    let initialHeight = window.innerHeight;
-
-    const handleResize = () => {
-      const currentHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-      if (initialHeight - currentHeight > 140) {
-        setIsKeyboardVisible(true);
-      } else {
-        setIsKeyboardVisible(false);
-      }
-    };
-
-    const handleFocusIn = (e: FocusEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
-        setIsKeyboardVisible(true);
-      }
-    };
-
-    const handleFocusOut = () => {
-      setTimeout(() => {
-        const active = document.activeElement as HTMLElement;
-        if (!active || (active.tagName !== 'INPUT' && active.tagName !== 'TEXTAREA' && active.tagName !== 'SELECT' && !active.isContentEditable)) {
-          setIsKeyboardVisible(false);
-        }
-      }, 150);
-    };
-
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleResize);
-    }
-    window.addEventListener('resize', handleResize);
-    document.addEventListener('focusin', handleFocusIn);
-    document.addEventListener('focusout', handleFocusOut);
-
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleResize);
-      }
-      window.removeEventListener('resize', handleResize);
-      document.removeEventListener('focusin', handleFocusIn);
-      document.removeEventListener('focusout', handleFocusOut);
-    };
-  }, []);
-
-  // 🌟 MENU NAVIGASI BAWAH LENGKAP:
+  // 🌟 MENU NAVIGASI BAWAH:
   // 1. Beranda (Home 🏠)
   // 2. Vending (Vending Machine & Loker Pintar 🤖)
   // 3. Notifikasi / Pesan (🔔)
@@ -145,117 +94,8 @@ export default function BottomNavBar({
     setActiveTab(key as AppTab);
   };
 
-  if (isKeyboardVisible) {
-    return null;
-  }
-
   return (
-    <div className="am-bottom-navbar-root">
-      <style>{`
-        .am-bottom-navbar-root {
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          background: var(--am-surface, #ffffff);
-          border-top: 1px solid var(--am-border, #e2e8f0);
-          box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
-          z-index: 1001;
-          display: flex;
-          align-items: center;
-          justify-content: space-around;
-          padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          max-width: 100vw;
-          box-sizing: border-box;
-          transition: background-color 0.3s ease, border-color 0.3s ease;
-        }
-
-        .am-bottom-nav-btn {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          background: transparent;
-          border: none;
-          padding: 4px 4px;
-          cursor: pointer;
-          position: relative;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          color: var(--am-text-muted, #687D70);
-          user-select: none;
-          -webkit-tap-highlight-color: transparent;
-          border-radius: 14px;
-        }
-
-        .am-bottom-nav-btn:active {
-          transform: scale(0.92);
-        }
-
-        .am-bottom-nav-btn.is-active {
-          color: var(--am-primary, #5FA874);
-        }
-
-        .am-bottom-nav-icon-wrapper {
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 42px;
-          height: 30px;
-          border-radius: 15px;
-          transition: all 0.25s ease;
-          color: inherit;
-        }
-
-        .am-bottom-nav-btn.is-active .am-bottom-nav-icon-wrapper {
-          background: var(--am-primary-light, rgba(95, 168, 116, 0.15));
-          transform: translateY(-2px);
-          color: var(--am-primary, #5FA874);
-        }
-
-        .am-bottom-nav-label {
-          font-size: 10.5px;
-          margin-top: 3px;
-          font-weight: 600;
-          letter-spacing: 0.2px;
-          white-space: nowrap;
-          color: inherit;
-        }
-
-        .am-bottom-nav-btn.is-active .am-bottom-nav-label {
-          font-weight: 800;
-          color: var(--am-primary, #5FA874);
-        }
-
-        .am-bottom-nav-badge {
-          position: absolute;
-          top: -3px;
-          right: 2px;
-          background: linear-gradient(135deg, #EF4444 0%, #F43F5E 100%);
-          color: white;
-          border-radius: 10px;
-          font-size: 9.5px;
-          font-weight: 800;
-          padding: 1px 5px;
-          min-width: 16px;
-          height: 16px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 2px 6px rgba(239, 68, 68, 0.45);
-          border: 1.5px solid var(--am-surface, #ffffff);
-          animation: pulseBadge 2s infinite;
-        }
-
-        @keyframes pulseBadge {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.12); }
-        }
-      `}</style>
-
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] px-4 py-2 flex items-center justify-around">
       {navItems.map(tab => {
         const isActive = tab.key === activeTab ||
                          ((tab.key === 'chat' || tab.key === 'notification') && activeTab === 'chat');
@@ -263,21 +103,35 @@ export default function BottomNavBar({
           <button
             key={tab.key}
             onClick={() => handleTabClick(tab.key)}
-            className={`am-bottom-nav-btn ${isActive ? 'is-active' : ''}`}
+            className="flex-1 max-w-[140px] flex flex-col items-center justify-center bg-transparent border-none py-1 px-1 cursor-pointer select-none transition-all duration-200 group focus:outline-none"
             aria-label={tab.label}
           >
-            <div className="am-bottom-nav-icon-wrapper">
+            <div
+              className={`relative flex items-center justify-center w-11 h-7 rounded-full transition-all duration-200 ${
+                isActive
+                  ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 -translate-y-0.5'
+                  : 'text-gray-500 dark:text-gray-400 group-hover:text-emerald-600'
+              }`}
+            >
               {renderNavIcon(tab.key)}
               {Boolean(tab.badge && tab.badge > 0) && (
-                <span className="am-bottom-nav-badge">
+                <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-full text-[9.5px] font-extrabold px-1.5 min-w-[16px] h-4 flex items-center justify-center shadow-[0_2px_6px_rgba(239,68,68,0.45)] border-2 border-white dark:border-gray-900 animate-pulse">
                   {tab.badge! > 9 ? '9+' : tab.badge}
                 </span>
               )}
             </div>
-            <span className="am-bottom-nav-label">{tab.label}</span>
+            <span
+              className={`mt-0.5 text-xs transition-all duration-150 ${
+                isActive
+                  ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+                  : 'text-gray-500 dark:text-gray-400 group-hover:text-emerald-600 font-medium'
+              }`}
+            >
+              {tab.label}
+            </span>
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 }

@@ -1,0 +1,26 @@
+{
+    frankenphp
+    order php_server before file_server
+}
+
+:8000 {
+    root * .
+    encode zstd gzip
+
+    # Endpoint mandiri PHP worker (tanpa prefix /api/ agar tidak dibajak proxy Node.js)
+    handle /franken/* {
+        rewrite * /worker.php
+        php_server
+    }
+
+    # Teruskan API aplikasi utama ke Node.js
+    handle /api/* {
+        reverse_proxy {$BACKEND_HOST:localhost:5000}
+    }
+
+    handle /socket.io/* {
+        reverse_proxy {$BACKEND_HOST:localhost:5000}
+    }
+
+    file_server
+}

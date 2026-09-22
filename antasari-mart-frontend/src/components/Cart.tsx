@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { CartItem, ThemeMode, Product, SellerCoupon } from '../types';
 import { formatRupiah, MOCK_PRODUCTS } from '../data';
 import { getVouchersApi, validateVoucherApi } from '../lib/api';
+import { isUserProductOwner } from '../lib/productOwnership';
 
 interface CartProps {
   theme: ThemeMode;
@@ -11,6 +12,7 @@ interface CartProps {
   onCheckout: () => void;
   onContinueShopping: () => void;
   onAddToCart?: (product: Product, qty: number) => void;
+  currentUser?: any;
 }
 
 export default function Cart({
@@ -20,9 +22,18 @@ export default function Cart({
   onRemove,
   onCheckout,
   onContinueShopping,
-  onAddToCart
+  onAddToCart,
+  currentUser
 }: CartProps) {
   const isAesthetic = theme === 'aesthetic';
+
+  const effectiveUser = currentUser || (() => {
+    try {
+      return JSON.parse(localStorage.getItem('am_user_session') || localStorage.getItem('am_current_user') || '{}');
+    } catch {
+      return null;
+    }
+  })();
 
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | 'vending'>(() => {
     return (typeof window !== 'undefined' ? localStorage.getItem('am_delivery_method') : null) as any || 'delivery';
@@ -115,45 +126,38 @@ export default function Cart({
   const total = Math.max(0, subtotal - discountAmount + (activeSelectedItems.length > 0 ? finalDeliveryFee : 0));
   const totalSavings = discountAmount + deliveryDiscount;
 
-  // Cek apakah ada produk yang tidak sesuai untuk Vending Machine
-  const isVendingItem = (p: any) => {
+  // 🔑 STRICT: HANYA produk Gantungan Kunci / Ganci / Blind Bag Keychain yang boleh Vending Machine
+  const isGanciOrKeychain = (p: any) => {
     if (!p) return false;
     const name = (p.name || p.nama_produk || '').toLowerCase();
-    const desc = (p.description || p.deskripsi || '').toLowerCase();
-    const seller = (p.sellerId || p.sellerName || p.seller_name || '').toLowerCase();
-    const category = (p.category || p.kategori || '').toLowerCase();
+    const id = (p.id || '').toLowerCase();
 
     return (
-      p.slotNumber !== undefined ||
-      p.isVending === true ||
-      p.id === 'blind_bag_myammiy_35k' ||
-      seller.includes('myammiy') ||
-      seller.includes('seller_1') ||
+      id === 'blind_bag_myammiy_35k' ||
+      id.includes('ganci') ||
+      id.includes('blind_bag') ||
       name.includes('ganci') ||
       name.includes('gantungan') ||
       name.includes('blind bag') ||
       name.includes('blindbag') ||
       name.includes('keychain') ||
-      name.includes('pipe cleaner') ||
       name.includes('kawat bulu') ||
-      name.includes('chenille') ||
-      name.includes('rajut') ||
-      name.includes('bando') ||
-      name.includes('snack') ||
-      name.includes('keripik') ||
-      name.includes('roti') ||
-      name.includes('aksesoris') ||
-      category === 'kerajinan' ||
-      category === 'aksesoris' ||
-      desc.includes('ganci') ||
-      desc.includes('blind bag') ||
-      desc.includes('vending')
+      name.includes('pipe cleaner')
     );
   };
 
-  const hasInvalidVendingItems = activeSelectedItems.some(i => deliveryMethod === 'vending' && !isVendingItem(i.product));
+  const isOnlyGanciSelected = activeSelectedItems.length > 0 && activeSelectedItems.every(i => isGanciOrKeychain(i.product));
+  const hasNonGanciInCart = activeSelectedItems.some(i => !isGanciOrKeychain(i.product));
 
   const handleMethodChange = (method: 'delivery' | 'pickup' | 'vending') => {
+    if (method === 'vending' && hasNonGanciInCart) {
+      alert('⚠️ Mesin Vending khusus untuk pembelian suvenir Blind Bag / Gantungan Kunci (Ganci). Untuk produk lainnya (seperti Almamater, Buku, Nasi Kuning, dll), silakan pilih Ambil Sendiri di Kasir Koperasi atau Kurir.');
+      setDeliveryMethod('pickup');
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('am_delivery_method', 'pickup');
+      }
+      return;
+    }
     setDeliveryMethod(method);
     if (typeof window !== 'undefined') {
       localStorage.setItem('am_delivery_method', method);
@@ -600,7 +604,7 @@ export default function Cart({
                       const isSelected = selectedItemIds.includes(item.product.id);
                       const isNoteOpen = activeNoteItemId === item.product.id;
                       const itemNote = itemNotes[item.product.id] || '';
-                      const isItemVendingCompatible = isVendingItem(item.product);
+                      const isItemVendingCompatible = isGanciOrKeychain(item.product);
                       const itemTotal = item.product.price * item.quantity;
                       const isLowStock = item.product.stock <= 5;
 
@@ -690,6 +694,13 @@ export default function Cart({
                             ) : (
                               <span style={{ position: 'absolute', bottom: 6, left: 6, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 8.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, textTransform: 'capitalize', zIndex: 2 }}>
                                 {item.product.category || 'Umum'}
+                              </span>
+                            )}
+
+                            {/* Badge Produk Toko Sendiri */}
+                            {isUserProductOwner(item.product, effectiveUser) && (
+                              <span style={{ position: 'absolute', bottom: 6, right: 6, background: '#64748B', color: '#F8FAFC', fontSize: 8.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, zIndex: 2, boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+                                🛍️ Toko Anda
                               </span>
                             )}
                           </div>
@@ -995,37 +1006,40 @@ export default function Cart({
                 </span>
               </div>
 
-              {/* Vending Machine */}
+              {/* Vending Machine (Hanya jika produk adalah Ganci / Keychain) */}
               <div
                 onClick={() => handleMethodChange('vending')}
                 style={{
                   padding: '10px 12px',
                   borderRadius: 12,
-                  cursor: 'pointer',
+                  cursor: isOnlyGanciSelected ? 'pointer' : 'not-allowed',
+                  opacity: isOnlyGanciSelected ? 1 : 0.6,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  border: deliveryMethod === 'vending' ? '2px solid var(--am-primary)' : '1.5px solid var(--am-border)',
-                  background: deliveryMethod === 'vending' ? 'var(--am-primary-light, rgba(95, 168, 116, 0.12))' : 'var(--am-bg2)',
+                  border: (deliveryMethod === 'vending' && isOnlyGanciSelected) ? '2px solid var(--am-primary)' : '1.5px solid var(--am-border)',
+                  background: (deliveryMethod === 'vending' && isOnlyGanciSelected) ? 'var(--am-primary-light, rgba(95, 168, 116, 0.12))' : 'var(--am-bg2)',
                   transition: 'all 0.2s'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 20 }}>🤖</span>
                   <div>
-                    <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--am-text)' }}>Vending Machine</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--am-text-muted)' }}>Token QR di Loker Mesin</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 800, color: isOnlyGanciSelected ? 'var(--am-text)' : 'var(--am-text-muted)' }}>Vending Machine</div>
+                    <div style={{ fontSize: 10.5, color: isOnlyGanciSelected ? 'var(--am-text-muted)' : '#E11D48', fontWeight: isOnlyGanciSelected ? 400 : 700 }}>
+                      {isOnlyGanciSelected ? 'Token QR di Loker Mesin' : '⚠️ Khusus suvenir Ganci/Keychain'}
+                    </div>
                   </div>
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 900, color: '#16A34A', background: '#DCFCE7', padding: '2px 6px', borderRadius: 4 }}>
-                  GRATIS
+                <span style={{ fontSize: 11, fontWeight: 900, color: isOnlyGanciSelected ? '#16A34A' : 'var(--am-text-muted)', background: isOnlyGanciSelected ? '#DCFCE7' : 'var(--am-border)', padding: '2px 6px', borderRadius: 4 }}>
+                  {isOnlyGanciSelected ? 'GRATIS' : 'NON-GANCI'}
                 </span>
               </div>
             </div>
 
-            {hasInvalidVendingItems && (
-              <div style={{ marginTop: 10, padding: '8px 10px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, color: '#DC2626', fontSize: 11, fontWeight: 600 }}>
-                ⚠️ Ada produk berukuran besar, pilih <strong>Kurir</strong> atau <strong>Ambil Sendiri</strong>.
+            {hasNonGanciInCart && (
+              <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(95, 168, 116, 0.08)', border: '1px solid var(--am-primary)', borderRadius: 10, color: 'var(--am-primary)', fontSize: 11, fontWeight: 700 }}>
+                💡 <strong>Info Pick-Up:</strong> Produk non-ganci (seperti pakaian, buku, makanan, dll) diambil di <strong>Kasir Toko Koperasi Kampus</strong>, bukan loker vending.
               </div>
             )}
           </div>
@@ -1179,41 +1193,63 @@ export default function Cart({
               </div>
             </div>
 
+            {/* Peringatan jika Keranjang Memuat Produk Sendiri */}
+            {activeSelectedItems.some(i => isUserProductOwner(i.product, effectiveUser)) && (
+              <div style={{ marginTop: 12, padding: '10px 12px', background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', borderRadius: 10, fontSize: 11.5, fontWeight: 700, lineHeight: 1.4 }}>
+                ⚠️ <strong>Perhatian:</strong> Terdapat produk toko Anda sendiri yang terpilih. Penjual tidak dapat membeli produk dari tokonya sendiri. Silakan hapus atau batalkan centang produk tersebut.
+              </div>
+            )}
+
             {/* CTA CHECKOUT BUTTON */}
-            <button
-              className="am-btn-primary"
-              disabled={activeSelectedItems.length === 0 || hasInvalidVendingItems}
-              style={{
-                width: '100%',
-                padding: '14px 0',
-                fontSize: 14.5,
-                borderRadius: 12,
-                marginTop: 16,
-                opacity: (activeSelectedItems.length === 0 || hasInvalidVendingItems) ? 0.5 : 1,
-                cursor: (activeSelectedItems.length === 0 || hasInvalidVendingItems) ? 'not-allowed' : 'pointer',
-                boxShadow: (activeSelectedItems.length > 0 && !hasInvalidVendingItems) ? '0 4px 16px rgba(95, 168, 116, 0.4)' : 'none',
-                fontWeight: 900,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6
-              }}
-              onClick={() => {
-                if (activeSelectedItems.length === 0 || hasInvalidVendingItems) return;
-                onCheckout();
-              }}
-            >
-              {hasInvalidVendingItems ? (
-                '⚠️ Ganti Metode Vending'
-              ) : activeSelectedItems.length === 0 ? (
-                'Pilih Minimal 1 Produk'
-              ) : (
-                <>
-                  <span>Lanjut Pembayaran ({activeSelectedItems.length})</span>
-                  <span>➔</span>
-                </>
-              )}
-            </button>
+            {(() => {
+              const hasOwnProductInCart = activeSelectedItems.some(i => isUserProductOwner(i.product, effectiveUser));
+              const isCheckoutDisabled = activeSelectedItems.length === 0 || hasInvalidVendingItems || hasOwnProductInCart;
+
+              return (
+                <button
+                  className="am-btn-primary"
+                  disabled={isCheckoutDisabled}
+                  style={{
+                    width: '100%',
+                    padding: '14px 0',
+                    fontSize: 14.5,
+                    borderRadius: 12,
+                    marginTop: 16,
+                    opacity: isCheckoutDisabled ? 0.5 : 1,
+                    cursor: isCheckoutDisabled ? 'not-allowed' : 'pointer',
+                    background: hasOwnProductInCart ? '#64748B' : undefined,
+                    boxShadow: !isCheckoutDisabled ? '0 4px 16px rgba(95, 168, 116, 0.4)' : 'none',
+                    fontWeight: 900,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6
+                  }}
+                  onClick={() => {
+                    if (isCheckoutDisabled) {
+                      if (hasOwnProductInCart) {
+                        alert('Penjual tidak dapat membeli produk dari tokonya sendiri.');
+                      }
+                      return;
+                    }
+                    onCheckout();
+                  }}
+                >
+                  {hasOwnProductInCart ? (
+                    '⚠️ Hapus Produk Toko Sendiri'
+                  ) : hasInvalidVendingItems ? (
+                    '⚠️ Ganti Metode Vending'
+                  ) : activeSelectedItems.length === 0 ? (
+                    'Pilih Minimal 1 Produk'
+                  ) : (
+                    <>
+                      <span>Lanjut Pembayaran ({activeSelectedItems.length})</span>
+                      <span>➔</span>
+                    </>
+                  )}
+                </button>
+              );
+            })()}
           </div>
 
           {/* Jaminan Kampus */}

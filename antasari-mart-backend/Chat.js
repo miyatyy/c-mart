@@ -8,7 +8,11 @@ const chatSchema = new mongoose.Schema({
   toName: { type: String, required: true },
   toRole: { type: String, required: true },
   text: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now }
+  status: { type: String, enum: ['sent', 'delivered', 'read'], default: 'sent' },
+  isRead: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now, expires: 86400 }
 });
+
+chatSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
 
 module.exports = mongoose.model('Chat', chatSchema);

@@ -3,6 +3,7 @@ import Swal from 'sweetalert2';
 import type { ThemeMode, Campus, Tenant, Product } from '../types';
 import { MOCK_TENANTS, MOCK_PRODUCTS, formatRupiah, CATEGORIES } from '../data';
 import { getChatsApi, sendChatApi } from '../lib/api';
+import AdminSellerVerificationPanel from './AdminSellerVerificationPanel';
 
 interface AdminPanelProps {
   theme: ThemeMode;
@@ -11,7 +12,7 @@ interface AdminPanelProps {
   currentUserName: string;
 }
 
-type AdminTab = 'curation' | 'tenants' | 'finance' | 'couriers' | 'broadcast';
+type AdminTab = 'curation' | 'verifications' | 'tenants' | 'finance' | 'couriers' | 'broadcast';
 
 export default function AdminPanel({
   theme: _theme,
@@ -272,6 +273,7 @@ export default function AdminPanel({
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--am-border)', paddingBottom: 10, overflowX: 'auto' }}>
         {[
           { id: 'curation', label: '⚡ Kurasi & Verifikasi Produk', badge: pendingCount },
+          { id: 'verifications', label: '🎓 Verifikasi KTM Mahasiswa' },
           { id: 'tenants', label: '🏪 Manajemen Tenant & Penjual', badge: tenants.length },
           { id: 'finance', label: '📈 Laporan Transaksi & Kas' },
           { id: 'couriers', label: '🛵 Pengawasan Kurir Kampus' },
@@ -312,6 +314,15 @@ export default function AdminPanel({
           </button>
         ))}
       </div>
+
+      {/* ── TAB: VERIFIKASI MAHASISWA (KTM) ── */}
+      {activeTab === 'verifications' && (
+        <AdminSellerVerificationPanel
+          adminEmail={currentUserId}
+          adminName={currentUserName}
+          adminRole="admin"
+        />
+      )}
 
       {/* ── TAB 1: KURASI & VERIFIKASI PRODUK ── */}
       {activeTab === 'curation' && (
@@ -604,7 +615,7 @@ export default function AdminPanel({
                   Swal.fire({
                     icon: 'success',
                     title: 'Laporan Siap Diunduh! 📄',
-                    text: 'File rekap kas transaksi Koperasi Antasari Mart berhasil disiapkan dalam format Excel/PDF.',
+                    text: 'File rekap kas transaksi Koperasi Campus Mart berhasil disiapkan dalam format Excel/PDF.',
                     confirmButtonColor: '#5FA874'
                   });
                 }}

@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { Product, ThemeMode, SellerCoupon } from '../types';
 import { formatRupiah } from '../data';
 import { getVouchersApi } from '../lib/api';
+import { DEFAULT_PRODUCT_IMAGE_FALLBACK } from './ProductList';
+import { isUserProductOwner } from '../lib/productOwnership';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -12,6 +15,7 @@ interface ProductDetailModalProps {
   onChat: (sellerId: string, sellerName: string, productName: string) => void;
   isGuest?: boolean;
   onRequireLogin?: () => void;
+  currentUser?: any;
 }
 
 export default function ProductDetailModal({
@@ -22,48 +26,76 @@ export default function ProductDetailModal({
   onDirectBuy,
   onChat,
   isGuest,
-  onRequireLogin
+  onRequireLogin,
+  currentUser
 }: ProductDetailModalProps) {
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [activeMediaTab, setActiveMediaTab] = useState<'photos' | 'video'>('photos');
   const [qty, setQty] = useState(1);
   const [addedToast, setAddedToast] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
+  const [showFullDesc, setShowFullDesc] = useState(false);
   const [sellerVouchers, setSellerVouchers] = useState<SellerCoupon[]>([]);
   const [copiedVoucherCode, setCopiedVoucherCode] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSelectedMediaIndex(0);
     setActiveMediaTab('photos');
     setQty(1);
     setAddedToast(false);
-    setShowInfo(false);
+    setShowFullDesc(false);
     setCopiedVoucherCode(null);
 
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+
     if (product) {
-      getVouchersApi(product.sellerId, true).then(res => {
-        if (res && res.success && res.vouchers) {
-          // Filter to vouchers that either belong to this seller or are global
-          const valid = res.vouchers.filter(v => !v.sellerId || v.sellerId === product.sellerId);
-          setSellerVouchers(valid);
-        }
-      }).catch(() => {});
+      getVouchersApi(product.sellerId, true)
+        .then(res => {
+          if (res && res.success && res.vouchers) {
+            const valid = res.vouchers.filter(v => !v.sellerId || v.sellerId === product.sellerId);
+            setSellerVouchers(valid);
+          }
+        })
+        .catch(() => {});
     }
   }, [product?.id, product?.sellerId]);
 
+  // 🔒 Kunci scroll halaman latar saat modal aktif
+  useEffect(() => {
+    if (!product) return;
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, [product]);
+
+  // Handle ESC key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   if (!product) return null;
 
-  // Kumpulkan seluruh foto produk
+  // Gather product images
   let rawImages: string[] = [];
   if (product.images && product.images.length > 0) {
     rawImages = product.images;
   } else if (product.image) {
     rawImages = [product.image];
   } else {
-    rawImages = ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format'];
+    rawImages = ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=450&fit=crop&auto=format'];
   }
 
-  // Jika nama produk mengandung "ganci rajut", sertakan galeri foto rajut lengkap
   if ((product.name || '').toLowerCase().includes('ganci rajut')) {
     rawImages = [
       '/products/ganci_rajut_1.jpg',
@@ -74,14 +106,13 @@ export default function ProductDetailModal({
   }
 
   const allImages = rawImages.map(img => {
-    if (!img) return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format';
+    if (!img) return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=450&fit=crop&auto=format';
     if (img.includes('ganci_rajut') && !img.startsWith('/products/')) {
       return '/products/ganci_rajut_1.jpg';
     }
     return img;
   });
 
-  const hasVideo = true; // Setiap produk didukung video demo
   let activeVideoUrl = product.videoUrl;
   if (!activeVideoUrl || activeVideoUrl.includes('gtv-videos-bucket') || (product.name || '').toLowerCase().includes('ganci rajut')) {
     activeVideoUrl = '/products/ganci_demo.mp4';
@@ -91,13 +122,23 @@ export default function ProductDetailModal({
 
   const handleNextPhoto = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setSelectedMediaIndex((prev) => (prev + 1) % allImages.length);
+    setSelectedMediaIndex(prev => (prev + 1) % allImages.length);
   };
 
   const handlePrevPhoto = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setSelectedMediaIndex((prev) => (prev === 0 ? allImages.length - 1 : prev - 1));
+    setSelectedMediaIndex(prev => (prev === 0 ? allImages.length - 1 : prev - 1));
   };
+
+  const effectiveUser = currentUser || (() => {
+    try {
+      return JSON.parse(localStorage.getItem('am_user_session') || localStorage.getItem('am_current_user') || '{}');
+    } catch {
+      return null;
+    }
+  })();
+
+  const isOwnProduct = isUserProductOwner(product, effectiveUser);
 
   const handleAdd = () => {
     if (isGuest) {
@@ -105,18 +146,26 @@ export default function ProductDetailModal({
       if (onRequireLogin) onRequireLogin();
       return;
     }
+    if (isOwnProduct) {
+      alert('Penjual tidak dapat membeli produk dari tokonya sendiri.');
+      return;
+    }
     onAddToCart(product, qty);
     setAddedToast(true);
     setTimeout(() => {
       setAddedToast(false);
       onClose();
-    }, 1200);
+    }, 1100);
   };
 
   const handleBuyNow = () => {
     if (isGuest) {
       onClose();
       if (onRequireLogin) onRequireLogin();
+      return;
+    }
+    if (isOwnProduct) {
+      alert('Penjual tidak dapat membeli produk dari tokonya sendiri.');
       return;
     }
     if (onDirectBuy) {
@@ -137,650 +186,379 @@ export default function ProductDetailModal({
     onClose();
   };
 
-  return (
+  // Determine delivery display string
+  const pickupMethodDisplay = product.isKoperasi
+    ? 'Koperasi Kampus / COD Gedung'
+    : (product.name?.toLowerCase().includes('ganci') || product.name?.toLowerCase().includes('blind bag') || product.name?.toLowerCase().includes('keychain'))
+    ? 'Vending Machine Kampus / COD Gedung'
+    : 'Koperasi Kampus / COD Gedung';
+
+  const defaultMaterial = (product.name || '').toLowerCase().includes('almamater') || (product.name || '').toLowerCase().includes('jaket')
+    ? 'Kain Drill Resmi & Bordir Komputer'
+    : (product.name || '').toLowerCase().includes('ganci') || (product.name || '').toLowerCase().includes('keychain') || (product.name || '').toLowerCase().includes('blind bag')
+    ? 'Kawat Bulu (Pipe Cleaner) & Benang Rajut Premium'
+    : (product.category === 'makanan' || product.category === 'minuman')
+    ? 'Bahan Makanan Segar & Higienis'
+    : 'Bahan Pilihan Berkualitas';
+
+  const availableStock = product.stock !== undefined ? product.stock : ((product as any).stok !== undefined ? (product as any).stok : 50);
+
+  const modalContent = (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(2, 6, 23, 0.88)',
-        backdropFilter: 'blur(28px)',
-        WebkitBackdropFilter: 'blur(28px)',
-        zIndex: 100000,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '16px 16px 20px',
-        animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-        overflowY: 'auto'
-      }}
+      className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto"
       onClick={onClose}
     >
-      {/* 🔝 TOP HEADER BAR: Tab Switcher & Tombol Tutup */}
+      {/* 📦 KARTU MODAL (Putih Bersih, Responsif Otomatis di HP, Tablet, Laptop) */}
       <div
-        style={{
-          width: '100%',
-          maxWidth: 900,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          zIndex: 10,
-          padding: '4px 0'
-        }}
-        onClick={(e) => e.stopPropagation()}
+        className="relative w-full sm:max-w-4xl max-h-[92vh] sm:max-h-[90vh] bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-100 dark:border-gray-800 animate-in fade-in zoom-in-95 duration-200"
+        onClick={e => e.stopPropagation()}
       >
-        {/* Switcher Foto vs Video Demo */}
-        <div
-          style={{
-            display: 'flex',
-            gap: 6,
-            background: 'rgba(255, 255, 255, 0.12)',
-            padding: '5px 8px',
-            borderRadius: 30,
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.18)',
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
-          }}
-        >
-          <button
-            onClick={() => setActiveMediaTab('photos')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 20,
-              border: 'none',
-              fontSize: 12.5,
-              fontWeight: 800,
-              cursor: 'pointer',
-              background: activeMediaTab === 'photos' ? '#10B981' : 'transparent',
-              color: 'white',
-              boxShadow: activeMediaTab === 'photos' ? '0 4px 14px rgba(16, 185, 129, 0.45)' : 'none',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6
-            }}
-          >
-            <span>📸 Foto Produk</span>
-            <span style={{ fontSize: 10.5, opacity: 0.9 }}>({allImages.length})</span>
-          </button>
+        {/* 📱 Mobile Drag Handle Pill */}
+        <div className="w-10 h-1 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mt-2.5 sm:hidden shrink-0" />
 
+        {/* 🔝 HEADER MODAL: Tombol Tab Foto/Video & Tombol Close */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0 bg-white dark:bg-gray-900 z-10">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveMediaTab('photos')}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeMediaTab === 'photos'
+                  ? 'bg-emerald-500 text-white shadow-xs'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              📷 Foto Produk ({allImages.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveMediaTab('video')}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeMediaTab === 'video'
+                  ? 'bg-rose-500 text-white shadow-xs'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              📹 Video Demo <span className="text-[10px] text-gray-400">≤5MB</span>
+            </button>
+          </div>
           <button
-            onClick={() => setActiveMediaTab('video')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 20,
-              border: 'none',
-              fontSize: 12.5,
-              fontWeight: 800,
-              cursor: 'pointer',
-              background: activeMediaTab === 'video' ? '#F43F5E' : 'transparent',
-              color: 'white',
-              boxShadow: activeMediaTab === 'video' ? '0 4px 14px rgba(244, 63, 94, 0.45)' : 'none',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6
-            }}
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup Modal Detail Produk"
+            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors cursor-pointer"
           >
-            <span>🎥 Video Demo</span>
-            <span style={{ fontSize: 9.5, background: 'rgba(255,255,255,0.25)', padding: '1px 6px', borderRadius: 6 }}>≤ 5MB</span>
+            ✕
           </button>
         </div>
 
-        {/* Tombol Tutup Bulat */}
-        <button
-          onClick={onClose}
-          style={{
-            background: 'rgba(255, 255, 255, 0.14)',
-            border: '1px solid rgba(255, 255, 255, 0.22)',
-            borderRadius: '50%',
-            width: 40,
-            height: 40,
-            color: 'white',
-            fontSize: 18,
-            fontWeight: 800,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backdropFilter: 'blur(10px)',
-            transition: 'all 0.2s ease',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.8)';
-            e.currentTarget.style.transform = 'scale(1.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.14)';
-            e.currentTarget.style.transform = 'scale(1)';
-          }}
-          title="Tutup (ESC / Klik di luar)"
-        >
-          ✕
-        </button>
-      </div>
-
-      {/* 🖼️ TAMPILAN UTAMA PRODUK: SCREENSHOWCASE BERSIH */}
-      <div
-        style={{
-          width: '100%',
-          maxWidth: 900,
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-          margin: '12px 0'
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {activeMediaTab === 'photos' ? (
-          /* 1. FOCUS FOTO PRODUK (LIGHTBOX) */
-          <div
-            style={{
-              position: 'relative',
-              width: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            {/* Foto Utama Besar */}
-            <div
-              style={{
-                position: 'relative',
-                maxHeight: '60vh',
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 24,
-                overflow: 'hidden',
-                background: 'rgba(0, 0, 0, 0.35)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 25px 60px rgba(0, 0, 0, 0.65)'
-              }}
-            >
-              <img
-                src={currentImage}
-                alt={product.name}
-                onError={(e) => {
-                  e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop';
-                }}
-                style={{
-                  maxHeight: '58vh',
-                  maxWidth: '100%',
-                  objectFit: 'contain',
-                  transition: 'transform 0.3s ease, opacity 0.25s ease',
-                  userSelect: 'none'
-                }}
-              />
-
-              {/* Indikator Urutan Foto */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 14,
-                  left: 14,
-                  background: 'rgba(0, 0, 0, 0.65)',
-                  color: 'white',
-                  fontSize: 11.5,
-                  fontWeight: 800,
-                  padding: '4px 10px',
-                  borderRadius: 14,
-                  backdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)'
-                }}
-              >
-                📸 {selectedMediaIndex + 1} / {allImages.length}
-              </div>
-
-              {/* Navigasi Panah Kiri */}
-              {allImages.length > 1 && (
-                <button
-                  onClick={handlePrevPhoto}
-                  style={{
-                    position: 'absolute',
-                    left: 14,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'rgba(0, 0, 0, 0.6)',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    color: 'white',
-                    width: 44,
-                    height: 44,
-                    borderRadius: '50%',
-                    cursor: 'pointer',
-                    fontSize: 24,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backdropFilter: 'blur(8px)',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.85)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)'}
-                  title="Foto Sebelumnya"
-                >
-                  ‹
-                </button>
-              )}
-
-              {/* Navigasi Panah Kanan */}
-              {allImages.length > 1 && (
-                <button
-                  onClick={handleNextPhoto}
-                  style={{
-                    position: 'absolute',
-                    right: 14,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'rgba(0, 0, 0, 0.6)',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    color: 'white',
-                    width: 44,
-                    height: 44,
-                    borderRadius: '50%',
-                    cursor: 'pointer',
-                    fontSize: 24,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backdropFilter: 'blur(8px)',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.85)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)'}
-                  title="Foto Berikutnya"
-                >
-                  ›
-                </button>
-              )}
-            </div>
-
-            {/* Strip Thumbnail Foto di Bawah */}
-            {allImages.length > 1 && (
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 10,
-                  marginTop: 12,
-                  padding: '6px 12px',
-                  background: 'rgba(0, 0, 0, 0.45)',
-                  borderRadius: 16,
-                  backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  overflowX: 'auto',
-                  maxWidth: '100%'
-                }}
-              >
-                {allImages.map((imgUrl, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => setSelectedMediaIndex(idx)}
-                    style={{
-                      width: 50,
-                      height: 50,
-                      borderRadius: 10,
-                      overflow: 'hidden',
-                      cursor: 'pointer',
-                      border: selectedMediaIndex === idx ? '2.5px solid #10B981' : '1.5px solid rgba(255, 255, 255, 0.2)',
-                      transform: selectedMediaIndex === idx ? 'scale(1.08)' : 'scale(1)',
-                      boxShadow: selectedMediaIndex === idx ? '0 0 12px rgba(16, 185, 129, 0.6)' : 'none',
-                      flexShrink: 0,
-                      transition: 'all 0.15s ease',
-                      background: '#0F172A'
+        {/* 📜 BODY MODAL: 1 Kolom di HP (Scrollable), 2 Kolom di Tablet & Laptop */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          {/* KOLOM KIRI: SLIDER FOTO / GAMBAR UTAMA ATAU VIDEO */}
+          <div className="flex flex-col gap-3">
+            {activeMediaTab === 'photos' ? (
+              <>
+                <div className="relative w-full aspect-square bg-gray-50 dark:bg-gray-800 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 flex items-center justify-center shadow-inner">
+                  <img
+                    src={currentImage || DEFAULT_PRODUCT_IMAGE_FALLBACK}
+                    alt={product.name}
+                    className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                    onError={e => {
+                      if (e.currentTarget.src !== DEFAULT_PRODUCT_IMAGE_FALLBACK) {
+                        e.currentTarget.src = DEFAULT_PRODUCT_IMAGE_FALLBACK;
+                      }
                     }}
-                  >
-                    <img
-                      src={imgUrl}
-                      alt={`Thumbnail ${idx + 1}`}
-                      onError={(e) => {
-                        e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop';
-                      }}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
+                  />
+                  {/* Badge Counter Foto */}
+                  <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-xs text-white text-[11px] font-bold rounded-lg z-2">
+                    📷 {selectedMediaIndex + 1} / {allImages.length}
                   </div>
-                ))}
+
+                  {/* Badge Koperasi */}
+                  {product.isKoperasi && (
+                    <div className="absolute top-3 right-3 px-2.5 py-1 bg-emerald-700 text-white text-[11px] font-bold rounded-lg shadow-md z-2 flex items-center gap-1">
+                      🏛️ Koperasi
+                    </div>
+                  )}
+
+                  {/* Panah Navigasi Foto */}
+                  {allImages.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handlePrevPhoto}
+                        aria-label="Foto Sebelumnya"
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 hover:bg-emerald-600 text-white flex items-center justify-center transition-colors z-2 cursor-pointer text-lg font-bold"
+                      >
+                        ‹
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleNextPhoto}
+                        aria-label="Foto Selanjutnya"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 hover:bg-emerald-600 text-white flex items-center justify-center transition-colors z-2 cursor-pointer text-lg font-bold"
+                      >
+                        ›
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Thumbnail List */}
+                {allImages.length > 1 && (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {allImages.map((img, idx) => (
+                      <button
+                        type="button"
+                        key={idx}
+                        onClick={() => setSelectedMediaIndex(idx)}
+                        className={`w-14 h-14 rounded-xl overflow-hidden border-2 shrink-0 transition-all cursor-pointer ${
+                          selectedMediaIndex === idx
+                            ? 'border-emerald-500 scale-105 shadow-sm opacity-100'
+                            : 'border-transparent opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        <img
+                          src={img || DEFAULT_PRODUCT_IMAGE_FALLBACK}
+                          alt={`Thumbnail ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              /* Pemutar Video Demo */
+              <div className="relative w-full aspect-square bg-black rounded-2xl overflow-hidden border border-gray-700 flex items-center justify-center shadow-lg">
+                <video
+                  src={activeVideoUrl}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain"
+                >
+                  Browser Anda tidak mendukung pemutar video.
+                </video>
               </div>
             )}
           </div>
-        ) : (
-          /* 2. FOCUS PEMUTAR VIDEO DEMO PRODUK (≤5MB) */
-          <div
-            style={{
-              position: 'relative',
-              width: '100%',
-              maxHeight: '62vh',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 24,
-              overflow: 'hidden',
-              background: '#000000',
-              border: '1.5px solid rgba(244, 63, 94, 0.4)',
-              boxShadow: '0 25px 70px rgba(0, 0, 0, 0.8)'
-            }}
-          >
-            <video
-              src={activeVideoUrl}
-              controls
-              autoPlay
-              playsInline
-              style={{
-                width: '100%',
-                maxHeight: '60vh',
-                objectFit: 'contain'
-              }}
-            >
-              Browser Anda tidak mendukung pemutar video HTML5.
-            </video>
-          </div>
-        )}
-      </div>
 
-      {/* 🚀 FLOATING BOTTOM ACTION BAR: RINGKAS, ELEGAN & BEBAS DARI DESKRIPSI PANJANG */}
-      <div
-        style={{
-          width: '100%',
-          maxWidth: 680,
-          background: 'rgba(15, 23, 42, 0.85)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.18)',
-          borderRadius: 22,
-          padding: '14px 18px',
-          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-          zIndex: 10
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Baris 1: Judul, Toko & Harga */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-              <span style={{ fontSize: 10.5, fontWeight: 900, textTransform: 'uppercase', background: 'rgba(16, 185, 129, 0.2)', color: '#34D399', padding: '2px 7px', borderRadius: 6 }}>
-                {product.category.toUpperCase()}
-              </span>
-              <span style={{ fontSize: 11.5, color: '#94A3B8', fontWeight: 700 }}>
-                🏪 {product.sellerName}
-              </span>
-            </div>
-            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: '#FFFFFF', letterSpacing: '-0.2px' }}>
-              {product.name}
-            </h3>
-          </div>
+          {/* KOLOM KANAN: DETAIL PRODUK, HARGA, & VOUCHER */}
+          <div className="flex flex-col justify-between gap-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                    {product.category || 'AKSESORIS'}
+                  </span>
+                  {product.sellerName && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400 font-semibold">
+                      🏪 {product.sellerName}
+                    </span>
+                  )}
+                </div>
+                {availableStock > 0 ? (
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                    📦 Stok {availableStock} pcs
+                  </span>
+                ) : (
+                  <span className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                    ❌ Stok Habis
+                  </span>
+                )}
+              </div>
 
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color: '#34D399' }}>
-              {formatRupiah(product.price)}
-            </div>
-            <div style={{ fontSize: 11.5, color: product.stock > 0 ? '#4ADE80' : '#F87171', fontWeight: 800 }}>
-              {product.stock > 0 ? `📦 Sisa Stok: ${product.stock} pcs` : '❌ Stok Habis'}
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white leading-snug">
+                {product.name}
+              </h2>
+
+              <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-tight">
+                {formatRupiah(product.price)}
+              </div>
+
+              {/* Spesifikasi Produk */}
+              <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-3.5 space-y-2 text-xs border border-gray-100 dark:border-gray-700/60">
+                <div className="font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                  Spesifikasi Produk
+                </div>
+                <div className="grid grid-cols-3 gap-1 text-gray-500 dark:text-gray-400">
+                  <div>Bahan</div>
+                  <div className="col-span-2 text-gray-800 dark:text-gray-200 font-medium">
+                    : {product.material || defaultMaterial}
+                  </div>
+                  <div>Pengambilan</div>
+                  <div className="col-span-2 text-gray-800 dark:text-gray-200 font-medium">
+                    : {pickupMethodDisplay}
+                  </div>
+                  <div>Kondisi</div>
+                  <div className="col-span-2 text-gray-800 dark:text-gray-200 font-medium">
+                    : Baru (Resmi Mahasiswa)
+                  </div>
+                  <div>Kategori</div>
+                  <div className="col-span-2 text-gray-800 dark:text-gray-200 font-medium capitalize">
+                    : {product.category || '-'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Voucher Toko */}
+              {sellerVouchers.length > 0 ? (
+                <div className="p-3 bg-red-50/70 dark:bg-red-950/30 rounded-xl border border-dashed border-red-200 dark:border-red-900 text-xs space-y-2">
+                  <div className="font-bold text-red-600 dark:text-red-400 flex items-center justify-between">
+                    <span className="flex items-center gap-1">🎟️ Voucher Toko Tersedia</span>
+                    <span className="text-[10px] bg-red-100 dark:bg-red-900/60 px-1.5 py-0.5 rounded font-bold">
+                      {sellerVouchers.length} Kupon Aktif
+                    </span>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {sellerVouchers.map(v => {
+                      const isCopied = copiedVoucherCode === v.code;
+                      const discountLabel =
+                        v.discountType === 'percentage'
+                          ? `Diskon ${v.discountValue}%`
+                          : v.discountType === 'shipping'
+                          ? `Gratis Ongkir ${formatRupiah(v.discountValue)}`
+                          : `Potongan ${formatRupiah(v.discountValue)}`;
+                      return (
+                        <div
+                          key={v.id}
+                          onClick={() => {
+                            navigator.clipboard.writeText(v.code);
+                            setCopiedVoucherCode(v.code);
+                            setTimeout(() => setCopiedVoucherCode(null), 2000);
+                          }}
+                          className="flex items-center gap-1.5 shrink-0 bg-white dark:bg-gray-800 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-800 cursor-pointer shadow-xs hover:border-red-400 transition-colors"
+                          title="Klik untuk salin kode voucher"
+                        >
+                          <span className="font-mono font-bold text-red-600 dark:text-red-400">{v.code}</span>
+                          <span className="text-[10px] bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-300 px-1.5 py-0.5 rounded font-semibold">
+                            {discountLabel}
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold text-white ${isCopied ? 'bg-emerald-600' : 'bg-red-600'}`}>
+                            {isCopied ? '✓' : 'Salin'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-red-50/70 dark:bg-red-950/30 rounded-xl border border-dashed border-red-200 dark:border-red-900 text-xs">
+                  <div className="font-bold text-red-600 dark:text-red-400 mb-1 flex items-center gap-1">
+                    🎟️ Voucher Toko Tersedia
+                  </div>
+                  <div className="text-gray-600 dark:text-gray-400 text-[11px]">
+                    Gunakan kode diskon saat checkout untuk potongan harga hemat kampus.
+                  </div>
+                </div>
+              )}
+
+              {/* Deskripsi Produk */}
+              <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-3 text-xs border border-gray-100 dark:border-gray-700/60 space-y-1">
+                <div className="font-bold text-gray-700 dark:text-gray-300">Deskripsi Produk:</div>
+                <p className="text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-line">
+                  {showFullDesc || (product.description && product.description.length <= 130)
+                    ? (product.description || 'Produk pilihan berkualitas tinggi siap dipesan di Campus Mart.')
+                    : `${(product.description || 'Produk pilihan berkualitas tinggi siap dipesan di Campus Mart.').slice(0, 130)}...`}
+                </p>
+                {product.description && product.description.length > 130 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFullDesc(!showFullDesc)}
+                    className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer pt-0.5"
+                  >
+                    {showFullDesc ? 'Tampilkan Lebih Sedikit ▲' : 'Selengkapnya ▼'}
+                  </button>
+                )}
+              </div>
+
+              {/* Banner Peringatan Produk Milik Sendiri */}
+              {isOwnProduct && (
+                <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-semibold text-center">
+                  ℹ️ Ini adalah produk dari etalase toko Anda sendiri.
+                </div>
+              )}
+
+              {/* Toast Notifikasi Keranjang */}
+              {addedToast && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-500 text-emerald-700 dark:text-emerald-300 text-xs font-bold text-center animate-fade-in">
+                  ✅ {qty}x {product.name} berhasil dimasukkan ke keranjang!
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* 🎟️ Seller Coupons / Vouchers List */}
-        {sellerVouchers.length > 0 && (
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(244, 63, 94, 0.12), rgba(251, 146, 60, 0.12))',
-            border: '1px dashed rgba(244, 63, 94, 0.4)',
-            borderRadius: 14,
-            padding: '8px 12px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, fontWeight: 800, color: '#FDA4AF' }}>
-              <span>🏷️ PROMO TOKO TERSEDIA</span>
-              <span>{sellerVouchers.length} Kupon Aktif</span>
+        {/* 🚀 FOOTER MODAL: Tombol Aksi Bawah (Sticky & Jelas) */}
+        <div className="p-3 sm:p-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex items-center gap-2 sm:gap-4 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          {!isOwnProduct && (
+            <div className="flex items-center border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 px-2 py-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setQty(q => Math.max(1, q - 1))}
+                className="px-2 font-bold text-gray-600 hover:text-black dark:text-gray-300 dark:hover:text-white cursor-pointer select-none text-base"
+              >
+                -
+              </button>
+              <span className="px-2 text-sm font-semibold text-gray-900 dark:text-white min-w-[20px] text-center">
+                {qty}
+              </span>
+              <button
+                type="button"
+                onClick={() => setQty(q => Math.min(availableStock, q + 1))}
+                className="px-2 font-bold text-gray-600 hover:text-black dark:text-gray-300 dark:hover:text-white cursor-pointer select-none text-base"
+              >
+                +
+              </button>
             </div>
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
-              {sellerVouchers.map(v => {
-                const isCopied = copiedVoucherCode === v.code;
-                const discountLabel = v.discountType === 'percentage'
-                  ? `Diskon ${v.discountValue}%`
-                  : v.discountType === 'shipping'
-                  ? `Gratis Ongkir ${formatRupiah(v.discountValue)}`
-                  : `Potongan ${formatRupiah(v.discountValue)}`;
+          )}
 
-                return (
-                  <div
-                    key={v.id}
-                    onClick={() => {
-                      navigator.clipboard.writeText(v.code);
-                      setCopiedVoucherCode(v.code);
-                      setTimeout(() => setCopiedVoucherCode(null), 2000);
-                    }}
-                    style={{
-                      flexShrink: 0,
-                      background: 'rgba(15, 23, 42, 0.75)',
-                      border: '1px solid rgba(244, 63, 94, 0.35)',
-                      borderRadius: 10,
-                      padding: '5px 10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                    title="Klik untuk salin kode voucher"
-                  >
-                    <div style={{ fontSize: 14 }}>🎟️</div>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 900, color: '#FFE4E6', fontSize: 11.5 }}>
-                          {v.code}
-                        </span>
-                        <span style={{ fontSize: 9.5, background: 'rgba(244, 63, 94, 0.3)', color: '#FECDD3', padding: '1px 5px', borderRadius: 4, fontWeight: 800 }}>
-                          {discountLabel}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 9.5, color: '#94A3B8' }}>
-                        {v.minSpend > 0 ? `Min. ${formatRupiah(v.minSpend)}` : 'Tanpa Min. Belanja'}
-                        {v.endDate ? ` • s/d ${new Date(v.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}` : ''}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      style={{
-                        padding: '3px 7px',
-                        borderRadius: 6,
-                        border: 'none',
-                        background: isCopied ? '#10B981' : '#E11D48',
-                        color: 'white',
-                        fontSize: 10,
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {isCopied ? '✓ Tersalin' : 'Salin'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Collapsible Info Deskripsi (Hanya muncul jika di-klik pengguna) */}
-        {showInfo && (
-          <div
-            style={{
-              padding: '10px 14px',
-              borderRadius: 12,
-              background: 'rgba(30, 41, 59, 0.7)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              color: '#E2E8F0',
-              fontSize: 12.5,
-              lineHeight: 1.5,
-              animation: 'fadeIn 0.2s ease-out'
-            }}
-          >
-            {product.description || 'Produk pilihan berkualitas siap dipesan di Antasari Mart.'}
-          </div>
-        )}
-
-        {/* Toast Notifikasi Berhasil Ditambahkan */}
-        {addedToast && (
-          <div
-            style={{
-              padding: '8px 12px',
-              borderRadius: 10,
-              background: 'rgba(16, 185, 129, 0.25)',
-              border: '1px solid #10B981',
-              color: '#6EE7B7',
-              fontSize: 12,
-              fontWeight: 800,
-              textAlign: 'center',
-              animation: 'fadeIn 0.15s ease-out'
-            }}
-          >
-            ✅ {qty}x {product.name} berhasil dimasukkan ke keranjang!
-          </div>
-        )}
-
-        {/* Baris 2: Pengatur Kuantitas & Tombol Aksi */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {/* Stepper Jumlah */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              background: 'rgba(30, 41, 59, 0.8)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: 12,
-              padding: '2px 4px'
-            }}
-          >
-            <button
-              onClick={() => setQty((q) => Math.max(1, q - 1))}
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 8,
-                border: 'none',
-                background: 'transparent',
-                color: 'white',
-                cursor: 'pointer',
-                fontWeight: 900,
-                fontSize: 15
-              }}
-            >
-              -
-            </button>
-            <span style={{ fontWeight: 900, fontSize: 14, color: 'white', minWidth: 24, textAlign: 'center' }}>
-              {qty}
-            </span>
-            <button
-              onClick={() => setQty((q) => Math.min(product.stock || 50, q + 1))}
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 8,
-                border: 'none',
-                background: 'transparent',
-                color: 'white',
-                cursor: 'pointer',
-                fontWeight: 900,
-                fontSize: 15
-              }}
-            >
-              +
-            </button>
-          </div>
-
-          {/* Tombol Info Deskripsi (Opsional/Toggle) */}
           <button
-            onClick={() => setShowInfo(!showInfo)}
-            title="Lihat Deskripsi"
-            style={{
-              padding: '8px 12px',
-              borderRadius: 12,
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              background: showInfo ? 'rgba(59, 130, 246, 0.3)' : 'rgba(30, 41, 59, 0.6)',
-              color: 'white',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            {showInfo ? '✕ Tutup Info' : 'ℹ️ Info'}
-          </button>
-
-          {/* Tombol Chat Penjual */}
-          <button
+            type="button"
             onClick={handleChatSeller}
-            title="Tanya Penjual"
-            style={{
-              padding: '8px 12px',
-              borderRadius: 12,
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              background: 'rgba(30, 41, 59, 0.6)',
-              color: 'white',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
+            className="px-3 sm:px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 font-semibold text-xs sm:text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
           >
             💬 Tanya
           </button>
 
-          {/* Tombol Tambah ke Keranjang */}
-          <button
-            onClick={handleAdd}
-            disabled={product.stock <= 0}
-            style={{
-              flex: 1,
-              padding: '10px 14px',
-              borderRadius: 12,
-              border: '1.5px solid #10B981',
-              background: 'rgba(16, 185, 129, 0.15)',
-              color: '#34D399',
-              fontWeight: 800,
-              fontSize: 12.5,
-              cursor: product.stock <= 0 ? 'not-allowed' : 'pointer',
-              opacity: product.stock <= 0 ? 0.5 : 1,
-              transition: 'all 0.15s ease',
-              minWidth: 100,
-              textAlign: 'center'
-            }}
-          >
-            ➕ Keranjang
-          </button>
+          {isOwnProduct ? (
+            <button
+              disabled
+              className="flex-1 py-2.5 px-3 rounded-xl bg-gray-200 dark:bg-gray-800 text-gray-500 font-bold text-xs sm:text-sm cursor-not-allowed text-center"
+            >
+              🛍️ Produk Toko Anda Sendiri
+            </button>
+          ) : (
+            <>
+              {/* Tambah ke Keranjang */}
+              <button
+                type="button"
+                onClick={handleAdd}
+                disabled={availableStock <= 0}
+                className="flex-1 py-2.5 px-3 rounded-xl border-2 border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold text-xs sm:text-sm hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                + Keranjang
+              </button>
 
-          {/* Tombol Beli Langsung */}
-          <button
-            onClick={handleBuyNow}
-            disabled={product.stock <= 0}
-            style={{
-              flex: 1.2,
-              padding: '10px 14px',
-              borderRadius: 12,
-              border: 'none',
-              background: product.stock <= 0 ? '#64748B' : 'linear-gradient(135deg, #10B981, #059669)',
-              color: 'white',
-              fontWeight: 800,
-              fontSize: 12.5,
-              cursor: product.stock <= 0 ? 'not-allowed' : 'pointer',
-              boxShadow: product.stock > 0 ? '0 4px 14px rgba(16, 185, 129, 0.4)' : 'none',
-              transition: 'all 0.15s ease',
-              minWidth: 110,
-              textAlign: 'center'
-            }}
-          >
-            ⚡ Beli Sekarang
-          </button>
+              {/* Beli Sekarang */}
+              <button
+                type="button"
+                onClick={handleBuyNow}
+                disabled={availableStock <= 0}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ⚡ Beli Sekarang
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined'
+    ? createPortal(modalContent, document.body)
+    : modalContent;
 }

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -61,64 +63,78 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _requestPermissions();
     _initWebView();
+    _requestPermissionsNonBlocking();
   }
 
-  Future<void> _requestPermissions() async {
-    try {
-      // Minta izin lokasi GPS perangkat secara prioritas saat membuka aplikasi
-      final locStatus = await Permission.locationWhenInUse.request();
-      debugPrint('Status Izin Lokasi: $locStatus');
-      if (locStatus.isDenied) {
-        await Permission.location.request();
+  void _requestPermissionsNonBlocking() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await [
+          Permission.locationWhenInUse,
+          Permission.camera,
+          Permission.photos,
+        ].request();
+      } catch (e) {
+        debugPrint('Non-blocking permission request error: $e');
       }
-
-      // Izin kamera dan galeri untuk upload produk / foto chat
-      await [
-        Permission.camera,
-        Permission.photos,
-        Permission.storage,
-      ].request();
-    } catch (e) {
-      debugPrint('Gagal meminta izin: $e');
-    }
+    });
   }
 
-  void _initWebView() async {
+  void _initWebView() {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFFFAFDFB))
+      ..clearCache()
+      ..clearLocalStorage()
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (int progress) {
-            setState(() {
-              _loadingProgress = progress;
-            });
+            if (mounted) {
+              setState(() {
+                _loadingProgress = progress;
+              });
+            }
           },
           onPageStarted: (String url) {
-            setState(() {
-              _isLoading = true;
-              _hasError = false;
-            });
+            if (mounted) {
+              setState(() {
+                _isLoading = true;
+                _hasError = false;
+              });
+            }
           },
           onPageFinished: (String url) {
-            setState(() {
-              _isLoading = false;
-            });
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+                _hasError = false;
+              });
+            }
           },
           onWebResourceError: (WebResourceError error) {
-            if (error.isForMainFrame ?? true) {
-              setState(() {
-                _hasError = true;
-                _isLoading = false;
-              });
+            if (error.isForMainFrame == true) {
+              debugPrint('WebResourceError (MainFrame): code=${error.errorCode}, desc=${error.description}');
+              if (error.errorCode == -2 || // ERROR_HOST_LOOKUP
+                  error.errorCode == -6 || // ERROR_CONNECT
+                  error.errorCode == -8 || // ERROR_TIMEOUT
+                  error.errorCode == -14 || // ERROR_FILE_NOT_FOUND
+                  error.errorType == WebResourceErrorType.hostLookup ||
+                  error.errorType == WebResourceErrorType.connect ||
+                  error.errorType == WebResourceErrorType.timeout) {
+                if (mounted) {
+                  setState(() {
+                    _hasError = true;
+                    _isLoading = false;
+                  });
+                }
+              }
             }
           },
           onNavigationRequest: (NavigationRequest request) async {
             final uri = Uri.parse(request.url);
 
-            // Buka link WhatsApp, Google Maps, TikTok, Tokopedia di aplikasi eksternal HP
+            // Buka link WhatsApp, Google Maps, TikTok, Tokopedia, tel, mailto di aplikasi eksternal HP
             if (request.url.startsWith('https://wa.me') ||
                 request.url.startsWith('whatsapp://') ||
                 request.url.startsWith('https://www.google.com/maps') ||
@@ -142,7 +158,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
       );
 
     if (_controller.platform is AndroidWebViewController) {
-      AndroidWebViewController.enableDebugging(false);
+      AndroidWebViewController.enableDebugging(true);
       final androidController = _controller.platform as AndroidWebViewController;
       androidController.setGeolocationPermissionsPromptCallbacks(
         onShowPrompt: (request) async {
@@ -152,25 +168,21 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
           );
         },
       );
-      androidController.setOnConsoleMessage((message) {
-        // Safe interceptor to protect from NullPointerException in third-party scripts
-      });
+      androidController.setMediaPlaybackRequiresUserGesture(false);
+      androidController.setOnPlatformPermissionRequest((request) => request.grant());
     }
 
-    try {
-      await _controller.clearCache();
-    } catch (_) {}
-
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    _controller.loadRequest(Uri.parse('$_initialUrl?v=$timestamp'));
+    _controller.loadRequest(
+      Uri.parse(_initialUrl),
+    );
   }
 
-  Future<bool> _onWillPop() async {
+  Future<void> _handlePop() async {
     if (await _controller.canGoBack()) {
       await _controller.goBack();
-      return false; // Jangan keluar dari aplikasi, mundur di WebView
+    } else {
+      SystemNavigator.pop();
     }
-    return true; // Keluar dari aplikasi jika sudah di beranda
   }
 
   @override
@@ -179,10 +191,7 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
       canPop: false,
       onPopInvoked: (didPop) async {
         if (didPop) return;
-        final shouldPop = await _onWillPop();
-        if (shouldPop && context.mounted) {
-          SystemNavigator.pop();
-        }
+        await _handlePop();
       },
       child: Scaffold(
         resizeToAvoidBottomInset: true,
@@ -190,17 +199,12 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
         body: SafeArea(
           child: Stack(
             children: [
-              // 🌐 Webview Utama Campus Mart
-              RefreshIndicator(
-                color: const Color(0xFF5FA874),
-                onRefresh: () async {
-                  try {
-                    await _controller.clearCache();
-                  } catch (_) {}
-                  final timestamp = DateTime.now().millisecondsSinceEpoch;
-                  await _controller.loadRequest(Uri.parse('$_initialUrl?v=$timestamp'));
+              // 🌐 Webview Utama Campus Mart dengan EagerGestureRecognizer agar sentuhan & klik 100% responsif
+              WebViewWidget(
+                controller: _controller,
+                gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{
+                  Factory<EagerGestureRecognizer>(EagerGestureRecognizer.new),
                 },
-                child: WebViewWidget(controller: _controller),
               ),
 
               // 📊 Progress Bar saat memuat halaman
@@ -216,70 +220,6 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
                       Color(0xFFF4AEC2),
                     ),
                     minHeight: 3,
-                  ),
-                ),
-
-              // 🚀 Splash Loading Overlay saat pertama kali buka
-              if (_isLoading && _loadingProgress < 60)
-                Container(
-                  color: const Color(0xFFFAFDFB),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 96,
-                          height: 96,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF5FA874).withOpacity(0.25),
-                                blurRadius: 30,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(24),
-                            child: Image.asset(
-                              'assets/campus_mart_icon.png',
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'Campus Mart',
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF243329),
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Smart IoT Campus Hub & Vending Machine',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF687D70),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Color(0xFF5FA874),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
 
@@ -314,11 +254,13 @@ class _AntasariMartHomeScreenState extends State<AntasariMartHomeScreen> {
                         const SizedBox(height: 24),
                         ElevatedButton.icon(
                           onPressed: () {
-                            setState(() {
-                              _hasError = false;
-                              _isLoading = true;
-                            });
-                            _controller.reload();
+                            if (mounted) {
+                              setState(() {
+                                _hasError = false;
+                                _isLoading = true;
+                              });
+                            }
+                            _controller.loadRequest(Uri.parse(_initialUrl));
                           },
                           icon: const Icon(Icons.refresh, color: Colors.white),
                           label: const Text(

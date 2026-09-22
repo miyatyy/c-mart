@@ -25,7 +25,7 @@ export default function SellerRegister() {
       {/* Header / Navbar */}
       <header style={{ background: 'var(--white)', borderBottom: '1px solid var(--border-color)', padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary-orange)' }}>Antasari Mart</span>
+          <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary-orange)' }}>Campus Mart</span>
           <span style={{ color: 'var(--text-muted)' }}>|</span>
           <span style={{ color: 'var(--text-dark)', fontWeight: 500 }}>Pusat Seller Centre</span>
         </div>
@@ -36,7 +36,7 @@ export default function SellerRegister() {
 
       {/* Main Container Pendaftaran */}
       <main style={{ maxWidth: '600px', margin: '40px auto', background: 'var(--white)', padding: '32px', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-dark)', marginBottom: '8px' }}>Mulai Berjualan di Antasari Mart</h1>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-dark)', marginBottom: '8px' }}>Mulai Berjualan di Campus Mart</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '24px' }}>Lengkapi informasi toko Anda untuk mulai menjangkau jutaan pelanggan.</p>
 
         {/* Form Onboarding Seller */}

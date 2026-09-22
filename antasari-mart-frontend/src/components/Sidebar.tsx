@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { AppTab, UserRole, ThemeMode, Campus } from '../types'
+import { getUserAvatar, saveUserAvatarToGlobalMap, PRESET_AVATARS } from '../lib/userAvatars'
 
 interface SidebarProps {
   theme: ThemeMode
@@ -21,19 +22,6 @@ interface SidebarProps {
   onCloseExternal?: () => void
   onToggleTheme?: () => void
 }
-
-const PRESET_AVATARS = [
-  { id: 1, name: 'Maya (Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4' },
-  { id: 2, name: 'Ahmad (Ramah)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=AhmadHappy&backgroundColor=c0aede' },
-  { id: 3, name: 'Siti (Manis Senyum)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=SitiJoy&backgroundColor=ffd5dc' },
-  { id: 4, name: 'Rizky (Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=RizkyFun&backgroundColor=d1d4f9' },
-  { id: 5, name: 'Dewi (Friendly)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=DewiBright&backgroundColor=ffdfbf' },
-  { id: 6, name: 'Fajar (Semangat)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=FajarSmile&backgroundColor=c1f4c5' },
-  { id: 7, name: 'Alya (Kreatif Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=AlyaCheer&backgroundColor=ffcdec' },
-  { id: 8, name: 'Zain (Pro Senyum)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=ZainPro&backgroundColor=00b4d8' },
-  { id: 9, name: 'Zara (Pro Elegan)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=ZaraPro&backgroundColor=7209b7' },
-  { id: 10, name: 'Ken (Pro Stylish)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585' }
-];
 
 // 🎨 Standard SVG Vector Icons for Sidebar
 function renderSidebarIcon(key: string) {
@@ -112,7 +100,8 @@ export default function Sidebar({
   onOpenProModal,
   isOpenExternal = false,
   onCloseExternal,
-  onToggleTheme
+  onToggleTheme,
+  onOpenDebug
 }: SidebarProps) {
   // Sinkronkan state buka/tutup desktop dengan tombol burger di TopBar (isOpenExternal)
   const [isOpen, setIsOpen] = useState(true)
@@ -123,6 +112,18 @@ export default function Sidebar({
       setIsOpen(isOpenExternal);
     }
   }, [isOpenExternal]);
+
+  // Set variabel CSS global --am-sidebar-width agar BottomNavBar dan konten selalu sinkron
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.style.setProperty('--am-sidebar-width', isOpen ? '260px' : '80px');
+    }
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.setProperty('--am-sidebar-width', '0px');
+      }
+    };
+  }, [isOpen]);
 
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [currentName, setCurrentName] = useState(() => userName)
@@ -214,7 +215,23 @@ export default function Sidebar({
       animation: checkAnim 0.4s ease-in-out 0.1s both;
     }
 
-    /* 💻 DESKTOP SIDEBAR FIXED POSITION */
+    /* 📜 Custom Scrollbar for Sidebar Menu List */
+    .am-sidebar-scroll-container {
+      scrollbar-width: thin;
+      scrollbar-color: var(--am-border) transparent;
+    }
+    .am-sidebar-scroll-container::-webkit-scrollbar {
+      width: 5px;
+    }
+    .am-sidebar-scroll-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .am-sidebar-scroll-container::-webkit-scrollbar-thumb {
+      background-color: var(--am-border);
+      border-radius: 4px;
+    }
+
+    /* 💻 DESKTOP SIDEBAR FIXED POSITION (Selalu di atas & tidak tertutup navbar) */
     .am-sidebar-main {
       width: ${isOpen ? '260px' : '80px'};
       background: var(--am-surface);
@@ -231,7 +248,7 @@ export default function Sidebar({
       transition: width 0.3s ease-in-out;
       box-shadow: 4px 0 15px rgba(0,0,0,0.03);
       overflow-x: hidden;
-      z-index: 1000;
+      z-index: 2000 !important;
     }
 
     /* 📱 MOBILE HP: Sidebar Tersembunyi Rapi di Luar Layar (Tidak Menghalangi Beranda), Muncul Saat Menu Diklik */
@@ -306,10 +323,10 @@ export default function Sidebar({
           {effectiveIsOpen ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 20 }}>🌸</span>
-              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--am-primary)', whiteSpace: 'nowrap' }}>Antasari Mart</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--am-primary)', whiteSpace: 'nowrap' }}>Campus Mart</div>
             </div>
           ) : (
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--am-primary)', margin: '0 auto' }}>AM</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--am-primary)', margin: '0 auto' }}>CM</div>
           )}
 
           {/* Tombol Tutup Silang (✕) di HP */}
@@ -349,7 +366,7 @@ export default function Sidebar({
               </div>
             ) : (
               <img 
-                src={userAvatar || 'https://api.dicebear.com/7.x/adventurer/svg?seed=Default&backgroundColor=b6e3f4'} 
+                src={getUserAvatar(userEmail || userName, userName, role, userAvatar)} 
                 alt={currentName} 
                 style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--am-primary)', marginBottom: 6 }} 
               />
@@ -366,7 +383,7 @@ export default function Sidebar({
           </div>
         )}
 
-        <div style={{ flex: 1, padding: '16px 10px', display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto' }}>
+        <div className="am-sidebar-scroll-container" style={{ flex: 1, padding: '16px 10px 140px', display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto' }}>
           {effectiveIsOpen && (
             <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--am-text-muted)', paddingLeft: 8, marginBottom: 4, letterSpacing: 1 }}>
               MENU UTAMA
@@ -435,7 +452,7 @@ export default function Sidebar({
                 if (onOpenProModal) onOpenProModal();
                 if (window.innerWidth <= 768 && onCloseExternal) onCloseExternal();
               }}
-              title={!effectiveIsOpen ? "Antasari Mart PRO" : undefined}
+              title={!effectiveIsOpen ? "Campus Mart PRO" : undefined}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, width: '100%',
                 padding: effectiveIsOpen ? '10px 14px' : '10px 0', 
@@ -450,7 +467,7 @@ export default function Sidebar({
               <span style={{ fontSize: 18 }}>💎</span>
               {effectiveIsOpen && (
                 <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
-                  <div style={{ whiteSpace: 'nowrap' }}>Antasari Mart PRO</div>
+                  <div style={{ whiteSpace: 'nowrap' }}>Campus Mart PRO</div>
                   <div style={{ fontSize: 9, opacity: 0.85, fontWeight: 400 }}>Mulai Rp 10rb/bln</div>
                 </div>
               )}
@@ -512,30 +529,36 @@ export default function Sidebar({
                 justifyContent: effectiveIsOpen ? 'flex-start' : 'center',
                 borderRadius: 10, border: '1.5px solid var(--am-border)', cursor: 'pointer',
                 background: 'var(--am-bg2)', color: 'var(--am-text)', fontWeight: 600, fontSize: 13,
-                transition: 'background 0.2s',
+                transition: 'background 0.2s', marginBottom: 6
               }}
             >
               <span style={{ fontSize: 18 }}>⚙️</span>
               {effectiveIsOpen && <span style={{ whiteSpace: 'nowrap' }}>Edit Profil</span>}
             </button>
           )}
-        </div>
 
-        <div style={{ padding: 12, borderTop: '1px solid var(--am-border)' }}>
+          {/* 🚪 TOMBOL LOGOUT UTAMA DI SIDEBAR */}
           <button
             onClick={() => {
               onLogout();
               if (window.innerWidth <= 768 && onCloseExternal) onCloseExternal();
             }}
-            title={!effectiveIsOpen ? "Keluar (Logout)" : undefined}
+            title={!effectiveIsOpen ? (isGuest ? "Masuk / Daftar" : "Keluar (Logout)") : undefined}
             style={{
-              width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
-              background: isGuest ? 'var(--am-primary)' : '#EF4444', color: 'white', fontWeight: 700, fontSize: 13,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+              display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+              padding: effectiveIsOpen ? '10px 14px' : '10px 0', 
+              justifyContent: effectiveIsOpen ? 'flex-start' : 'center',
+              borderRadius: 10, border: 'none', cursor: 'pointer',
+              background: isGuest ? 'var(--am-primary)' : 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+              color: 'white', fontWeight: 800, fontSize: 13,
+              marginTop: 4,
+              marginBottom: 12,
+              boxShadow: isGuest ? '0 2px 8px rgba(95, 168, 116, 0.3)' : '0 3px 10px rgba(239, 68, 68, 0.3)',
+              transition: 'all 0.2s'
             }}
           >
-            <span style={{ fontSize: 16 }}>{isGuest ? '🔑' : '🚪'}</span>
-            {effectiveIsOpen && <span>{isGuest ? 'Masuk / Daftar' : 'Keluar'}</span>}
+            <span style={{ fontSize: 18 }}>{isGuest ? '🔑' : '🚪'}</span>
+            {effectiveIsOpen && <span style={{ whiteSpace: 'nowrap' }}>{isGuest ? 'Masuk / Daftar Akun' : 'Keluar (Logout)'}</span>}
           </button>
         </div>
       </aside>
@@ -634,6 +657,7 @@ export default function Sidebar({
                 onClick={() => {
                   setCampus(selectedCampus);
                   setUserAvatar(currentAvatar); 
+                  saveUserAvatarToGlobalMap(userEmail || userName, currentName, currentAvatar);
                   
                   localStorage.setItem('am_user_avatar', currentAvatar);
                   localStorage.setItem('am_user_campus', selectedCampus);
@@ -644,6 +668,24 @@ export default function Sidebar({
                 }}
               >
                 Simpan Perubahan
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowProfileModal(false);
+                  onLogout();
+                }}
+                style={{
+                  width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
+                  background: isGuest ? 'var(--am-bg2)' : 'rgba(239, 68, 68, 0.1)',
+                  color: isGuest ? 'var(--am-text)' : '#EF4444',
+                  fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  marginTop: 2
+                }}
+              >
+                <span>{isGuest ? '🔑' : '🚪'}</span>
+                <span>{isGuest ? 'Masuk / Daftar Akun' : 'Keluar (Logout)'}</span>
               </button>
             </div>
           </div>

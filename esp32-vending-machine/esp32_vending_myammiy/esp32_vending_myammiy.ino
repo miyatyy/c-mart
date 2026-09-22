@@ -1220,12 +1220,108 @@ void setup() {
   mascotIsSleepy = false;
   mascotLookDir = 0;
   drawMascotFace(0, false, 0);
+
+  Serial.println("\n=======================================================");
+  Serial.println("💡 PANDUAN PENGUJIAN MOTOR STEPPER & LAYAR TFT:");
+  Serial.println("1. Ketik '1' / '2' / '3' / '4' -> Putar Motor Stepper Slot A/B/C/D (360°)");
+  Serial.println("2. Ketik 'test' -> Diagnosa Mandiri Motor & Layar (2x Putaran)");
+  Serial.println("3. Ketik 'wake' -> Buka Katalog Produk di Layar TFT");
+  Serial.println("4. Atau SENTUH LAYAR langsung (Slot A, B, C, D)!");
+  Serial.println("=======================================================\n");
+}
+
+// ==========================================
+// 💻 15B. HANDLER PERINTAH SERIAL MONITOR (UJI CEPAT MOTOR & LAYAR)
+// ==========================================
+void handleSerialCommands() {
+  if (Serial.available() > 0) {
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+    if (input.length() == 0) return;
+
+    Serial.printf("\n📥 Perintah Serial Diterima: '%s'\n", input.c_str());
+
+    if (input.equalsIgnoreCase("1") || input.equalsIgnoreCase("a")) {
+      Serial.println("⚙️ [UJI SERIAL] Memutar Motor Stepper untuk Slot A (Seri 1 Cute)...");
+      executeDispense(1, 1, "Blind Bag Seri 1 Cute");
+    }
+    else if (input.equalsIgnoreCase("2") || input.equalsIgnoreCase("b")) {
+      Serial.println("⚙️ [UJI SERIAL] Memutar Motor Stepper untuk Slot B (Seri 2 Pastel)...");
+      executeDispense(2, 1, "Blind Bag Seri 2 Pastel");
+    }
+    else if (input.equalsIgnoreCase("3") || input.equalsIgnoreCase("c")) {
+      Serial.println("⚙️ [UJI SERIAL] Memutar Motor Stepper untuk Slot C (Seri 3 Glow)...");
+      executeDispense(3, 1, "Blind Bag Seri 3 Glow");
+    }
+    else if (input.equalsIgnoreCase("4") || input.equalsIgnoreCase("d")) {
+      Serial.println("⚙️ [UJI SERIAL] Memutar Motor Stepper untuk Slot D (Secret Rare)...");
+      executeDispense(4, 1, "Blind Bag Secret Rare");
+    }
+    else if (input.equalsIgnoreCase("test") || input.equalsIgnoreCase("t")) {
+      Serial.println("🧪 [UJI SELF-TEST] Menjalankan Diagnosa Mandiri Motor & Layar...");
+      executeDispense(1, 2, "Self-Test 2x Putaran");
+    }
+    else if (input.equalsIgnoreCase("ledtest") || input.equalsIgnoreCase("led")) {
+      Serial.println("\n💡 [DIAGNOSA ULN2003] Menyalakan LED satu per satu...");
+      
+      Serial.println("🔴 1. Menyalakan IN1 (GPIO 4) -> LED A pada modul ULN2003 harus MENYALA...");
+      digitalWrite(STEPPER_IN1, HIGH);
+      digitalWrite(STEPPER_IN2, LOW);
+      digitalWrite(STEPPER_IN3, LOW);
+      digitalWrite(STEPPER_IN4, LOW);
+      delay(2500);
+
+      Serial.println("🟡 2. Menyalakan IN2 (GPIO 5) -> LED B pada modul ULN2003 harus MENYALA...");
+      digitalWrite(STEPPER_IN1, LOW);
+      digitalWrite(STEPPER_IN2, HIGH);
+      digitalWrite(STEPPER_IN3, LOW);
+      digitalWrite(STEPPER_IN4, LOW);
+      delay(2500);
+
+      Serial.println("🟢 3. Menyalakan IN3 (GPIO 6) -> LED C pada modul ULN2003 harus MENYALA...");
+      digitalWrite(STEPPER_IN1, LOW);
+      digitalWrite(STEPPER_IN2, LOW);
+      digitalWrite(STEPPER_IN3, HIGH);
+      digitalWrite(STEPPER_IN4, LOW);
+      delay(2500);
+
+      Serial.println("🔵 4. Menyalakan IN4 (GPIO 7) -> LED D pada modul ULN2003 harus MENYALA...");
+      digitalWrite(STEPPER_IN1, LOW);
+      digitalWrite(STEPPER_IN2, LOW);
+      digitalWrite(STEPPER_IN3, LOW);
+      digitalWrite(STEPPER_IN4, HIGH);
+      delay(2500);
+
+      Serial.println("✨ 5. Menyalakan SEMUA LED (A, B, C, D) bersamaan...");
+      digitalWrite(STEPPER_IN1, HIGH);
+      digitalWrite(STEPPER_IN2, HIGH);
+      digitalWrite(STEPPER_IN3, HIGH);
+      digitalWrite(STEPPER_IN4, HIGH);
+      delay(3000);
+
+      digitalWrite(STEPPER_IN1, LOW);
+      digitalWrite(STEPPER_IN2, LOW);
+      digitalWrite(STEPPER_IN3, LOW);
+      digitalWrite(STEPPER_IN4, LOW);
+      Serial.println("✅ Selesai tes LED! Jika semua LED menyala bergantian, kabel sinyal GPIO normal.");
+    }
+    else if (input.equalsIgnoreCase("wake") || input.equalsIgnoreCase("w")) {
+      Serial.println("✨ [UJI LAYAR] Membuka Katalog Produk di Layar TFT...");
+      playCatalogFadeInAnimation();
+    }
+    else {
+      Serial.println("❓ Perintah tidak dikenal. Ketik '1', '2', '3', '4', 'ledtest', 'test', atau 'wake' lalu tekan Enter.");
+    }
+  }
 }
 
 // ==========================================
 // 🔄 16. LOOP UTAMA
 // ==========================================
 void loop() {
+  // 0. Deteksi Perintah Cepat dari Serial Monitor Arduino IDE
+  handleSerialCommands();
+
   // 1. Deteksi Sentuhan Layar Langsung (Touchscreen)
   handleTouchScreen();
 

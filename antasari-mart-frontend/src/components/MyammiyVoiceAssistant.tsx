@@ -58,7 +58,7 @@ function formatTextForVoiceSpeech(rawText: string): string {
 
   let t = rawText
     .replace(/[*#_~`]/g, '')
-    .replace(/https?:\/\/\S+/g, 'website antasari mart');
+    .replace(/https?:\/\/\S+/g, 'website campus mart');
 
   // 1. Konversi format harga menjadi bahasa Indonesia alami
   t = t.replace(/(?:Rp\.?|rp\.?)\s*35\.?000\b/gi, 'tiga puluh lima ribu rupiah');
@@ -442,19 +442,112 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
       <style>{`
         .am-myammiy-launcher-wrap {
           position: fixed;
-          bottom: 24px;
-          right: 24px;
-          z-index: 998;
+          bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+          right: 16px;
+          z-index: 35;
         }
-        @media screen and (max-width: 768px) {
+        @media (min-width: 768px) {
           .am-myammiy-launcher-wrap {
-            bottom: 70px;
-            right: 14px;
+            bottom: 2rem !important;
+            right: 2rem !important;
           }
+        }
+
+        .am-myammiy-launcher-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 18px;
+          border-radius: 28px;
+          border: none;
+          background: linear-gradient(135deg, #FF6B8B 0%, #FF8E53 100%);
+          color: white;
+          font-weight: 800;
+          font-size: 13.5px;
+          cursor: pointer;
+          box-shadow: 0 6px 20px rgba(255, 107, 139, 0.4), 0 2px 6px rgba(0, 0, 0, 0.08);
+          transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          animation: floatCute 3s ease-in-out infinite;
+          user-select: none;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .am-myammiy-launcher-btn:hover {
+          transform: translateY(-3px) scale(1.04);
+          box-shadow: 0 10px 24px rgba(255, 107, 139, 0.5), 0 4px 10px rgba(0, 0, 0, 0.12);
+        }
+        .am-myammiy-launcher-btn:active {
+          transform: scale(0.95);
+        }
+
+        .am-myammiy-modal-window {
+          position: fixed;
+          bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+          right: 16px;
+          width: 380px;
+          max-width: calc(100vw - 32px);
+          height: 500px;
+          max-height: calc(100vh - 130px);
+          background: var(--am-surface, #ffffff);
+          border-radius: 24px;
+          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22), 0 4px 16px rgba(255, 107, 139, 0.2);
+          border: 1.5px solid #FF6B8B;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          z-index: 45;
+          animation: fadeInScale 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @media (min-width: 768px) {
+          .am-myammiy-modal-window {
+            bottom: 5.5rem !important;
+            right: 2rem !important;
+          }
+        }
+
+        @keyframes floatCute {
+          0%, 100% {
+            transform: translateY(0px);
+          }
+          50% {
+            transform: translateY(-6px);
+          }
+        }
+
+        @keyframes fadeInScale {
+          0% {
+            opacity: 0;
+            transform: translateY(16px) scale(0.92);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0px) scale(1);
+          }
+        }
+
+        @keyframes pulse {
+          0%, 100% {
+            transform: scale(1);
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+          }
+          50% {
+            transform: scale(1.08);
+            box-shadow: 0 0 22px rgba(239, 68, 68, 0.9);
+          }
+        }
+
+        @media screen and (max-width: 768px) {
           .am-myammiy-launcher-btn {
-            padding: 8px 14px !important;
-            font-size: 12px !important;
+            padding: 9px 15px !important;
+            font-size: 12.5px !important;
             border-radius: 24px !important;
+          }
+          .am-myammiy-modal-window {
+            right: 12px;
+            left: 12px;
+            width: auto;
+            max-width: none;
+            height: calc(100vh - 110px);
+            max-height: 520px;
           }
         }
       `}</style>
@@ -471,21 +564,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
             }
           }}
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '12px 20px',
-            borderRadius: 30,
-            border: 'none',
-            background: 'linear-gradient(135deg, #FF6B8B 0%, #FF8E53 100%)',
-            color: 'white',
-            fontWeight: 800,
-            fontSize: 14,
-            cursor: 'pointer',
-            boxShadow: '0 8px 24px rgba(255, 107, 139, 0.45)',
-            transform: isOpen ? 'scale(0.95)' : 'scale(1)',
-            transition: 'all 0.2s ease',
-            animation: 'floatCute 3s ease-in-out infinite'
+            transform: isOpen ? 'scale(0.95)' : undefined
           }}
         >
           <span style={{ fontSize: 18 }}>🎀🎙️</span>
@@ -496,25 +575,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
 
       {/* Interactive Voice Assistant Modal */}
       {isOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 85,
-            right: 24,
-            width: 360,
-            maxWidth: 'calc(100vw - 48px)',
-            height: 480,
-            background: 'var(--am-surface, #ffffff)',
-            borderRadius: 24,
-            boxShadow: '0 12px 40px rgba(0,0,0,0.2)',
-            border: '1.5px solid #FF6B8B',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            zIndex: 9999,
-            animation: 'fadeInScale 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
-          }}
-        >
+        <div className="am-myammiy-modal-window">
           {/* Header */}
           <div
             style={{

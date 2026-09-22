@@ -1,3 +1,7 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *, .theme-modern, .theme-modern *));
+
 :root {
   --am-bg: #FAFDFB;            /* Putih segar dengan sentuhan lembut */
   --am-bg2: #F0F7F2;           /* Hijau muda pastel sangat lembut */
@@ -70,13 +74,19 @@ html {
   scrollbar-color: rgba(128,128,128,0.3) transparent;
 }
 
-body {
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
   -webkit-font-smoothing: antialiased;
 }
 
 .am-root {
+  margin: 0 !important;
+  padding-top: 0 !important;
   min-height: 100vh;
   background-color: var(--am-bg);
   color: var(--am-text);
@@ -217,6 +227,13 @@ body {
 .courier-dot { animation: moveDot 4s ease-in-out infinite; }
 
 /* ── Penyesuaian Responsif Mobile untuk Chat & Layout ── */
+@media screen and (min-width: 769px) {
+  /* Layout Desktop: Sidebar dan Konten Utama berdampingan horizontal */
+  .am-root {
+    flex-direction: row !important;
+  }
+}
+
 @media screen and (max-width: 768px) {
   /* Menyembunyikan elemen sidebar yang mendouble menu di atas/bawah */
   aside, 
@@ -292,3 +309,58 @@ html, body {
 *, *:before, *:after {
   box-sizing: inherit;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   🚀 PAGE TRANSITION & MOBILE HARDWARE ACCELERATION (GPU OPTIMIZATION)
+   ══════════════════════════════════════════════════════════════ */
+@keyframes amPageFadeSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) translateZ(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) translateZ(0);
+  }
+}
+
+.am-page-transition {
+  animation: amPageFadeSlide 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  -webkit-overflow-scrolling: touch;
+  min-height: calc(100vh - 140px);
+}
+
+.am-gpu-accelerated {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Shimmer animation for Skeleton Loader */
+@keyframes amShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.am-skeleton-shimmer {
+  background: linear-gradient(90deg, var(--am-bg2) 25%, rgba(255,255,255,0.6) 50%, var(--am-bg2) 75%);
+  background-size: 200% 100%;
+  animation: amShimmer 1.5s infinite linear;
+}
+
+.theme-modern .am-skeleton-shimmer {
+  background: linear-gradient(90deg, var(--am-bg2) 25%, rgba(255,255,255,0.08) 50%, var(--am-bg2) 75%);
+  background-size: 200% 100%;
+  animation: amShimmer 1.5s infinite linear;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   📱 MOBILE-PROOF INPUT & TEXTAREA SELECTION / TOUCH FIXES
+   ══════════════════════════════════════════════════════════════ */
+textarea, input {
+  -webkit-user-select: auto !important;
+  user-select: auto !important;
+  pointer-events: auto !important;
+}

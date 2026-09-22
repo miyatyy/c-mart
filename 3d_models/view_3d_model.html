@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Antasari Mart - Real-Life 3D Smart Vending Machine & Blind Bags</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <!-- Three.js & OrbitControls from allowlisted / cdn for rich 3D rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 50% 10%, #1e1b4b 0%, #090d16 100%);
+      color: #f8fafc;
+      font-family: system-ui, -apple-system, sans-serif;
+      user-select: none;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 520px;
+      position: relative;
+      background: linear-gradient(135deg, #182234 0%, #0c121e 100%);
+      border-radius: 1rem;
+      overflow: hidden;
+      box-shadow: inset 0 0 30px rgba(0,0,0,0.6);
+    }
+    #three-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+    #three-canvas:active {
+      cursor: grabbing;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .glow-box {
+      box-shadow: 0 0 30px rgba(244, 114, 182, 0.2);
+    }
+    .tab-btn.active {
+      background: linear-gradient(to right, #ec4899, #8b5cf6);
+      color: #ffffff;
+      border-color: #f472b6;
+      box-shadow: 0 0 15px rgba(236, 72, 153, 0.4);
+    }
+  </style>
+</head>
+<body class="p-4 md:p-6 bg-slate-950 text-slate-100 min-h-screen">
+
+  <!-- Header Section -->
+  <div class="max-w-6xl mx-auto mb-5">
+    <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-900/90 backdrop-blur border border-pink-500/30 p-4 md:p-5 rounded-2xl glow-box">
+      <div class="flex items-center space-x-3.5">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 flex items-center justify-center text-2xl shadow-lg border border-white/20">
+          🐰
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-xl md:text-2xl font-black bg-gradient-to-r from-pink-300 via-purple-200 to-indigo-200 bg-clip-text text-transparent">
+              ANTASARI MART — REAL-LIFE 3D
+            </h1>
+            <span class="badge bg-pink-500 text-white text-[10px] font-bold">100% COMPLETE</span>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Bodi Putih Halus • Hiasan Stiker Kawaii • Kuping Kelinci • 4 Slot Spiral + Blind Bags • Rangkaian IoT ESP32-S3
+          </p>
+        </div>
+      </div>
+
+      <!-- Navigation Mode Tabs -->
+      <div class="flex p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs font-bold">
+        <button id="tab-3d" onclick="switchView('3d')" class="tab-btn active px-4 py-2 rounded-lg transition">
+          🕹️ 3D Model Interaktif
+        </button>
+        <button id="tab-real" onclick="switchView('real')" class="tab-btn px-4 py-2 rounded-lg text-slate-400 hover:text-white transition">
+          📸 Galeri Foto Real-Life (4K)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 1: 3D THREE.JS INTERACTIVE MODEL -->
+  <div id="view-3d-container" class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+    
+    <!-- 3D Canvas Box -->
+    <div class="lg:col-span-3 bg-slate-900/90 rounded-2xl border border-slate-800 p-2 shadow-2xl flex flex-col justify-between">
+      <div id="canvas-container">
+        <canvas id="three-canvas"></canvas>
+
+        <!-- Overlay Action Bar -->
+        <div class="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
+          <button onclick="setCam('iso')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900/80 hover:bg-pink-600 text-white border border-slate-700 backdrop-blur shadow transition">
+            🏠 3D Iso
+          </button>
+          <button onclick="setCam('front')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900/80 hover:bg-pink-600 text-white border border-slate-700 backdrop-blur shadow transition">
+            🚪 Depan
+          </button>
+          <button onclick="setCam('inside')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900/80 hover:bg-pink-600 text-white border border-slate-700 backdrop-blur shadow transition">
+            🔍 Interior
+          </button>
+          <button onclick="setCam('left')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900/80 hover:bg-pink-600 text-white border border-slate-700 backdrop-blur shadow transition">
+            ⚡ USB-C (Kiri)
+          </button>
+          <button onclick="setCam('top')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900/80 hover:bg-pink-600 text-white border border-slate-700 backdrop-blur shadow transition">
+            ⬆️ Atas
+          </button>
+        </div>
+
+        <!-- Door Toggle & Dispense Simulation -->
+        <div class="absolute top-3 right-3 flex flex-wrap gap-1.5 z-10">
+          <button id="btn-door" onclick="toggleDoor()" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-pink-500 hover:bg-pink-600 text-white shadow-lg border border-pink-400 transition flex items-center space-x-1.5">
+            <span>🚪</span> <span id="txt-door">Buka Pintu</span>
+          </button>
+          <button onclick="simulateDispense()" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-white shadow-lg border border-amber-400 transition flex items-center space-x-1.5">
+            <span>🔄</span> <span>Putar Spiral (Dispense)</span>
+          </button>
+        </div>
+
+        <!-- Live Screen Status HUD -->
+        <div class="absolute bottom-3 left-3 pointer-events-none flex items-center space-x-2 text-[11px] bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800 backdrop-blur">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span class="text-slate-300">ESP32-S3 Online • Animasi Kelinci Aktif • Cloud Polling 1.5s</span>
+        </div>
+
+        <!-- Camera Tip -->
+        <div class="absolute bottom-3 right-3 text-[11px] text-pink-300 font-semibold bg-slate-900/90 px-3 py-1.5 rounded-lg border border-pink-500/30">
+          🖱️ Putar 360° • Zoom • Buka Pintu
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Controls & Info Panel -->
+    <div class="bg-slate-900/90 rounded-2xl border border-slate-800 p-4 flex flex-col justify-between shadow-xl">
+      <div>
+        <h2 class="text-xs font-black text-pink-400 uppercase tracking-wider mb-3 flex items-center justify-between">
+          <span>Komponen Terpasang</span>
+          <span class="text-[10px] text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">All Assembled</span>
+        </h2>
+
+        <div class="space-y-2 text-xs">
+          <div class="p-2 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center space-x-2.5">
+            <span class="text-lg">🎨</span>
+            <div>
+              <strong class="text-slate-100 block">Bodi Kotak Putih Halus</strong>
+              <span class="text-[10px] text-slate-400">Finishing doff white + kuping kelinci kawaii & stiker buah</span>
+            </div>
+          </div>
+
+          <div class="p-2 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center space-x-2.5">
+            <span class="text-lg">📺</span>
+            <div>
+              <strong class="text-cyan-300 block">Layar TFT 2.8" SPI (ILI9341)</strong>
+              <span class="text-[10px] text-slate-400">Animasi kelinci lompat 🐰 & pohon goyang 🌳 di atas pintu</span>
+            </div>
+          </div>
+
+          <div class="p-2 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center space-x-2.5">
+            <span class="text-lg">🎁</span>
+            <div>
+              <strong class="text-amber-300 block">4 Spiral + Blind Bags</strong>
+              <span class="text-[10px] text-slate-400">Neko (35K), Usagi (45K), Kuma (50K), Rare Star (60K)</span>
+            </div>
+          </div>
+
+          <div class="p-2 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center space-x-2.5">
+            <span class="text-lg">⚡</span>
+            <div>
+              <strong class="text-emerald-300 block">ESP32-S3 + SYB-170</strong>
+              <span class="text-[10px] text-slate-400">Kabel jumper pelangi, LED aktif, & port USB-C 5V sisi kiri</span>
+            </div>
+          </div>
+
+          <div class="p-2 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center space-x-2.5">
+            <span class="text-lg">⚙️</span>
+            <div>
+              <strong class="text-indigo-300 block">4x Stepper 28BYJ-48 + ULN2003</strong>
+              <span class="text-[10px] text-slate-400">4 motor di rak tengah & 4 modul driver vertikal di dinding</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="mt-4 pt-3 border-t border-slate-800 space-y-2">
+        <button onclick="toggleDoor()" class="w-full py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold rounded-xl text-xs shadow-lg transition">
+          ✨ Buka / Tutup Pintu Mesin (3D)
+        </button>
+        <button onclick="setCam('inside')" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition">
+          🔍 Intip Interior Komponen Lengkap
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: REAL-LIFE 4K PHOTOREALISTIC PHOTO GALLERY -->
+  <div id="view-real-container" class="max-w-6xl mx-auto space-y-6">
+    
+    <!-- Big 2-Column Showcase (Tampak Luar & Tampak Dalam Terbuka) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      
+      <!-- Card A: Tampak Luar Lengkap -->
+      <div class="bg-slate-900/90 rounded-2xl border border-pink-500/30 overflow-hidden shadow-2xl flex flex-col justify-between">
+        <div class="p-4 bg-gradient-to-r from-pink-950/50 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-lg">🚪</span>
+            <h3 class="text-sm font-bold text-pink-300">1. Tampak Depan Luar (Finished White Enclosure)</h3>
+          </div>
+          <span class="text-[10px] bg-pink-500/20 text-pink-300 px-2 py-0.5 rounded font-bold">Exterior Real-Life</span>
+        </div>
+        <div class="relative bg-slate-950 flex items-center justify-center p-2">
+          <img src="real_vending_front_1789094541029.jpg" alt="Tampak Depan Real Life" class="rounded-xl w-full h-auto object-cover max-h-[420px] shadow-lg">
+        </div>
+        <div class="p-4 text-xs text-slate-300 space-y-1.5 leading-relaxed bg-slate-900/60">
+          <p>• <strong>Bodi Putih Elegan:</strong> Hasil cetak 3D di-cat putih mulus dengan hiasan stiker kawaii (stroberi, donat, ceri, bintang).</p>
+          <p>• <strong>Layar TFT 2.8" SPI Menyala:</strong> Menampilkan animasi kelinci 🐰 "ANTASARI MART WELCOME!".</p>
+          <p>• <strong>Jendela Transparan:</strong> 4 slot spiral emas berisi 4 Blind Bag (Meow 35K, Hop 45K, Hug 50K, Shine 60K).</p>
+          <p>• <strong>Pintu Pengambilan (Drop Tray):</strong> Kantong Pink Neko telah jatuh ke baki bawah.</p>
+        </div>
+      </div>
+
+      <!-- Card B: Tampak Dalam Terbuka -->
+      <div class="bg-slate-900/90 rounded-2xl border border-indigo-500/30 overflow-hidden shadow-2xl flex flex-col justify-between">
+        <div class="p-4 bg-gradient-to-r from-indigo-950/50 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-lg">⚙️</span>
+            <h3 class="text-sm font-bold text-indigo-300">2. Tampak Dalam Terbuka (Full IoT Hardware & Wiring)</h3>
+          </div>
+          <span class="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded font-bold">Interior Real-Life</span>
+        </div>
+        <div class="relative bg-slate-950 flex items-center justify-center p-2">
+          <img src="real_vending_inside_1789094565401.jpg" alt="Tampak Dalam Real Life" class="rounded-xl w-full h-auto object-cover max-h-[420px] shadow-lg">
+        </div>
+        <div class="p-4 text-xs text-slate-300 space-y-1.5 leading-relaxed bg-slate-900/60">
+          <p>• <strong>Pintu Terbuka:</strong> Di balik pintu terpasang modul TFT PCB Merah dengan 4 baut M3 & kabel pita pelangi.</p>
+          <p>• <strong>4x Motor Stepper 28BYJ-48:</strong> Duduk kokoh di rak tengah memutar 4 spiral emas penahan blind bag.</p>
+          <p>• <strong>4x Driver ULN2003:</strong> Berjajar rapi di dinding belakang dengan lampu indikator LED merah menyala.</p>
+          <p>• <strong>ESP32-S3 + Breadboard:</strong> Terpasang di lantai dasar, kabel jumper tertata rapi, kabel daya USB-C dicolok dari sisi kiri.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Second Row: Blind Bags & Workspace Setup -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      
+      <!-- Card C: Koleksi 4 Blind Bags -->
+      <div class="bg-slate-900/90 rounded-2xl border border-amber-500/30 overflow-hidden shadow-2xl flex flex-col justify-between">
+        <div class="p-4 bg-gradient-to-r from-amber-950/50 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-lg">🎁</span>
+            <h3 class="text-sm font-bold text-amber-300">3. Koleksi 4 Kantong Blind Bag (Foil Pouch)</h3>
+          </div>
+          <span class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-bold">Merchandise</span>
+        </div>
+        <div class="relative bg-slate-950 flex items-center justify-center p-2">
+          <img src="kawaii_blind_bags_1789093697263.jpg" alt="4 Blind Bags" class="rounded-xl w-full h-auto object-cover max-h-[380px] shadow-lg">
+        </div>
+        <div class="p-4 text-xs text-slate-300 space-y-1 bg-slate-900/60">
+          <p><strong>Ukuran Kemasan:</strong> 65 mm × 95 mm × 15 mm (Kemasan foil mengkilap dengan karakter Neko, Usagi, Kuma, Star).</p>
+        </div>
+      </div>
+
+      <!-- Card D: Layout Meja Kerja & Unboxing -->
+      <div class="bg-slate-900/90 rounded-2xl border border-emerald-500/30 overflow-hidden shadow-2xl flex flex-col justify-between">
+        <div class="p-4 bg-gradient-to-r from-emerald-950/50 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-lg">🌟</span>
+            <h3 class="text-sm font-bold text-emerald-300">4. Setup Meja Kerja & Unboxing Hadiah</h3>
+          </div>
+          <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold">Finished Setup</span>
+        </div>
+        <div class="relative bg-slate-950 flex items-center justify-center p-2">
+          <img src="vending_white_overview_1789094133050.jpg" alt="Overview Setup" class="rounded-xl w-full h-auto object-cover max-h-[380px] shadow-lg">
+        </div>
+        <div class="p-4 text-xs text-slate-300 space-y-1 bg-slate-900/60">
+          <p><strong>Hasil Akhir:</strong> Mesin vending aktif di atas meja siap melayani pembelian online melalui web Antasari Mart!</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- THREE.JS 3D SCENE JAVASCRIPT -->
+  <script>
+    function switchView(mode) {
+      const v3d = document.getElementById('view-3d-container');
+      const vReal = document.getElementById('view-real-container');
+      const btn3d = document.getElementById('tab-3d');
+      const btnReal = document.getElementById('tab-real');
+
+      if (mode === '3d') {
+        v3d.classList.remove('hidden');
+        vReal.classList.add('hidden');
+        btn3d.className = "tab-btn active px-4 py-2 rounded-lg transition";
+        btnReal.className = "tab-btn px-4 py-2 rounded-lg text-slate-400 hover:text-white transition";
+        onWindowResize();
+      } else {
+        v3d.classList.add('hidden');
+        vReal.classList.remove('hidden');
+        btnReal.className = "tab-btn active px-4 py-2 rounded-lg transition";
+        btn3d.className = "tab-btn px-4 py-2 rounded-lg text-slate-400 hover:text-white transition";
+      }
+    }
+
+    // Initialize 3D Engine with Three.js
+    let scene, camera, renderer, controls;
+    let doorGroup, spirals = [], blindBags = [];
+    let isDoorOpen = false;
+    let doorAngle = 0;
+    let screenCanvas, screenCtx, screenTexture;
+    let bunnyX = 30, bunnyVy = 0, bunnyY = 70;
+
+    function initThree() {
+      const container = document.getElementById('canvas-container');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      // 1. Scene & Camera
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+      scene.fog = new THREE.FogExp2(0x0f172a, 0.0018);
+
+      camera = new THREE.PerspectiveCamera(40, width / height, 1, 2000);
+      camera.position.set(220, 160, 320);
+
+      // 2. Renderer
+      renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      // 3. OrbitControls
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.maxPolarAngle = Math.PI / 2 + 0.1;
+      controls.minDistance = 120;
+      controls.maxDistance = 750;
+      controls.target.set(0, 40, 0);
+
+      // 4. Lights
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+      scene.add(ambientLight);
+
+      const mainLight = new THREE.DirectionalLight(0xffffff, 1.1);
+      mainLight.position.set(200, 350, 250);
+      mainLight.castShadow = true;
+      mainLight.shadow.mapSize.width = 1024;
+      mainLight.shadow.mapSize.height = 1024;
+      scene.add(mainLight);
+
+      const fillLight = new THREE.DirectionalLight(0xf472b6, 0.4);
+      fillLight.position.set(-200, 100, -150);
+      scene.add(fillLight);
+
+      const blueRim = new THREE.PointLight(0x38bdf8, 0.8, 400);
+      blueRim.position.set(0, -60, 150);
+      scene.add(blueRim);
+
+      // Ground plane with shadow
+      const groundGeo = new THREE.PlaneGeometry(1200, 1200);
+      const groundMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.8, metalness: 0.2 });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -95;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // Grid helper
+      const grid = new THREE.GridHelper(500, 25, 0xf472b6, 0x1e293b);
+      grid.position.y = -94.8;
+      scene.add(grid);
+
+      // 5. Build Complete Vending Machine 3D Object
+      buildVendingMachine();
+
+      window.addEventListener('resize', onWindowResize);
+      animate();
+    }
+
+    // Dynamic TFT Screen Texture with Live Animated Bunny & Tree
+    function createScreenTexture() {
+      screenCanvas = document.createElement('canvas');
+      screenCanvas.width = 320;
+      screenCanvas.height = 240;
+      screenCtx = screenCanvas.getContext('2d');
+      screenTexture = new THREE.CanvasTexture(screenCanvas);
+      return screenTexture;
+    }
+
+    function updateScreenCanvas() {
+      if (!screenCtx) return;
+      const ctx = screenCtx;
+
+      // Sky background
+      const grad = ctx.createLinearGradient(0, 0, 0, 240);
+      grad.addColorStop(0, '#38bdf8');
+      grad.addColorStop(1, '#a7f3d0');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 320, 240);
+
+      // Header Bar
+      ctx.fillStyle = '#ec4899';
+      ctx.fillRect(0, 0, 320, 38);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('✨ ANTASARI MART ✨', 70, 26);
+
+      // Animated Swaying Tree
+      const treeSway = Math.sin(Date.now() * 0.003) * 6;
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(260, 70, 14, 60);
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(267 + treeSway, 65, 30, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Animated Hopping Bunny
+      bunnyX += 1.2;
+      if (bunnyX > 220) bunnyX = 20;
+      const hopY = Math.abs(Math.sin(Date.now() * 0.008)) * 18;
+
+      ctx.fillStyle = '#ffffff';
+      // Body
+      ctx.beginPath();
+      ctx.arc(bunnyX, 105 - hopY, 18, 0, Math.PI * 2);
+      ctx.fill();
+      // Ears
+      ctx.fillRect(bunnyX - 10, 68 - hopY, 6, 22);
+      ctx.fillRect(bunnyX + 4, 68 - hopY, 6, 22);
+      ctx.fillStyle = '#f472b6';
+      ctx.fillRect(bunnyX - 8, 72 - hopY, 3, 16);
+      ctx.fillRect(bunnyX + 6, 72 - hopY, 3, 16);
+      // Face
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(bunnyX + 4, 102 - hopY, 3, 3);
+      ctx.fillRect(bunnyX + 11, 102 - hopY, 3, 3);
+
+      // 4 Menu Product Cards
+      const items = [
+        { name: '🐱 Neko Cat', price: '35K', color: '#f43f5e', x: 10, y: 140 },
+        { name: '🐰 Usagi Bun', price: '45K', color: '#06b6d4', x: 165, y: 140 },
+        { name: '🐻 Kuma Bear', price: '50K', color: '#8b5cf6', x: 10, y: 190 },
+        { name: '⭐ Rare Star', price: '60K', color: '#f59e0b', x: 165, y: 190 }
+      ];
+
+      items.forEach(it => {
+        ctx.fillStyle = '#ffffff';
+        ctx.roundRect ? ctx.roundRect(it.x, it.y, 145, 42, 6) : ctx.fillRect(it.x, it.y, 145, 42);
+        ctx.fill();
+        ctx.strokeStyle = it.color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#1e293b';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(it.name, it.x + 8, it.y + 24);
+
+        ctx.fillStyle = it.color;
+        ctx.font = 'bold 13px monospace';
+        ctx.fillText(it.price, it.x + 105, it.y + 24);
+      });
+
+      if (screenTexture) screenTexture.needsUpdate = true;
+    }
+
+    // Helper: Create 3D Helical Spiral Spring (TubeGeometry)
+    function createSpiralMesh(radius, pitch, length, turns) {
+      const points = [];
+      const steps = 120;
+      for (let i = 0; i <= steps; i++) {
+        const t = (i / steps) * turns * Math.PI * 2;
+        const x = Math.cos(t) * radius;
+        const y = Math.sin(t) * radius;
+        const z = -(i / steps) * length;
+        points.push(new THREE.Vector3(x, y, z));
+      }
+      const curve = new THREE.CatmullRomCurve3(points);
+      const tubeGeo = new THREE.TubeGeometry(curve, 100, 2.2, 10, false);
+      const tubeMat = new THREE.MeshStandardMaterial({
+        color: 0xf59e0b,
+        metalness: 0.85,
+        roughness: 0.25
+      });
+      return new THREE.Mesh(tubeGeo, tubeMat);
+    }
+
+    // Build the Entire Vending Machine with Finished White Body & IoT Components
+    function buildVendingMachine() {
+      const machineGroup = new THREE.Group();
+
+      // Materials
+      const whiteMat = new THREE.MeshStandardMaterial({
+        color: 0xf8fafc,
+        roughness: 0.2,
+        metalness: 0.05
+      });
+      const pinkTrimMat = new THREE.MeshStandardMaterial({
+        color: 0xf472b6,
+        roughness: 0.35,
+        metalness: 0.1
+      });
+      const darkMat = new THREE.MeshStandardMaterial({
+        color: 0x0f172a,
+        roughness: 0.8,
+        metalness: 0.2
+      });
+      const acrylicMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.35,
+        roughness: 0.1,
+        transmission: 0.9,
+        thickness: 2.0
+      });
+      const goldMat = new THREE.MeshStandardMaterial({
+        color: 0xfbbf24,
+        metalness: 0.9,
+        roughness: 0.2
+      });
+
+      // 1. MAIN CHASSIS (White Box)
+      const chassisW = 160, chassisH = 190, chassisD = 135;
+
+      // Base bottom floor
+      const baseMesh = new THREE.Mesh(new THREE.BoxGeometry(chassisW, 6, chassisD), whiteMat);
+      baseMesh.position.set(0, -90, 0);
+      baseMesh.castShadow = true;
+      baseMesh.receiveShadow = true;
+      machineGroup.add(baseMesh);
+
+      // Left Wall (with USB-C Cutout)
+      const leftWall = new THREE.Mesh(new THREE.BoxGeometry(6, chassisH, chassisD), whiteMat);
+      leftWall.position.set(-chassisW/2 + 3, 5, 0);
+      leftWall.castShadow = true;
+      machineGroup.add(leftWall);
+
+      // USB-C Metal Port on Left Wall
+      const usbPort = new THREE.Mesh(new THREE.BoxGeometry(2, 6, 12), new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9 }));
+      usbPort.position.set(-chassisW/2 - 1, -65, -15);
+      machineGroup.add(usbPort);
+
+      // USB Cable plugged into left wall
+      const cablePlug = new THREE.Mesh(new THREE.BoxGeometry(16, 8, 14), darkMat);
+      cablePlug.position.set(-chassisW/2 - 9, -65, -15);
+      machineGroup.add(cablePlug);
+
+      const cableWire = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 80, 16), darkMat);
+      cableWire.rotation.z = Math.PI / 2;
+      cableWire.position.set(-chassisW/2 - 45, -65, -15);
+      machineGroup.add(cableWire);
+
+      // Right Wall (Transparent acrylic cutaway to show IoT electronics)
+      const rightWall = new THREE.Mesh(new THREE.BoxGeometry(4, chassisH - 10, chassisD - 10), acrylicMat);
+      rightWall.position.set(chassisW/2 - 2, 5, 0);
+      machineGroup.add(rightWall);
+
+      // Rear Wall (with ventilation louvers)
+      const rearWall = new THREE.Mesh(new THREE.BoxGeometry(chassisW - 12, chassisH, 6), whiteMat);
+      rearWall.position.set(0, 5, -chassisD/2 + 3);
+      rearWall.castShadow = true;
+      machineGroup.add(rearWall);
+
+      // Top Roof with Bunny Ears
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(chassisW + 6, 8, chassisD + 6), whiteMat);
+      roof.position.set(0, chassisH/2 + 4, 0);
+      roof.castShadow = true;
+      machineGroup.add(roof);
+
+      // Kawaii Bunny Ears on Roof
+      const earMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+      const earInnerMat = new THREE.MeshStandardMaterial({ color: 0xf472b6, roughness: 0.4 });
+
+      for (let side of [-26, 26]) {
+        const ear = new THREE.Mesh(new THREE.CylinderGeometry(7, 10, 42, 24), earMat);
+        ear.position.set(side, chassisH/2 + 25, 0);
+        ear.rotation.z = side < 0 ? -0.1 : 0.1;
+        ear.castShadow = true;
+        machineGroup.add(ear);
+
+        const earInner = new THREE.Mesh(new THREE.CylinderGeometry(4, 6, 32, 24), earInnerMat);
+        earInner.position.set(side, chassisH/2 + 25, 4);
+        earInner.rotation.z = side < 0 ? -0.1 : 0.1;
+        machineGroup.add(earInner);
+      }
+
+      // Slanted Product Drop Chute Ramp
+      const rampGeo = new THREE.BoxGeometry(chassisW - 16, 4, 110);
+      const rampMesh = new THREE.Mesh(rampGeo, pinkTrimMat);
+      rampMesh.rotation.x = 0.42;
+      rampMesh.position.set(0, -68, 5);
+      rampMesh.receiveShadow = true;
+      machineGroup.add(rampMesh);
+
+      // Bottom Product Collection Tray (Drop Box)
+      const trayMesh = new THREE.Mesh(new THREE.BoxGeometry(110, 14, 45), pinkTrimMat);
+      trayMesh.position.set(0, -85, chassisD/2 + 15);
+      trayMesh.castShadow = true;
+      machineGroup.add(trayMesh);
+
+      // 2. INTERNAL ELECTRONICS (ESP32-S3 + BREADBOARD + DRIVERS)
+      // ESP32-S3 Board
+      const espPcb = new THREE.Mesh(new THREE.BoxGeometry(56, 4, 28), new THREE.MeshStandardMaterial({ color: 0x18181b, metalness: 0.3 }));
+      espPcb.position.set(-35, -82, -20);
+      machineGroup.add(espPcb);
+
+      // ESP32 Metal Shield Antenna
+      const espShield = new THREE.Mesh(new THREE.BoxGeometry(18, 3, 16), new THREE.MeshStandardMaterial({ color: 0xd4d4d8, metalness: 0.9 }));
+      espShield.position.set(-48, -79, -20);
+      machineGroup.add(espShield);
+
+      // ESP32 Glowing RGB LED
+      const espLed = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 3), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+      espLed.position.set(-25, -78, -20);
+      machineGroup.add(espLed);
+
+      // Mini Breadboard SYB-170
+      const bbMesh = new THREE.Mesh(new THREE.BoxGeometry(45, 8, 35), new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.6 }));
+      bbMesh.position.set(30, -82, -20);
+      machineGroup.add(bbMesh);
+
+      // 4x ULN2003 Driver Modules on Rear Wall
+      for (let i = 0; i < 4; i++) {
+        const ulnX = -50 + i * 33;
+        const ulnPcb = new THREE.Mesh(new THREE.BoxGeometry(28, 30, 4), new THREE.MeshStandardMaterial({ color: 0x15803d }));
+        ulnPcb.position.set(ulnX, -30, -chassisD/2 + 10);
+        machineGroup.add(ulnPcb);
+
+        // IC Chip
+        const ulnIc = new THREE.Mesh(new THREE.BoxGeometry(10, 16, 3), darkMat);
+        ulnIc.position.set(ulnX, -30, -chassisD/2 + 13);
+        machineGroup.add(ulnIc);
+
+        // Blinking Red LEDs
+        const ulnLed = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 2), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+        ulnLed.position.set(ulnX + 8, -22, -chassisD/2 + 13);
+        machineGroup.add(ulnLed);
+      }
+
+      // 3. MOTOR SHELF & 4x STEPPER MOTORS + SPIRALS
+      const shelfMesh = new THREE.Mesh(new THREE.BoxGeometry(chassisW - 12, 6, 85), whiteMat);
+      shelfMesh.position.set(0, 15, -15);
+      shelfMesh.castShadow = true;
+      machineGroup.add(shelfMesh);
+
+      // Slot divider plates
+      const divCenter = new THREE.Mesh(new THREE.BoxGeometry(4, 60, 85), whiteMat);
+      divCenter.position.set(0, 45, -15);
+      machineGroup.add(divCenter);
+
+      const motorSlots = [
+        { x: -38, y: 50, z: -15, label: 'Neko 35K', color: 0xf43f5e, name: '🐱' },
+        { x: 38,  y: 50, z: -15, label: 'Usagi 45K', color: 0x06b6d4, name: '🐰' },
+        { x: -38, y: -10, z: -15, label: 'Kuma 50K', color: 0x8b5cf6, name: '🐻' },
+        { x: 38,  y: -10, z: -15, label: 'Rare Star 60K', color: 0xf59e0b, name: '⭐' }
+      ];
+
+      motorSlots.forEach((slot, idx) => {
+        // 28BYJ-48 Motor Body (Blue Cylinder)
+        const motorMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.5, roughness: 0.3 });
+        const motorCyl = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 18, 24), motorMat);
+        motorCyl.rotation.x = Math.PI / 2;
+        motorCyl.position.set(slot.x, slot.y, slot.z - 30);
+        machineGroup.add(motorCyl);
+
+        // Motor Mounting Ear
+        const motorPlate = new THREE.Mesh(new THREE.BoxGeometry(36, 12, 3), new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8 }));
+        motorPlate.position.set(slot.x, slot.y, slot.z - 22);
+        machineGroup.add(motorPlate);
+
+        // Brass Shaft
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 12, 16), new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.9 }));
+        shaft.rotation.x = Math.PI / 2;
+        shaft.position.set(slot.x, slot.y, slot.z - 15);
+        machineGroup.add(shaft);
+
+        // Dispenser Spiral Auger (TubeGeometry along helix)
+        const spiralMesh = createSpiralMesh(17, 18, 62, 3.5);
+        spiralMesh.position.set(slot.x, slot.y, slot.z - 10);
+        machineGroup.add(spiralMesh);
+        spirals.push(spiralMesh);
+
+        // 3D FOIL BLIND BAG POUCH
+        const bagGeo = new THREE.BoxGeometry(26, 36, 10);
+        const bagMat = new THREE.MeshStandardMaterial({
+          color: slot.color,
+          roughness: 0.2,
+          metalness: 0.8
+        });
+        const bagMesh = new THREE.Mesh(bagGeo, bagMat);
+        bagMesh.position.set(slot.x, slot.y, slot.z + 18);
+        bagMesh.castShadow = true;
+        machineGroup.add(bagMesh);
+        blindBags.push(bagMesh);
+      });
+
+      // Dropped Blind Bag in Bottom Collection Tray
+      const dropBagMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, metalness: 0.8, roughness: 0.2 });
+      const dropBag = new THREE.Mesh(new THREE.BoxGeometry(26, 8, 34), dropBagMat);
+      dropBag.position.set(0, -82, chassisD/2 + 15);
+      dropBag.rotation.y = 0.2;
+      machineGroup.add(dropBag);
+
+      // 4. HINGED FRONT DOOR & BEZEL
+      doorGroup = new THREE.Group();
+      doorGroup.position.set(-chassisW/2, 0, chassisD/2); // Hinge pivot at left front edge
+
+      // Front Door Frame (White with Pink trim)
+      const doorPlate = new THREE.Mesh(new THREE.BoxGeometry(chassisW, chassisH, 6), whiteMat);
+      doorPlate.position.set(chassisW/2, 5, 3);
+      doorPlate.castShadow = true;
+      doorGroup.add(doorPlate);
+
+      // Front Window Clear Acrylic
+      const frontWin = new THREE.Mesh(new THREE.BoxGeometry(120, 85, 4), acrylicMat);
+      frontWin.position.set(chassisW/2, 20, 4);
+      doorGroup.add(frontWin);
+
+      // TFT Screen on Door (Top Front)
+      const scrTexture = createScreenTexture();
+      const scrMat = new THREE.MeshBasicMaterial({ map: scrTexture });
+      const tftScreen = new THREE.Mesh(new THREE.PlaneGeometry(85, 55), scrMat);
+      tftScreen.position.set(chassisW/2, 70, 7);
+      doorGroup.add(tftScreen);
+
+      // TFT Red PCB visible from inside the door
+      const tftPcbBack = new THREE.Mesh(new THREE.BoxGeometry(95, 65, 4), new THREE.MeshStandardMaterial({ color: 0xdc2626 }));
+      tftPcbBack.position.set(chassisW/2, 70, -1);
+      doorGroup.add(tftPcbBack);
+
+      // Product Drop Window Cutout Frame
+      const dropBezel = new THREE.Mesh(new THREE.BoxGeometry(105, 35, 8), pinkTrimMat);
+      dropBezel.position.set(chassisW/2, -65, 5);
+      doorGroup.add(dropBezel);
+
+      machineGroup.add(doorGroup);
+      scene.add(machineGroup);
+    }
+
+    // Interactive Door Toggle Animation
+    function toggleDoor() {
+      isDoorOpen = !isDoorOpen;
+      document.getElementById('txt-door').innerText = isDoorOpen ? 'Tutup Pintu' : 'Buka Pintu';
+    }
+
+    // Simulate Motor Dispense
+    function simulateDispense() {
+      if (spirals.length > 0) {
+        let count = 0;
+        const spin = () => {
+          spirals[0].rotation.z += 0.2;
+          count++;
+          if (count < 32) {
+            requestAnimationFrame(spin);
+          }
+        };
+        spin();
+      }
+    }
+
+    // Camera Presets
+    function setCam(mode) {
+      if (mode === 'iso') {
+        camera.position.set(220, 160, 320);
+        controls.target.set(0, 40, 0);
+      } else if (mode === 'front') {
+        camera.position.set(0, 40, 380);
+        controls.target.set(0, 40, 0);
+      } else if (mode === 'inside') {
+        isDoorOpen = true;
+        document.getElementById('txt-door').innerText = 'Tutup Pintu';
+        camera.position.set(90, 40, 240);
+        controls.target.set(0, 20, 0);
+      } else if (mode === 'left') {
+        camera.position.set(-360, 0, 40);
+        controls.target.set(0, 0, 0);
+      } else if (mode === 'top') {
+        camera.position.set(0, 400, 30);
+        controls.target.set(0, 0, 0);
+      }
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('canvas-container');
+      if (!container || !renderer || !camera) return;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Animate Live Screen
+      updateScreenCanvas();
+
+      // Smooth Door Hinge Animation
+      const targetAngle = isDoorOpen ? -Math.PI / 1.55 : 0;
+      doorAngle += (targetAngle - doorAngle) * 0.1;
+      if (doorGroup) doorGroup.rotation.y = doorAngle;
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    window.onload = () => {
+      initThree();
+    };
+  </script>
+</body>
+</html>

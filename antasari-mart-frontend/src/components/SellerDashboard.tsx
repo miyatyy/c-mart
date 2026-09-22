@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { ThemeMode, Campus, Product, ProductCategory } from '../types';
+import type { ThemeMode, Campus, Product, ProductCategory, VerificationStatus, SellerVerificationData } from '../types';
 import { MOCK_ORDERS, formatRupiah, CATEGORIES } from '../data';
 import {
   getProductsApi,
@@ -11,9 +11,13 @@ import {
   sendChatApi,
   compressImageToTargetSize,
   validateAndProcessVideo,
-  getVouchersApi
+  getVouchersApi,
+  analyzeProductAiApi,
+  evaluateProductSuitabilityLocally,
+  getSellerVerificationStatusApi
 } from '../lib/api';
 import SellerCouponManager from './SellerCouponManager';
+import SellerVerificationModal from './SellerVerificationModal';
 
 interface SellerDashboardProps {
   theme: ThemeMode;
@@ -23,7 +27,7 @@ interface SellerDashboardProps {
 }
 
 type SellerTab = 'products' | 'orders' | 'analytics' | 'wallet' | 'promo';
-type ProductTab = 'active' | 'empty';
+type ProductTab = 'all' | 'active' | 'pending' | 'rejected' | 'empty';
 
 interface NewProduct {
   name: string;
@@ -80,6 +84,8 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
   const [editProdVideoLoading, setEditProdVideoLoading] = useState<boolean>(false);
 
   const [isGeneratingAiDesc, setIsGeneratingAiDesc] = useState(false);
+  const [isAiScanningProduct, setIsAiScanningProduct] = useState(false);
+  const [selectedAiReport, setSelectedAiReport] = useState<Product | null>(null);
   const [alertPopup, setAlertPopup] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -88,6 +94,11 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [photoMode, setPhotoMode] = useState<'upload' | 'preset' | 'url'>('upload');
   const [customImageUrl, setCustomImageUrl] = useState('');
+
+  // KTM Verification State
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('not_submitted');
+  const [verificationData, setVerificationData] = useState<SellerVerificationData | null>(null);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
 
   // Orders State
   const [orders, setOrders] = useState<any[]>(() => {
@@ -155,7 +166,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
 
   const loadProducts = () => {
     setLoading(true);
-    getProductsApi(sellerId)
+    getProductsApi(sellerId, 'all')
       .then(data => {
         if (data.success && data.products) {
           setProducts(data.products);
@@ -168,8 +179,42 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
       });
   };
 
+  const loadVerificationStatus = async () => {
+    try {
+      const activeUser = JSON.parse(localStorage.getItem('am_user_session') || '{}');
+      const email = sellerId || activeUser.email || '';
+      if (email) {
+        const res = await getSellerVerificationStatusApi(email);
+        if (res && res.success && res.verification) {
+          setVerificationData(res.verification);
+          setVerificationStatus(res.verification.verificationStatus || 'not_submitted');
+        }
+      }
+    } catch (err) {
+      console.error("Gagal memuat status verifikasi seller:", err);
+    }
+  };
+
   useEffect(() => {
     loadProducts();
+    loadVerificationStatus();
+
+    const handleModerationChange = () => {
+      loadProducts();
+    };
+    const handleVerificationChange = () => {
+      loadVerificationStatus();
+    };
+
+    window.addEventListener('am_product_moderated', handleModerationChange);
+    window.addEventListener('am_product_submitted', handleModerationChange);
+    window.addEventListener('am_seller_verification_updated', handleVerificationChange);
+
+    return () => {
+      window.removeEventListener('am_product_moderated', handleModerationChange);
+      window.removeEventListener('am_product_submitted', handleModerationChange);
+      window.removeEventListener('am_seller_verification_updated', handleVerificationChange);
+    };
   }, [sellerId]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -288,7 +333,19 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
     const finalImages = newProdImages.length > 0 ? newProdImages : (imageFile ? [imageFile] : ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format']);
     const finalMainImage = finalImages[0];
 
+    setIsAiScanningProduct(true);
     try {
+      // 🤖 1. Analisis Kelayakan & Keamanan Produk dengan AI
+      const aiRes = await analyzeProductAiApi({
+        name: newProd.name,
+        description: newProd.description,
+        price: parseInt(newProd.price),
+        category: newProd.category,
+        campus: newProd.targetCampus,
+        sellerName: sellerName || activeUser.nama || 'Penjual Antasari'
+      });
+
+      // ⏳ 2. Simpan produk ke sistem dengan status 'pending' (tertahan untuk kurasi Super Admin)
       await createProductApi({
         name: newProd.name,
         description: newProd.description,
@@ -300,10 +357,11 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
         videoUrl: newProdVideo || undefined,
         campus: newProd.targetCampus,
         sellerId: sellerId || activeUser.email || 'seller_1',
-        sellerName: sellerName || activeUser.nama || 'Penjual Antasari'
+        sellerName: sellerName || activeUser.nama || 'Penjual Antasari',
+        status: 'pending',
+        aiAnalysis: aiRes.analysis
       });
 
-      setAlertPopup({ message: 'Produk multi-media berhasil diterbitkan ke PostgreSQL! 🎉', type: 'success' });
       setShowAddModal(false);
       setNewProd({ name: '', description: '', price: '', stock: '', category: 'makanan', targetCampus: 'semua' });
       setImageFile('');
@@ -311,36 +369,15 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
       setNewProdVideo('');
       setNewProdVideoSize('');
       loadProducts();
-    } catch (_err: any) {
-      const localP: Product = {
-        id: `prod_${Date.now()}`,
-        name: newProd.name,
-        description: newProd.description,
-        price: parseInt(newProd.price) || 0,
-        stock: parseInt(newProd.stock) || 0,
-        category: newProd.category as any,
-        image: finalMainImage,
-        images: finalImages,
-        videoUrl: newProdVideo || undefined,
-        campus: (newProd.targetCampus || 'banjarmasin') as any,
-        sellerId: sellerId || activeUser.email || 'seller_1',
-        sellerName: sellerName || activeUser.nama || 'Penjual Antasari',
-        isKoperasi: false,
-        rating: 5.0,
-        sold: 0
-      };
-      const existing = JSON.parse(localStorage.getItem('am_custom_products') || '[]');
-      existing.unshift(localP);
-      localStorage.setItem('am_custom_products', JSON.stringify(existing));
 
-      setAlertPopup({ message: 'Produk berhasil diterbitkan! 🎉', type: 'success' });
-      setShowAddModal(false);
-      setNewProd({ name: '', description: '', price: '', stock: '', category: 'makanan', targetCampus: 'semua' });
-      setImageFile('');
-      setNewProdImages([]);
-      setNewProdVideo('');
-      setNewProdVideoSize('');
-      loadProducts();
+      setAlertPopup({
+        message: `🛡️ Produk berhasil dianalisis AI (Skor: ${aiRes.analysis.score}%) & diajukan ke Super Admin! Status: Menunggu Kurasi sebelum tayang publik.`,
+        type: 'success'
+      });
+    } catch (_err: any) {
+      setAlertPopup({ message: 'Gagal mengajukan produk: ' + (_err.message || 'Terjadi kesalahan'), type: 'error' });
+    } finally {
+      setIsAiScanningProduct(false);
     }
   };
 
@@ -449,7 +486,19 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
 
   // Filter products
   const filteredProducts = products.filter(p => {
-    const matchesTab = productTab === 'active' ? p.stock > 0 : p.stock <= 0;
+    let matchesTab = true;
+    const status = p.status || 'approved';
+
+    if (productTab === 'active') {
+      matchesTab = (status === 'approved' || status === 'active') && p.stock > 0;
+    } else if (productTab === 'pending') {
+      matchesTab = status === 'pending';
+    } else if (productTab === 'rejected') {
+      matchesTab = status === 'rejected';
+    } else if (productTab === 'empty') {
+      matchesTab = p.stock <= 0;
+    } // 'all' matches all
+
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (p.description || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategoryFilter === 'all' || p.category === selectedCategoryFilter;
@@ -580,6 +629,161 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
         </div>
       )}
 
+      {/* 🎓 KTM & ACTIVE STUDENT VERIFICATION BANNER */}
+      <div style={{
+        marginBottom: 22,
+        padding: '16px 20px',
+        borderRadius: 18,
+        border: verificationStatus === 'approved' && verificationData?.isActiveStudent !== false
+          ? '1.5px solid #10B981'
+          : verificationStatus === 'approved' && verificationData?.isActiveStudent === false
+            ? '1.5px solid #F59E0B'
+            : verificationStatus === 'pending'
+              ? '1.5px solid #F59E0B'
+              : verificationStatus === 'rejected'
+                ? '1.5px solid #EF4444'
+                : '1.5px solid #6366F1',
+        background: verificationStatus === 'approved' && verificationData?.isActiveStudent !== false
+          ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.04) 100%)'
+          : verificationStatus === 'approved' && verificationData?.isActiveStudent === false
+            ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.14) 0%, rgba(217, 119, 6, 0.04) 100%)'
+            : verificationStatus === 'pending'
+              ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.04) 100%)'
+              : verificationStatus === 'rejected'
+                ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(220, 38, 38, 0.04) 100%)'
+                : 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(79, 70, 229, 0.04) 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 16,
+        boxShadow: '0 4px 16px rgba(0,0,0,0.03)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flex: 1, minWidth: 260 }}>
+          <div style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            background: verificationStatus === 'approved' && verificationData?.isActiveStudent !== false
+              ? '#10B981'
+              : verificationStatus === 'approved' && verificationData?.isActiveStudent === false
+                ? '#F59E0B'
+                : verificationStatus === 'pending'
+                  ? '#F59E0B'
+                  : verificationStatus === 'rejected'
+                    ? '#EF4444'
+                    : '#6366F1',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 22,
+            flexShrink: 0
+          }}>
+            {verificationStatus === 'approved' && verificationData?.isActiveStudent !== false
+              ? '✓'
+              : verificationStatus === 'approved' && verificationData?.isActiveStudent === false
+                ? '⚠️'
+                : verificationStatus === 'pending'
+                  ? '⏳'
+                  : verificationStatus === 'rejected'
+                    ? '✕'
+                    : '🎓'}
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+              <span style={{
+                fontSize: 11,
+                fontWeight: 900,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                padding: '3px 8px',
+                borderRadius: 6,
+                background: verificationStatus === 'approved' && verificationData?.isActiveStudent !== false
+                  ? '#10B981'
+                  : verificationStatus === 'approved' && verificationData?.isActiveStudent === false
+                    ? '#F59E0B'
+                    : verificationStatus === 'pending'
+                      ? '#F59E0B'
+                      : verificationStatus === 'rejected'
+                        ? '#EF4444'
+                        : '#6366F1',
+                color: 'white'
+              }}>
+                {verificationStatus === 'approved' && verificationData?.isActiveStudent !== false
+                  ? '✓ MAHASISWA AKTIF TERVERIFIKASI'
+                  : verificationStatus === 'approved' && verificationData?.isActiveStudent === false
+                    ? '⚠️ STATUS ALUMNI / NON-AKTIF'
+                    : verificationStatus === 'pending'
+                      ? '⏳ MENUNGGU PENINJAUAN KTM'
+                      : verificationStatus === 'rejected'
+                        ? '❌ VERIFIKASI KTM DITOLAK'
+                        : '🎓 VERIFIKASI KTM DIPERLUKAN'}
+              </span>
+
+              {verificationData?.nim && (
+                <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--am-text-muted)' }}>
+                  NIM: <span style={{ fontFamily: 'monospace', color: 'var(--am-text)' }}>{verificationData.nim}</span>
+                </span>
+              )}
+            </div>
+
+            <h4 style={{ margin: '2px 0', fontSize: 14, fontWeight: 800, color: 'var(--am-text)' }}>
+              {verificationStatus === 'approved' && verificationData?.isActiveStudent !== false
+                ? 'Identitas Toko Mahasiswa Aktif Sah & Dilindungi'
+                : verificationStatus === 'approved' && verificationData?.isActiveStudent === false
+                  ? 'Masa Studi Telah Selesai (Status Alumni)'
+                  : verificationStatus === 'pending'
+                    ? 'Dokumen KTM Anda Sedang Diverifikasi Pengurus Koperasi'
+                    : verificationStatus === 'rejected'
+                      ? 'Verifikasi Ditolak: ' + (verificationData?.rejectionReason || 'Data tidak sesuai ketentuan')
+                      : 'Verifikasi KTM Mahasiswa Aktif Anda Sekarang'}
+            </h4>
+
+            <p style={{ margin: '3px 0 0', fontSize: 12.5, color: 'var(--am-text-muted)', lineHeight: 1.45 }}>
+              {verificationStatus === 'approved' && verificationData?.isActiveStudent !== false
+                ? `Jenjang ${verificationData.degreeLevel || 'S1'} • Angkatan ${verificationData.entryYear || '-'} • Semester ${verificationData.currentSemester || '-'}. Produk Anda tampil di etalase publik dan berhak atas lencana penjual resmi kampus.`
+                : verificationStatus === 'approved' && verificationData?.isActiveStudent === false
+                  ? 'Sistem mendeteksi masa studi Anda telah melebihi batas ketentuan atau berstatus alumni. Produk Anda secara otomatis disembunyikan dari katalog belanja pembeli.'
+                  : verificationStatus === 'pending'
+                    ? 'Admin Koperasi UIN Antasari sedang mencocokkan identitas KTM dengan pangkalan data akademik. Estimasi proses 1x24 jam.'
+                    : verificationStatus === 'rejected'
+                      ? 'Silakan unggah ulang foto KTM asli yang jelas dan data akademik aktif yang valid agar toko Anda dapat diverifikasi kembali.'
+                      : 'Unggah Kartu Tanda Mahasiswa (KTM) aktif untuk mendapatkan lencana resmi, membuka fitur katalog penuh, dan menjamin produk Anda tayang di etalase kampus.'}
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={() => setShowVerificationModal(true)}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 12,
+              border: 'none',
+              background: verificationStatus === 'approved'
+                ? '#1B3826'
+                : verificationStatus === 'pending'
+                  ? '#D97706'
+                  : verificationStatus === 'rejected'
+                    ? '#DC2626'
+                    : 'linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)',
+              color: 'white',
+              fontWeight: 800,
+              fontSize: 12.5,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+            }}
+          >
+            <span>{verificationStatus === 'approved' ? '🔍 Lihat Data KTM' : verificationStatus === 'rejected' ? '🔄 Ajukan Ulang' : '🎓 Verifikasi KTM'}</span>
+          </button>
+        </div>
+      </div>
+
       {/* 📑 TAB NAVIGATION */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--am-border)', paddingBottom: 10, overflowX: 'auto' }}>
         {[
@@ -628,40 +832,126 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
       {/* ── TAB 1: KATALOG PRODUK ── */}
       {tab === 'products' && (
         <div>
+          {/* 🛡️ BANNER INFORMASI MODERASI AI & SUPER ADMIN */}
+          <div style={{
+            padding: '14px 18px',
+            borderRadius: 16,
+            background: 'linear-gradient(135deg, rgba(95,168,116,0.12) 0%, rgba(16,185,129,0.08) 100%)',
+            border: '1.5px solid rgba(95,168,116,0.3)',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--am-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                🛡️
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--am-text)' }}>
+                  Sistem Kurasi Otomatis AI & Verifikasi Super Admin
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--am-text-muted)', marginTop: 2 }}>
+                  Setiap produk baru akan diperiksa standar keamanan, etika kampus UIN Antasari, dan harga wajar oleh AI sebelum disetujui Super Admin untuk tayang di publik.
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="am-btn-primary"
+              style={{ padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}
+            >
+              + Tambah Produk Baru
+            </button>
+          </div>
+
           {/* Filter, Search & Sub Tabs */}
           <div className="am-card" style={{ padding: 16, borderRadius: 16, marginBottom: 18, background: 'var(--am-surface)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-              {/* Subtabs: Aktif vs Habis */}
-              <div style={{ display: 'flex', gap: 8 }}>
+              {/* Subtabs: Semua, Aktif, Menunggu Kurasi, Ditolak, Habis */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => setProductTab('active')}
+                  onClick={() => setProductTab('all')}
                   style={{
-                    padding: '8px 16px',
+                    padding: '7px 14px',
                     borderRadius: 10,
                     border: 'none',
                     fontSize: 12,
                     fontWeight: 800,
                     cursor: 'pointer',
-                    background: productTab === 'active' ? 'var(--am-primary)' : 'var(--am-bg2)',
+                    background: productTab === 'all' ? 'var(--am-primary)' : 'var(--am-bg2)',
+                    color: productTab === 'all' ? 'white' : 'var(--am-text-muted)'
+                  }}
+                >
+                  📦 Semua ({products.length})
+                </button>
+                <button
+                  onClick={() => setProductTab('active')}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 10,
+                    border: 'none',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    background: productTab === 'active' ? '#10B981' : 'var(--am-bg2)',
                     color: productTab === 'active' ? 'white' : 'var(--am-text-muted)'
                   }}
                 >
-                  🟢 Produk Aktif ({products.filter(p => p.stock > 0).length})
+                  🟢 Aktif / Tayang ({products.filter(p => (!p.status || p.status === 'approved' || p.status === 'active') && p.stock > 0).length})
+                </button>
+                <button
+                  onClick={() => setProductTab('pending')}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 10,
+                    border: 'none',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    background: productTab === 'pending' ? '#F59E0B' : 'var(--am-bg2)',
+                    color: productTab === 'pending' ? 'white' : 'var(--am-text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  <span>⏳ Menunggu Review</span>
+                  <span style={{ background: productTab === 'pending' ? 'rgba(255,255,255,0.3)' : 'rgba(245,158,11,0.2)', color: productTab === 'pending' ? 'white' : '#D97706', padding: '1px 6px', borderRadius: 6, fontSize: 10 }}>
+                    {products.filter(p => p.status === 'pending').length}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setProductTab('rejected')}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 10,
+                    border: 'none',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    background: productTab === 'rejected' ? '#EF4444' : 'var(--am-bg2)',
+                    color: productTab === 'rejected' ? 'white' : 'var(--am-text-muted)'
+                  }}
+                >
+                  ❌ Ditolak ({products.filter(p => p.status === 'rejected').length})
                 </button>
                 <button
                   onClick={() => setProductTab('empty')}
                   style={{
-                    padding: '8px 16px',
+                    padding: '7px 14px',
                     borderRadius: 10,
                     border: 'none',
                     fontSize: 12,
                     fontWeight: 800,
                     cursor: 'pointer',
-                    background: productTab === 'empty' ? '#EF4444' : 'var(--am-bg2)',
+                    background: productTab === 'empty' ? '#6B7280' : 'var(--am-bg2)',
                     color: productTab === 'empty' ? 'white' : 'var(--am-text-muted)'
                   }}
                 >
-                  🔴 Stok Habis ({products.filter(p => p.stock <= 0).length})
+                  Stok Habis ({products.filter(p => p.stock <= 0).length})
                 </button>
               </div>
 
@@ -669,7 +959,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end' }}>
                 <input
                   type="text"
-                  placeholder="Cari produk toko..."
+                  placeholder="Cari nama / deskripsi..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   style={{
@@ -680,7 +970,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                     color: 'var(--am-text)',
                     fontSize: 12,
                     outline: 'none',
-                    minWidth: 180
+                    minWidth: 160
                   }}
                 />
 
@@ -715,11 +1005,13 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
           ) : filteredProducts.length === 0 ? (
             <div className="am-card" style={{ padding: '60px 24px', textAlign: 'center', borderRadius: 20, background: 'var(--am-surface)' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
-              <h3 style={{ margin: '0 0 6px', fontSize: 18, color: 'var(--am-text)' }}>Tidak Ada Produk Ditemukan</h3>
+              <h3 style={{ margin: '0 0 6px', fontSize: 18, color: 'var(--am-text)' }}>Tidak Ada Produk Pada Tab Ini</h3>
               <p style={{ margin: '0 auto 18px', fontSize: 13, color: 'var(--am-text-muted)', maxWidth: 400 }}>
                 {searchQuery || selectedCategoryFilter !== 'all'
                   ? 'Coba sesuaikan kata kunci pencarian atau filter kategori.'
-                  : 'Yuk mulai tambahkan produk makanan, minuman, suvenir, atau merchandise kampus ke tokomu!'}
+                  : productTab === 'pending'
+                    ? 'Tidak ada produk yang sedang menunggu kurasi Super Admin.'
+                    : 'Yuk mulai tambahkan produk makanan, minuman, suvenir, atau merchandise kampus ke tokomu!'}
               </p>
               <button
                 onClick={() => setShowAddModal(true)}
@@ -730,135 +1022,198 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
               </button>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 18 }}>
-              {filteredProducts.map(p => (
-                <div
-                  key={p.id}
-                  className="am-card"
-                  style={{
-                    borderRadius: 18,
-                    background: 'var(--am-surface)',
-                    overflow: 'hidden',
-                    border: '1px solid var(--am-border)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    transition: 'transform 0.2s, box-shadow 0.2s'
-                  }}
-                >
-                  <div style={{ position: 'relative', height: 160, background: 'var(--am-bg2)' }}>
-                    <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <span style={{
-                      position: 'absolute',
-                      top: 10,
-                      left: 10,
-                      background: p.stock > 5 ? 'rgba(16, 185, 129, 0.9)' : p.stock > 0 ? 'rgba(245, 158, 11, 0.9)' : 'rgba(239, 68, 68, 0.9)',
-                      color: 'white',
-                      fontSize: 10.5,
-                      fontWeight: 800,
-                      padding: '3px 8px',
-                      borderRadius: 6,
-                      backdropFilter: 'blur(4px)'
-                    }}>
-                      {p.stock > 0 ? `Stok: ${p.stock}` : 'Habis'}
-                    </span>
-                    <span style={{
-                      position: 'absolute',
-                      top: 10,
-                      right: 10,
-                      background: 'rgba(0,0,0,0.6)',
-                      color: 'white',
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: '3px 8px',
-                      borderRadius: 6,
-                      textTransform: 'capitalize'
-                    }}>
-                      {p.category}
-                    </span>
-                  </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 18 }}>
+              {filteredProducts.map(p => {
+                const prodStatus = p.status || 'approved';
+                const aiScore = p.aiAnalysis?.score || 90;
 
-                  <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <h4 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 800, color: 'var(--am-text)', lineHeight: 1.3 }}>
-                      {p.name}
-                    </h4>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--am-primary)', marginBottom: 6 }}>
-                      {formatRupiah(p.price)}
+                return (
+                  <div
+                    key={p.id}
+                    className="am-card"
+                    style={{
+                      borderRadius: 18,
+                      background: 'var(--am-surface)',
+                      overflow: 'hidden',
+                      border: prodStatus === 'pending' ? '1.5px solid #F59E0B' : prodStatus === 'rejected' ? '1.5px solid #EF4444' : '1px solid var(--am-border)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      transition: 'transform 0.2s, box-shadow 0.2s'
+                    }}
+                  >
+                    <div style={{ position: 'relative', height: 160, background: 'var(--am-bg2)' }}>
+                      <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      
+                      {/* Stock Pill */}
+                      <span style={{
+                        position: 'absolute',
+                        top: 10,
+                        left: 10,
+                        background: p.stock > 5 ? 'rgba(16, 185, 129, 0.95)' : p.stock > 0 ? 'rgba(245, 158, 11, 0.95)' : 'rgba(239, 68, 68, 0.95)',
+                        color: 'white',
+                        fontSize: 10.5,
+                        fontWeight: 800,
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        backdropFilter: 'blur(4px)'
+                      }}>
+                        {p.stock > 0 ? `Stok: ${p.stock}` : 'Habis'}
+                      </span>
+
+                      {/* Category Pill */}
+                      <span style={{
+                        position: 'absolute',
+                        top: 10,
+                        right: 10,
+                        background: 'rgba(0,0,0,0.65)',
+                        color: 'white',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        textTransform: 'capitalize'
+                      }}>
+                        {p.category}
+                      </span>
                     </div>
-                    {p.description && (
-                      <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--am-text-muted)', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                        {p.description}
-                      </p>
-                    )}
 
-                    {/* Quick Inline Stock Stepper */}
-                    <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--am-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                      <span style={{ fontSize: 11, color: 'var(--am-text-muted)', fontWeight: 700 }}>Ubah Stok Cepat:</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                      {/* STATUS MODERASI BADGE */}
+                      {prodStatus === 'pending' && (
+                        <div style={{ background: '#FEF3C7', border: '1px solid #F59E0B', color: '#92400E', padding: '6px 10px', borderRadius: 8, fontSize: 11, fontWeight: 800, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span>⏳ Menunggu Kurasi Admin</span>
+                          <span style={{ background: '#F59E0B', color: 'white', padding: '2px 6px', borderRadius: 4, fontSize: 10 }}>
+                            AI: {aiScore}%
+                          </span>
+                        </div>
+                      )}
+
+                      {prodStatus === 'rejected' && (
+                        <div style={{ background: '#FEE2E2', border: '1px solid #EF4444', color: '#991B1B', padding: '6px 10px', borderRadius: 8, fontSize: 11, fontWeight: 800, marginBottom: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>❌ Ditolak Super Admin</span>
+                            <span style={{ fontSize: 10, background: '#EF4444', color: 'white', padding: '1px 5px', borderRadius: 4 }}>AI: {aiScore}%</span>
+                          </div>
+                          {p.moderationReason && (
+                            <div style={{ fontSize: 10.5, fontWeight: 600, marginTop: 3, color: '#B91C1C' }}>
+                              Alasan: {p.moderationReason}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {(prodStatus === 'approved' || prodStatus === 'active') && (
+                        <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid #10B981', color: '#065F46', padding: '4px 8px', borderRadius: 6, fontSize: 10.5, fontWeight: 800, marginBottom: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <span>✅ Aktif di Etalase Publik</span>
+                          {p.aiAnalysis && <span>• Skor AI: {p.aiAnalysis.score}%</span>}
+                        </div>
+                      )}
+
+                      <h4 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 800, color: 'var(--am-text)', lineHeight: 1.3 }}>
+                        {p.name}
+                      </h4>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--am-primary)', marginBottom: 6 }}>
+                        {formatRupiah(p.price)}
+                      </div>
+                      {p.description && (
+                        <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--am-text-muted)', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          {p.description}
+                        </p>
+                      )}
+
+                      {/* TOMBOL LAPORAN ANALISIS AI */}
+                      <button
+                        onClick={() => setSelectedAiReport(p)}
+                        style={{
+                          width: '100%',
+                          padding: '7px 10px',
+                          borderRadius: 8,
+                          border: '1px dashed var(--am-primary)',
+                          background: 'rgba(95,168,116,0.06)',
+                          color: 'var(--am-primary)',
+                          fontSize: 11.5,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          marginBottom: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6
+                        }}
+                      >
+                        <span>🤖</span> Detail Analisis AI {p.aiAnalysis ? `(${p.aiAnalysis.score}%)` : ''}
+                      </button>
+
+                      {/* Quick Inline Stock Stepper */}
+                      <div style={{ marginTop: 'auto', paddingTop: 10, borderTop: '1px solid var(--am-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <span style={{ fontSize: 11, color: 'var(--am-text-muted)', fontWeight: 700 }}>Ubah Stok Cepat:</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <button
+                            onClick={() => handleQuickStockUpdate(p.id, -1)}
+                            disabled={p.stock <= 0}
+                            style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', cursor: p.stock <= 0 ? 'not-allowed' : 'pointer', fontWeight: 800, fontSize: 14 }}
+                          >
+                            -
+                          </button>
+                          <span style={{ fontSize: 13, fontWeight: 800, minWidth: 28, textAlign: 'center' }}>
+                            {p.stock}
+                          </span>
+                          <button
+                            onClick={() => handleQuickStockUpdate(p.id, 5)}
+                            style={{ padding: '0 8px', height: 28, borderRadius: 6, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', cursor: 'pointer', fontWeight: 800, fontSize: 11 }}
+                            title="Tambah +5 stok"
+                          >
+                            +5
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div style={{ display: 'flex', gap: 8 }}>
                         <button
-                          onClick={() => handleQuickStockUpdate(p.id, -1)}
-                          disabled={p.stock <= 0}
-                          style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', cursor: p.stock <= 0 ? 'not-allowed' : 'pointer', fontWeight: 800, fontSize: 14 }}
+                          onClick={() => {
+                            setEditingProduct(p);
+                            const existingImgs = (p.images && p.images.length > 0) ? p.images : (p.image ? [p.image] : []);
+                            setEditProdImages(existingImgs);
+                            setEditProdVideo(p.videoUrl || '');
+                            setEditProdVideoSize('');
+                            setShowEditModal(true);
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: '8px',
+                            borderRadius: 10,
+                            border: '1.5px solid var(--am-primary)',
+                            background: 'var(--am-primary-light, rgba(95,168,116,0.12))',
+                            color: 'var(--am-primary)',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
                         >
-                          -
+                          ✏️ Edit Detail
                         </button>
-                        <span style={{ fontSize: 13, fontWeight: 800, minWidth: 28, textAlign: 'center' }}>
-                          {p.stock}
-                        </span>
                         <button
-                          onClick={() => handleQuickStockUpdate(p.id, 5)}
-                          style={{ padding: '0 8px', height: 28, borderRadius: 6, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', cursor: 'pointer', fontWeight: 800, fontSize: 11 }}
-                          title="Tambah +5 stok"
+                          onClick={() => handleDeleteProduct(p.id)}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 10,
+                            border: 'none',
+                            background: '#FEE2E2',
+                            color: '#DC2626',
+                            fontSize: 13,
+                            cursor: 'pointer',
+                            fontWeight: 800
+                          }}
+                          title="Hapus Produk"
                         >
-                          +5
+                          🗑️
                         </button>
                       </div>
                     </div>
-
-                    {/* Action buttons */}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        onClick={() => {
-                          setEditingProduct(p);
-                          const existingImgs = (p.images && p.images.length > 0) ? p.images : (p.image ? [p.image] : []);
-                          setEditProdImages(existingImgs);
-                          setEditProdVideo(p.videoUrl || '');
-                          setEditProdVideoSize('');
-                          setShowEditModal(true);
-                        }}
-                        style={{
-                          flex: 1,
-                          padding: '8px',
-                          borderRadius: 10,
-                          border: '1.5px solid var(--am-primary)',
-                          background: 'var(--am-primary-light, rgba(95,168,116,0.12))',
-                          color: 'var(--am-primary)',
-                          fontSize: 12,
-                          fontWeight: 800,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        ✏️ Edit Detail
-                      </button>
-                      <button
-                        onClick={() => handleDeleteProduct(p.id)}
-                        style={{
-                          padding: '8px 12px',
-                          borderRadius: 10,
-                          border: 'none',
-                          background: '#FEE2E2',
-                          color: '#DC2626',
-                          fontSize: 13,
-                          fontWeight: 800,
-                          cursor: 'pointer'
-                        }}
-                        title="Hapus Produk"
-                      >
-                        🗑️
-                      </button>
-                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1612,16 +1967,30 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
+                  disabled={isAiScanningProduct}
                   style={{ flex: 1, padding: '11px', borderRadius: 12, border: '1px solid var(--am-border)', background: 'var(--am-surface)', cursor: 'pointer', fontWeight: 700 }}
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
+                  disabled={isAiScanningProduct}
                   className="am-btn-primary"
-                  style={{ flex: 1, padding: '11px', borderRadius: 12, fontWeight: 800, fontSize: 13 }}
+                  style={{
+                    flex: 1,
+                    padding: '11px',
+                    borderRadius: 12,
+                    fontWeight: 800,
+                    fontSize: 13,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    opacity: isAiScanningProduct ? 0.7 : 1,
+                    cursor: isAiScanningProduct ? 'not-allowed' : 'pointer'
+                  }}
                 >
-                  Terbitkan Produk 🚀
+                  {isAiScanningProduct ? '🤖 AI Sedang Menguji Kelayakan...' : '🛡️ Ajukan & Uji Kelayakan AI 🚀'}
                 </button>
               </div>
             </form>
@@ -1798,9 +2167,9 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                         marginBottom: 8
                       }}
                     >
-                      <span style={{ fontSize: 20 }}>🎬</span>
+                      <span style={{ fontSize: 20 }}>🎥</span>
                       <span style={{ fontSize: 11.5, fontWeight: 700, color: '#3B82F6' }}>
-                        {editProdVideoLoading ? 'Memvalidasi Ukuran Video...' : 'Unggah Video Demo (Maks 5 MB)'}
+                        {editProdVideoLoading ? 'Sedang Memeriksa Ukuran Video...' : '+ Unggah Video Demo (Maks 5 MB)'}
                       </span>
                       <input
                         type="file"
@@ -1871,13 +2240,210 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
         </div>
       )}
 
+      {/* ── 🤖 MODAL LAPORAN ANALISIS AI PRODUK ── */}
+      {selectedAiReport && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="am-card" style={{ width: '100%', maxWidth: 540, padding: 24, borderRadius: 24, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, borderBottom: '1px solid var(--am-border)', paddingBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 14, background: 'linear-gradient(135deg, #10B981, #059669)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
+                  🤖
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: 'var(--am-text)' }}>
+                    Laporan Audit & Analisis AI
+                  </h3>
+                  <div style={{ fontSize: 12, color: 'var(--am-text-muted)' }}>
+                    Pemeriksaan Otomatis Keamanan & Etika Kampus UIN Antasari
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedAiReport(null)}
+                style={{ background: 'var(--am-bg2)', border: 'none', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontWeight: 800, color: 'var(--am-text)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Product Snapshot */}
+            <div style={{ display: 'flex', gap: 12, padding: 12, background: 'var(--am-bg2)', borderRadius: 14, marginBottom: 16 }}>
+              <img src={selectedAiReport.image} alt={selectedAiReport.name} style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover' }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h4 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 800, color: 'var(--am-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {selectedAiReport.name}
+                </h4>
+                <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--am-primary)' }}>
+                  {formatRupiah(selectedAiReport.price)}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--am-text-muted)', marginTop: 2 }}>
+                  Kategori: <strong style={{ textTransform: 'capitalize' }}>{selectedAiReport.category}</strong> • Kampus: {selectedAiReport.campus}
+                </div>
+              </div>
+            </div>
+
+            {/* Score & Verdict Box */}
+            {(() => {
+              const analysis = selectedAiReport.aiAnalysis || evaluateProductSuitabilityLocally({
+                name: selectedAiReport.name,
+                description: selectedAiReport.description,
+                price: selectedAiReport.price,
+                category: selectedAiReport.category,
+                campus: selectedAiReport.campus,
+                sellerName: selectedAiReport.sellerName
+              });
+              const score = analysis.score;
+              const isHigh = score >= 85;
+              const isMed = score >= 60 && score < 85;
+              const scoreColor = isHigh ? '#10B981' : isMed ? '#F59E0B' : '#EF4444';
+
+              return (
+                <div>
+                  {/* Gauge Card */}
+                  <div style={{
+                    padding: 16,
+                    borderRadius: 16,
+                    background: isHigh ? 'rgba(16,185,129,0.08)' : isMed ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)',
+                    border: `1.5px solid ${scoreColor}`,
+                    marginBottom: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 16
+                  }}>
+                    <div style={{
+                      width: 68,
+                      height: 68,
+                      borderRadius: '50%',
+                      border: `4px solid ${scoreColor}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      background: 'var(--am-surface)'
+                    }}>
+                      <span style={{ fontSize: 20, fontWeight: 900, color: scoreColor }}>{score}</span>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--am-text-muted)' }}>/ 100</span>
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', background: scoreColor, color: 'white', padding: '2px 8px', borderRadius: 6 }}>
+                          {isHigh ? 'Sangat Layak' : isMed ? 'Perlu Tinjauan' : 'Tidak Layak'}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>
+                          Model: {analysis.model || 'Antasari-AI Engine'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--am-text)' }}>
+                        {analysis.verdict}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Checklist 4 Pilar Standar Antasari Mart */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--am-text)', marginBottom: 8 }}>
+                      📋 Checklist 4 Pilar Kelayakan Kampus:
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      {[
+                        { label: 'Keamanan & Legalitas', status: analysis.checks?.safety || 'PASS' },
+                        { label: 'Etika Syariah UIN', status: analysis.checks?.campusEthics || 'PASS' },
+                        { label: 'Kewajaran Harga', status: analysis.checks?.fairPricing || 'PASS' },
+                        { label: 'Kelengkapan Info', status: analysis.checks?.mediaQuality || 'PASS' }
+                      ].map((chk, i) => (
+                        <div key={i} style={{ padding: '8px 10px', borderRadius: 10, background: 'var(--am-bg2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 11.5, color: 'var(--am-text)' }}>{chk.label}</span>
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            background: chk.status === 'PASS' ? '#DCFCE7' : chk.status === 'FLAGGED' ? '#FEF3C7' : '#FEE2E2',
+                            color: chk.status === 'PASS' ? '#166534' : chk.status === 'FLAGGED' ? '#92400E' : '#991B1B'
+                          }}>
+                            {chk.status === 'PASS' ? '✓ PASS' : chk.status === 'FLAGGED' ? '⚠️ PERINGATAN' : '✕ GAGAL'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Reasons / Positives */}
+                  {analysis.reasons && analysis.reasons.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: '#16A34A', marginBottom: 6 }}>
+                        ✨ Poin Positif Terdeteksi:
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--am-text)', lineHeight: 1.5 }}>
+                        {analysis.reasons.map((r, i) => <li key={i}>{r}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Flags / Notes */}
+                  {analysis.flags && analysis.flags.length > 0 && (
+                    <div style={{ marginBottom: 14, padding: 10, background: '#FEF3C7', borderRadius: 10, border: '1px solid #F59E0B' }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 800, color: '#92400E', marginBottom: 4 }}>
+                        ⚠️ Catatan Perbaikan:
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11.5, color: '#78350F', lineHeight: 1.4 }}>
+                        {analysis.flags.map((f, i) => <li key={i}>{f}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Moderation Status Note */}
+                  <div style={{ padding: '10px 14px', borderRadius: 12, background: 'var(--am-bg2)', border: '1px solid var(--am-border)', marginTop: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--am-text-muted)', marginBottom: 2 }}>
+                      STATUS KURASI SUPER ADMIN:
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: selectedAiReport.status === 'pending' ? '#D97706' : selectedAiReport.status === 'rejected' ? '#DC2626' : '#16A34A' }}>
+                      {selectedAiReport.status === 'pending'
+                        ? '⏳ Sedang dalam antrean kurasi Super Admin. Produk akan otomatis tampil di etalase pembeli setelah disetujui.'
+                        : selectedAiReport.status === 'rejected'
+                          ? `❌ Produk ditolak oleh Super Admin (${selectedAiReport.moderationReason || 'Tidak memenuhi kriteria'})`
+                          : '✅ Produk telah disetujui dan saat ini aktif di etalase publik Campus Mart!'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div style={{ marginTop: 20 }}>
+              <button
+                onClick={() => setSelectedAiReport(null)}
+                className="am-btn-primary"
+                style={{ width: '100%', padding: '11px', borderRadius: 12, fontSize: 13, fontWeight: 800 }}
+              >
+                Tutup Laporan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🎓 KTM Seller Verification Modal */}
+      {showVerificationModal && (
+        <SellerVerificationModal
+          sellerEmail={sellerId}
+          sellerName={sellerName}
+          currentVerification={verificationData}
+          onClose={() => setShowVerificationModal(false)}
+          onSuccess={() => {
+            loadVerificationStatus();
+            setAlertPopup({ message: 'Pengajuan verifikasi KTM berhasil dikirim ke Admin Koperasi! 🎓', type: 'success' });
+          }}
+        />
+      )}
+
       {/* Alert Popup */}
       {alertPopup && (
         <div style={{
           position: 'fixed',
           bottom: 24,
           right: 24,
-          zIndex: 1200,
+          zIndex: 12000,
           padding: '12px 20px',
           borderRadius: 16,
           background: alertPopup.type === 'success' ? '#10B981' : '#EF4444',

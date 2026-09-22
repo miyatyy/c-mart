@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { ThemeMode } from '../types';
 import { checkoutApi } from '../lib/api';
+import { cleanupSnapOverlays, loadSnapScript } from '../lib/snapCleanup';
 
 interface ProModalProps {
   theme: ThemeMode;
@@ -12,6 +13,12 @@ interface ProModalProps {
 export default function ProModal({ theme: _theme, user, onClose, onSuccess }: ProModalProps) {
   const [loading, setLoading] = useState(false);
   const selectedRole = user?.role || 'buyer';
+
+  useEffect(() => {
+    return () => {
+      cleanupSnapOverlays();
+    };
+  }, []);
 
   const roleBenefits: Record<string, { title: string; benefits: string[]; price: number }> = {
     buyer: {
@@ -68,26 +75,38 @@ export default function ProModal({ theme: _theme, user, onClose, onSuccess }: Pr
         }
       });
 
-      if (data.success && data.token && window.snap) {
-        window.snap.pay(data.token, {
-          onSuccess: function (_result: any) {
-            localStorage.setItem('am_user_pro', 'true');
-            onSuccess();
-          },
-          onPending: function (_result: any) {
-            localStorage.setItem('am_user_pro', 'true');
-            onSuccess();
-          },
-          onError: function () {
-            alert('Pembayaran upgrade PRO gagal.');
-          },
-          onClose: function () {
-            localStorage.setItem('am_user_pro', 'true');
-            onSuccess();
-          }
-        });
+      if (data.success && data.token) {
+        try {
+          await loadSnapScript();
+        } catch (_loadErr) {}
+
+        if (window.snap) {
+          window.snap.pay(data.token, {
+            onSuccess: function (_result: any) {
+              cleanupSnapOverlays();
+              localStorage.setItem('am_user_pro', 'true');
+              onSuccess();
+            },
+            onPending: function (_result: any) {
+              cleanupSnapOverlays();
+              localStorage.setItem('am_user_pro', 'true');
+              onSuccess();
+            },
+            onError: function () {
+              cleanupSnapOverlays();
+              alert('Pembayaran upgrade PRO gagal.');
+            },
+            onClose: function () {
+              cleanupSnapOverlays();
+              localStorage.setItem('am_user_pro', 'true');
+              onSuccess();
+            }
+          });
+          return;
+        }
       } else if (data.success && data.redirect_url) {
         window.location.href = data.redirect_url;
+        return;
       } else {
         localStorage.setItem('am_user_pro', 'true');
         onSuccess();

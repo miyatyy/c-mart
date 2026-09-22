@@ -3,6 +3,26 @@ export type UserRole = 'buyer' | 'seller' | 'driver' | 'admin' | 'admin_reguler'
 export type ThemeMode = 'aesthetic' | 'modern'
 export type AppTab = 'home' | 'cart' | 'checkout' | 'tracker' | 'seller' | 'admin' | 'chat' | 'driver' | 'super_admin' | 'login_page' | 'vending_simulator'
 
+export type DegreeLevel = 'S1' | 'S2' | 'S3';
+export type VerificationStatus = 'not_submitted' | 'pending' | 'approved' | 'rejected';
+
+export interface SellerVerificationData {
+  nim?: string;
+  fullNim?: string;
+  fullName?: string;
+  degreeLevel?: DegreeLevel;
+  entryYear?: number;
+  currentSemester?: number;
+  ktmPhotoUrl?: string;
+  hasKtmPhoto?: boolean;
+  verificationStatus: VerificationStatus;
+  isActiveStudent: boolean;
+  rejectionReason?: string | null;
+  submittedAt?: string;
+  verifiedAt?: string | null;
+  verifiedBy?: string | null;
+}
+
 export interface SessionUser {
   id?: string
   nama?: string
@@ -12,9 +32,16 @@ export interface SessionUser {
   roles?: UserRole[]
   avatar?: string
   isPro?: boolean
+  nim?: string
+  degreeLevel?: DegreeLevel
+  entryYear?: number
+  currentSemester?: number
+  verificationStatus?: VerificationStatus
+  isActiveStudent?: boolean
+  rejectionReason?: string
   [key: string]: unknown
 }
-export type PaymentMethod = 'qris' | 'dana' | 'gopay' | 'cod'
+export type PaymentMethod = 'qris' | 'dana' | 'gopay' | 'cod' | 'seabank' | 'campus_wallet' | 'qris_sim'
 export type DeliveryMethod = 'courier' | 'pickup'
 export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'searching_driver' | 'driver_found' | 'picked_up' | 'on_the_way' | 'delivered' | 'cancelled'
 export type ProductCategory = 'makanan' | 'minuman' | 'pakaian' | 'atk' | 'kerajinan' | 'jasa' | 'buku' | 'aksesoris'
@@ -33,6 +60,27 @@ export interface User {
   proExpireDate?: string
 }
 
+export interface AiProductPolicyCheck {
+  safety: 'PASS' | 'FLAGGED' | 'FAIL'
+  campusEthics: 'PASS' | 'FLAGGED' | 'FAIL'
+  fairPricing: 'PASS' | 'FLAGGED' | 'FAIL'
+  mediaQuality: 'PASS' | 'FLAGGED' | 'FAIL'
+}
+
+export interface AiProductAnalysis {
+  score: number // 0 - 100
+  isEligible: boolean
+  recommendation: 'approve' | 'flagged' | 'reject'
+  verdict: string
+  reasons: string[]
+  flags: string[]
+  checks: AiProductPolicyCheck
+  analyzedAt: string
+  model?: string
+}
+
+export type ProductModerationStatus = 'pending' | 'approved' | 'rejected' | 'active'
+
 export interface Product {
   id: string
   name: string
@@ -41,6 +89,7 @@ export interface Product {
   originalPrice?: number
   stock: number
   category: ProductCategory
+  material?: string // Spesifikasi bahan produk (misal: Pipe Cleaner, Kain Drill, dll)
   campus: Campus
   sellerId: string
   sellerName: string
@@ -51,6 +100,10 @@ export interface Product {
   slotNumber?: number
   rating: number
   sold: number
+  status?: ProductModerationStatus
+  moderationReason?: string
+  moderatedAt?: string
+  aiAnalysis?: AiProductAnalysis
 }
 
 export interface CartItem {

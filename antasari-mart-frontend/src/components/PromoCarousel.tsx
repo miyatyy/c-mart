@@ -392,6 +392,9 @@ export default function PromoCarousel({
                 <img
                   src={slide.image}
                   alt={slide.title}
+                  onError={(e) => {
+                    e.currentTarget.src = '/banners/banner_blindbag.jpg';
+                  }}
                   style={{
                     maxHeight: '100%',
                     maxWidth: '100%',

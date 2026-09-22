@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { formatRupiah } from '../data';
 import { checkoutApi } from '../lib/api';
+import { cleanupSnapOverlays, loadSnapScript } from '../lib/snapCleanup';
 
 interface ProProps {
   user: any;
@@ -11,6 +12,12 @@ interface ProProps {
 export default function ProSubscription({ user, onClose, onSuccessPro }: ProProps) {
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    return () => {
+      cleanupSnapOverlays();
+    };
+  }, []);
+
   const handleSubscribe = async () => {
     setLoading(true);
     try {
@@ -20,27 +27,38 @@ export default function ProSubscription({ user, onClose, onSuccessPro }: ProProp
         customerDetails: { name: user.nama || user.name || 'Pengguna', email: user.email }
       });
 
-      if (data.success && data.token && window.snap) {
-        window.snap.pay(data.token, {
-          onSuccess: function () {
-            localStorage.setItem('am_user_pro', 'true');
-            onSuccessPro();
-          },
-          onPending: function () {
-            localStorage.setItem('am_user_pro', 'true');
-            onSuccessPro();
-          },
-          onError: function () {
-            alert("Pembayaran langganan gagal.");
-          },
-          onClose: function () {
-            localStorage.setItem('am_user_pro', 'true');
-            onSuccessPro();
-          }
-        });
+      if (data.success && data.token) {
+        try {
+          await loadSnapScript();
+        } catch (_loadErr) {}
+
+        if (window.snap) {
+          window.snap.pay(data.token, {
+            onSuccess: function () {
+              cleanupSnapOverlays();
+              localStorage.setItem('am_user_pro', 'true');
+              onSuccessPro();
+            },
+            onPending: function () {
+              cleanupSnapOverlays();
+              localStorage.setItem('am_user_pro', 'true');
+              onSuccessPro();
+            },
+            onError: function () {
+              cleanupSnapOverlays();
+              alert("Pembayaran langganan gagal.");
+            },
+            onClose: function () {
+              cleanupSnapOverlays();
+              localStorage.setItem('am_user_pro', 'true');
+              onSuccessPro();
+            }
+          });
+          return;
+        }
       } else if (data.success && data.redirect_url) {
-        localStorage.setItem('am_pending_pro', 'true');
         window.location.href = data.redirect_url;
+        return;
       } else {
         localStorage.setItem('am_user_pro', 'true');
         onSuccessPro();
@@ -58,7 +76,7 @@ export default function ProSubscription({ user, onClose, onSuccessPro }: ProProp
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div className="am-card am-slide-up" style={{ width: '100%', maxWidth: 420, padding: 24, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
         <div style={{ fontSize: 44, marginBottom: 8 }}>💎</div>
-        <h2 className="am-heading" style={{ margin: '0 0 4px', fontSize: 22, color: 'var(--am-primary)' }}>Antasari Mart PRO</h2>
+        <h2 className="am-heading" style={{ margin: '0 0 4px', fontSize: 22, color: 'var(--am-primary)' }}>Campus Mart PRO</h2>
         <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 20 }}>
           Nikmati pengalaman belanja, jualan, dan antar tanpa batas dengan keuntungan maksimal!
         </p>

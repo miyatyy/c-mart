@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import type { Campus } from '../types'
 
 export interface PresetAvatar {
@@ -19,31 +20,43 @@ interface ModalProps {
   children?: ReactNode
 }
 
-export function Modal({ icon, title, desc, buttons, zIndex = 99999, cardClassName = 'modal-appear', maxWidth = 380, children }: ModalProps) {
-  return (
+export function Modal({ icon, title, desc, buttons, zIndex = 99999, cardClassName = 'modal-appear', maxWidth = 420, children }: ModalProps) {
+  useEffect(() => {
+    const originalOverflow = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
+  const modalJSX = (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex,
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex,
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-      backdropFilter: 'blur(5px)'
+      backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)'
     }}>
-      <div className={`${cardClassName} am-card`} style={{
-        width: '100%', maxWidth, padding: 30, borderRadius: 24,
-        background: 'var(--am-surface)', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+      <div className={`${cardClassName} am-card w-[90vw] max-w-sm sm:max-w-md p-5 sm:p-7 rounded-2xl shadow-2xl text-center`} style={{
+        maxWidth,
+        background: 'var(--am-surface)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
       }}>
         {children}
-        <div className="cute-bounce-icon" style={{ fontSize: 52, marginBottom: 12 }}>
+        <div className="cute-bounce-icon" style={{ fontSize: 48, marginBottom: 10 }}>
           {icon}
         </div>
-        <h3 className="am-heading" style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700, color: 'var(--am-text)' }}>
+        <h3 className="am-heading" style={{ margin: '0 0 8px', fontSize: 19, fontWeight: 700, color: 'var(--am-text)' }}>
           {title}
         </h3>
-        <p style={{ fontSize: 13, color: 'var(--am-text-muted)', lineHeight: 1.5, marginBottom: 24 }}>
+        <p style={{ fontSize: 13, color: 'var(--am-text-muted)', lineHeight: 1.5, marginBottom: 20 }}>
           {desc}
         </p>
         {buttons}
       </div>
     </div>
-  )
+  );
+
+  return typeof document !== 'undefined'
+    ? createPortal(modalJSX, document.body)
+    : modalJSX;
 }
 
 const primaryButtonStyle = {
@@ -98,7 +111,7 @@ export function LoginPromptModal({ onDismiss, onGoToLogin }: { onDismiss: () => 
     <Modal
       icon="🧸✨"
       title="Ups, Mau Masuk Menu Ini? 🛍️"
-      desc={<>Kamu harus <strong>Login</strong> atau <strong>Daftar</strong> terlebih dahulu untuk mengakses Keranjang, Pesan, dan fitur belanja lainnya di Antasari Mart.</>}
+      desc={<>Kamu harus <strong>Login</strong> atau <strong>Daftar</strong> terlebih dahulu untuk mengakses Keranjang, Pesan, dan fitur belanja lainnya di Campus Mart.</>}
       buttons={
         <div style={{ display: 'flex', gap: 10 }}>
           <button
@@ -134,16 +147,24 @@ interface ProfileModalProps {
   onSave: () => void
   onImageChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   presetAvatars: PresetAvatar[]
+  onLogout?: () => void
+  isGuest?: boolean
+  onNavigateTab?: (tab: any) => void
+  userRoles?: string[]
 }
 
 export function ProfileModal({
   email, currentName, setCurrentName, currentAvatar, setCurrentAvatar,
-  selectedCampus, setSelectedCampus, onClose, onSave, onImageChange, presetAvatars
+  selectedCampus, setSelectedCampus, onClose, onSave, onImageChange, presetAvatars,
+  onLogout, isGuest, onNavigateTab, userRoles = ['buyer']
 }: ProfileModalProps) {
+  const isSuperAdmin = email === 'miyya@gmail.com' || email === 'mnurmiyaty2@gmail.com' || userRoles.includes('super_admin');
+  const effectiveRoles = userRoles;
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100002,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+      backdropFilter: 'blur(4px)'
     }}>
       <div className="am-card modal-appear" style={{ width: '100%', maxWidth: 440, padding: 24, borderRadius: 20, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -224,6 +245,220 @@ export function ProfileModal({
             </select>
           </div>
 
+          {/* 🛍️ Menu Cepat Pembelian & Pengelolaan Akun */}
+          {!isGuest && (
+            <div style={{ background: 'var(--am-bg2)', padding: 12, borderRadius: 14, border: '1px solid var(--am-border)' }}>
+              <div style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--am-text-muted)', marginBottom: 8 }}>
+                Akses Transaksi & Fitur Akun:
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onNavigateTab) onNavigateTab('tracker');
+                  }}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    border: '1px solid var(--am-border)',
+                    background: 'var(--am-surface)',
+                    color: 'var(--am-text)',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    textAlign: 'left'
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>📦</span>
+                  <div>
+                    <div>Pesanan Saya</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--am-text-muted)' }}>Lacak & Riwayat</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onNavigateTab) onNavigateTab('cart');
+                  }}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    border: '1px solid var(--am-border)',
+                    background: 'var(--am-surface)',
+                    color: 'var(--am-text)',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    textAlign: 'left'
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>🛒</span>
+                  <div>
+                    <div>Keranjang</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--am-text-muted)' }}>Lihat Belanjaan</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onNavigateTab) onNavigateTab('chat');
+                  }}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    border: '1px solid var(--am-border)',
+                    background: 'var(--am-surface)',
+                    color: 'var(--am-text)',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    textAlign: 'left'
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>💬</span>
+                  <div>
+                    <div>Obrolan</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--am-text-muted)' }}>Pesan Masuk</div>
+                  </div>
+                </button>
+
+                {(effectiveRoles.includes('seller') || isSuperAdmin) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onNavigateTab) onNavigateTab('seller');
+                    }}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 10,
+                      border: '1px solid #10B981',
+                      background: 'rgba(16, 185, 129, 0.1)',
+                      color: '#059669',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      textAlign: 'left'
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>🏪</span>
+                    <div>
+                      <div>Lapak Penjual</div>
+                      <div style={{ fontSize: 9.5, opacity: 0.85 }}>Kelola Toko</div>
+                    </div>
+                  </button>
+                )}
+
+                {(effectiveRoles.includes('driver') || isSuperAdmin) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onNavigateTab) onNavigateTab('driver');
+                    }}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 10,
+                      border: '1px solid #F59E0B',
+                      background: 'rgba(245, 158, 11, 0.1)',
+                      color: '#D97706',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      textAlign: 'left'
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>🛵</span>
+                    <div>
+                      <div>Tugas Kurir</div>
+                      <div style={{ fontSize: 9.5, opacity: 0.85 }}>Dashboard Driver</div>
+                    </div>
+                  </button>
+                )}
+
+                {(effectiveRoles.includes('admin') || effectiveRoles.includes('admin_reguler') || effectiveRoles.includes('admin_pro') || isSuperAdmin) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onNavigateTab) onNavigateTab('admin');
+                    }}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 10,
+                      border: '1px solid #3B82F6',
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      color: '#2563EB',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      textAlign: 'left'
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>🏛️</span>
+                    <div>
+                      <div>Panel Koperasi</div>
+                      <div style={{ fontSize: 9.5, opacity: 0.85 }}>Manajemen</div>
+                    </div>
+                  </button>
+                )}
+
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onNavigateTab) onNavigateTab('super_admin');
+                    }}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 10,
+                      border: '1px solid #8B5CF6',
+                      background: 'rgba(139, 92, 246, 0.1)',
+                      color: '#7C3AED',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      textAlign: 'left'
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>👑</span>
+                    <div>
+                      <div>Super Admin</div>
+                      <div style={{ fontSize: 9.5, opacity: 0.85 }}>Pusat Kontrol</div>
+                    </div>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <button
             className="am-btn-primary"
             style={{ width: '100%', padding: '12px 0', marginTop: 6, fontSize: 14, fontWeight: 'bold', borderRadius: 10 }}
@@ -231,6 +466,26 @@ export function ProfileModal({
           >
             Simpan Perubahan
           </button>
+
+          {onLogout && (
+            <button
+              onClick={() => {
+                onClose();
+                onLogout();
+              }}
+              style={{
+                width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
+                background: isGuest ? 'var(--am-bg2)' : 'rgba(239, 68, 68, 0.1)',
+                color: isGuest ? 'var(--am-text)' : '#EF4444',
+                fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                marginTop: 2
+              }}
+            >
+              <span>{isGuest ? '🔑' : '🚪'}</span>
+              <span>{isGuest ? 'Masuk / Daftar Akun' : 'Keluar (Logout)'}</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -4,6 +4,8 @@ import { formatRupiah } from '../data';
 import { QRCodeSVG } from 'qrcode.react';
 import { checkoutApi, deductStockApi, getVouchersApi, validateVoucherApi, MIDTRANS_CLIENT_KEY } from '../lib/api';
 import { playCuteVendingSpinningMusic, playCuteVendingSuccessJingle } from '../lib/vendingAudio';
+import { cleanupSnapOverlays, loadSnapScript } from '../lib/snapCleanup';
+import { isUserProductOwner } from '../lib/productOwnership';
 
 declare global {
   interface Window {
@@ -61,23 +63,51 @@ function speakVoice(text: string) {
 }
 
 export default function Checkout({ theme: _theme, campus, items, onConfirmOrder, onBack }: CheckoutProps) {
-  const isVendingItem = (p: any) => {
+  // 🔑 STRICT: HANYA produk Gantungan Kunci / Ganci / Blind Bag Keychain yang boleh Vending Machine
+  const isGanciOrKeychain = (p: any) => {
     if (!p) return false;
     const name = (p.name || p.nama_produk || '').toLowerCase();
-    const seller = (p.sellerId || p.sellerName || p.seller_name || '').toLowerCase();
     const id = (p.id || '').toLowerCase();
-    
-    // STRICT: HANYA produk Blind Bag / Ganci dari Toko Resmi Myammiy Store / Myammiy Craft
-    const isMyammiySeller = seller.includes('myammiy') || p.sellerId === 'seller_1';
-    const isBlindBagOrGanci = id === 'blind_bag_myammiy_35k' || name.includes('blind bag') || name.includes('ganci') || name.includes('keychain') || name.includes('pipe cleaner');
 
-    return isMyammiySeller && isBlindBagOrGanci;
+    return (
+      id === 'blind_bag_myammiy_35k' ||
+      id.includes('ganci') ||
+      id.includes('blind_bag') ||
+      name.includes('ganci') ||
+      name.includes('gantungan') ||
+      name.includes('blind bag') ||
+      name.includes('blindbag') ||
+      name.includes('keychain') ||
+      name.includes('kawat bulu') ||
+      name.includes('pipe cleaner')
+    );
   };
 
-  const isOnlyGanciInCart = items.length > 0 && items.every(i => isVendingItem(i.product));
+  const isOnlyGanciInCart = items.length > 0 && items.every(i => isGanciOrKeychain(i.product));
 
-  const [delivery, setDelivery] = useState<DeliveryMethod | 'vending'>(isOnlyGanciInCart ? 'vending' : 'pickup');
-  const [payment, setPayment] = useState<PaymentMethod | 'seabank' | 'gopay'>('seabank');
+  const [delivery, setDelivery] = useState<DeliveryMethod | 'vending'>(() => {
+    const saved = (typeof window !== 'undefined' ? localStorage.getItem('am_delivery_method') : '')?.toLowerCase();
+    if (saved === 'vending' && isOnlyGanciInCart) return 'vending';
+    if (saved === 'courier' || saved === 'delivery' || saved === 'antar') return 'courier';
+    if (saved === 'pickup') return 'pickup';
+    return isOnlyGanciInCart ? 'vending' : 'pickup';
+  });
+  const [payment, setPayment] = useState<PaymentMethod | 'seabank' | 'gopay' | 'campus_wallet' | 'qris_sim'>('qris_sim');
+  const [walletBalance, setWalletBalance] = useState<number>(() => {
+    const saved = localStorage.getItem('am_wallet_balance');
+    return saved ? Number(saved) : 250000;
+  });
+  const [qrisSecsLeft, setQrisSecsLeft] = useState(300);
+
+  // Dynamic QRIS countdown
+  useEffect(() => {
+    if (payment === 'qris_sim') {
+      const interval = setInterval(() => {
+        setQrisSecsLeft(prev => (prev > 0 ? prev - 1 : 300));
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [payment]);
   
   const [selectedDropdownLocation, setSelectedDropdownLocation] = useState('');
   const [customLocationText, setCustomLocationText] = useState('');
@@ -218,16 +248,9 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     : (isCustomLocation ? customLocationText.trim() : selectedDropdownLocation);
 
   useEffect(() => {
-    const snapScriptUrl = 'https://app.sandbox.midtrans.com/snap/snap.js';
-    const script = document.createElement('script');
-    script.src = snapScriptUrl;
-    script.setAttribute('data-client-key', MIDTRANS_CLIENT_KEY);
-    document.body.appendChild(script);
-
+    cleanupSnapOverlays();
     return () => {
-      try {
-        document.body.removeChild(script);
-      } catch (_e) {}
+      cleanupSnapOverlays();
     };
   }, []);
 
@@ -276,6 +299,31 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
       localStorage.setItem('am_stock_overrides', JSON.stringify(stockOverrides));
       window.dispatchEvent(new Event('storage'));
       deductStockApi(orderItems).catch(() => {});
+
+      // 🛍️ Simpan ke Riwayat Pesanan Pribadi Pengguna (Universal Purchasing Semua Role)
+      const activeUser = JSON.parse(localStorage.getItem('am_user_session') || '{}');
+      const orderRecord = {
+        id: `ORD-${Date.now()}`,
+        orderId: `ANTASARI-${Date.now()}`,
+        date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: delivery === 'vending' ? 'claimed' : 'on_the_way',
+        total: total,
+        deliveryMethod: delivery,
+        items: orderItems.map(i => ({
+          name: i.product.name,
+          qty: i.quantity,
+          price: i.product.price,
+          sellerName: i.product.sellerName
+        })),
+        sellerName: orderItems[0]?.product?.sellerName || 'Tenant Kampus',
+        buyerEmail: activeUser.email || '',
+        buyerName: activeUser.nama || activeUser.name || 'Pengguna',
+        location: finalLocation
+      };
+
+      const existingMyOrders = JSON.parse(localStorage.getItem('am_my_orders') || '[]');
+      localStorage.setItem('am_my_orders', JSON.stringify([orderRecord, ...existingMyOrders]));
+      window.dispatchEvent(new CustomEvent('am_order_created', { detail: orderRecord }));
     } catch (_e) {}
   }
 
@@ -331,9 +379,15 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   }
 
   async function handleMidtransPayment() {
+    const activeUser = JSON.parse(localStorage.getItem('am_user_session') || '{}');
+    const hasOwnProduct = items.some(i => isUserProductOwner(i.product, activeUser));
+    if (hasOwnProduct) {
+      alert('Penjual tidak dapat membeli produk dari tokonya sendiri.');
+      return;
+    }
+
     setLoadingPayment(true);
     try {
-      const activeUser = JSON.parse(localStorage.getItem('am_user_session') || '{}');
       const orderId = `ANTASARI-${Date.now()}`;
       
       let snapToken = '';
@@ -355,27 +409,40 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
         console.warn("Backend checkout API offline, using client-side checkout handling.");
       }
 
-      if (snapToken && window.snap) {
-        window.snap.pay(snapToken, {
-          onSuccess: function (result: any) {
-            showVendingQR({}, result?.order_id || orderId);
-          },
-          onPending: function (result: any) {
-            showVendingQR({}, result?.order_id || orderId);
-          },
-          onError: function (_result: any) {
-            showVendingQR({}, orderId);
-          },
-          onClose: function () {
-            showVendingQR({}, orderId);
-          }
-        });
-      } else {
-        // Instant simulation for Midtrans/QRIS payment
-        setTimeout(() => {
-          showVendingQR({}, orderId);
-        }, 600);
+      if (snapToken) {
+        try {
+          await loadSnapScript();
+        } catch (_loadErr) {
+          console.warn("Gagal memuat script Midtrans Snap:", _loadErr);
+        }
+
+        if (window.snap) {
+          window.snap.pay(snapToken, {
+            onSuccess: function (result: any) {
+              cleanupSnapOverlays();
+              showVendingQR({}, result?.order_id || orderId);
+            },
+            onPending: function (result: any) {
+              cleanupSnapOverlays();
+              showVendingQR({}, result?.order_id || orderId);
+            },
+            onError: function (_result: any) {
+              cleanupSnapOverlays();
+              showVendingQR({}, orderId);
+            },
+            onClose: function () {
+              cleanupSnapOverlays();
+              showVendingQR({}, orderId);
+            }
+          });
+          return;
+        }
       }
+
+      // Instant simulation for Midtrans/QRIS payment
+      setTimeout(() => {
+        showVendingQR({}, orderId);
+      }, 600);
     } catch (error: any) {
       console.error("Midtrans Error:", error);
       showVendingQR({}, `ANTASARI-${Date.now()}`);
@@ -385,9 +452,26 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   }
 
   async function handleRegularOrder() {
+    const activeUser = JSON.parse(localStorage.getItem('am_user_session') || '{}');
+    const hasOwnProduct = items.some(i => isUserProductOwner(i.product, activeUser));
+    if (hasOwnProduct) {
+      alert('Penjual tidak dapat membeli produk dari tokonya sendiri.');
+      return;
+    }
+
+    if (payment === 'campus_wallet') {
+      if (walletBalance < total) {
+        alert(`Saldo Dompet Kampus Anda (${formatRupiah(walletBalance)}) tidak mencukupi untuk pembayaran ${formatRupiah(total)}. Silakan lakukan simulasi Top Up saldo terlebih dahulu.`);
+        return;
+      }
+      const newBal = walletBalance - total;
+      setWalletBalance(newBal);
+      localStorage.setItem('am_wallet_balance', String(newBal));
+      window.dispatchEvent(new Event('storage'));
+    }
+
     setLoadingPayment(true);
     const orderId = `ANTASARI-${Date.now()}`;
-    const activeUser = JSON.parse(localStorage.getItem('am_user_session') || '{}');
 
     try {
       try {
@@ -433,16 +517,23 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     if (selectedDelivery === 'pickup') {
       const newReceipt = {
         orderId: `ANTASARI-${Date.now()}`,
-        queueNumber: `A-${Math.floor(10 + Math.random() * 90)}`,
+        queueNumber: `AM-${Math.floor(100 + Math.random() * 900)}`,
         total: total
       };
       setReceiptData(newReceipt);
       setStep('receipt_pickup');
+      speakVoice('Pesanan berhasil dibuat. Pesanan sedang disiapkan oleh kasir koperasi kampus.');
     } else {
       setStep('searching_driver');
+      speakVoice('Mencari driver kurir Antasari terdekat.');
       setTimeout(() => {
         setStep('success');
-      }, 3000);
+        speakVoice('Driver berhasil ditemukan. Menuju toko penjual.');
+        // Gojek-like auto-transition to live tracking map after brief confirmation
+        setTimeout(() => {
+          onConfirmOrder('courier', payment, finalLocation);
+        }, 2200);
+      }, 2600);
     }
   }
 
@@ -469,6 +560,21 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
             </button>
             <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--am-text)' }}>Checkout Pembayaran</h2>
           </div>
+
+          {/* Banner Peringatan jika Keranjang Memuat Produk Toko Sendiri */}
+          {(() => {
+            const activeUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('am_user_session') || '{}') : {};
+            const hasOwnProduct = items.some(i => isUserProductOwner(i.product, activeUser));
+            if (!hasOwnProduct) return null;
+            return (
+              <div style={{ padding: '14px 18px', background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 16, color: '#DC2626', fontWeight: 700, fontSize: 13, lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 22 }}>⚠️</span>
+                <div>
+                  <strong>Peringatan Validasi:</strong> Penjual tidak dapat membeli produk dari tokonya sendiri. Silakan kembali ke Keranjang dan hapus produk tersebut sebelum melanjutkan.
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Rincian Produk */}
           <div className="am-card" style={{ padding: 20, borderRadius: 20, background: 'var(--am-surface)' }}>
@@ -512,6 +618,9 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                       return;
                     }
                     setDelivery(opt.id as any);
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('am_delivery_method', opt.id);
+                    }
                   }}
                   style={{
                     padding: 14,
@@ -575,12 +684,14 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
           {/* Metode Pembayaran */}
           <div className="am-card" style={{ padding: 20, borderRadius: 20, background: 'var(--am-surface)' }}>
             <h3 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700, color: 'var(--am-text)' }}>Pilih Metode Pembayaran</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
               {[
-                { id: 'seabank', label: '🌊 SeaBank (Nurmiyaty)' },
-                { id: 'gopay', label: '💚 GoPay (Nurmiyaty)' },
-                { id: 'qris', label: '💳 Midtrans Snap' },
-                { id: 'cod', label: '💵 Bayar Tunai (COD / Kasir)' }
+                { id: 'qris_sim', label: '⚡ QRIS Dinamis (Simulator)', desc: 'Scan & Instan Otomatis' },
+                { id: 'campus_wallet', label: '💳 Dompet Kampus', desc: `Saldo: ${formatRupiah(walletBalance)}` },
+                { id: 'seabank', label: '🌊 SeaBank (Nurmiyaty)', desc: 'Transfer Bank' },
+                { id: 'gopay', label: '💚 GoPay (Nurmiyaty)', desc: 'E-Wallet' },
+                { id: 'qris', label: '💳 Midtrans Snap', desc: 'Gateway Resmi' },
+                { id: 'cod', label: '💵 Bayar Tunai (COD / Kasir)', desc: 'Bayar Langsung' }
               ].map(pm => (
                 <div
                   key={pm.id}
@@ -591,17 +702,127 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                     border: `2px solid ${payment === pm.id ? 'var(--am-primary)' : 'var(--am-border)'}`,
                     background: payment === pm.id ? 'var(--am-primary-light, rgba(95, 168, 116, 0.15))' : 'var(--am-surface)',
                     cursor: 'pointer',
-                    fontWeight: 800,
-                    fontSize: 12,
                     textAlign: 'center',
                     color: 'var(--am-text)',
-                    boxShadow: payment === pm.id ? '0 4px 12px rgba(95, 168, 116, 0.15)' : 'none'
+                    boxShadow: payment === pm.id ? '0 4px 12px rgba(95, 168, 116, 0.15)' : 'none',
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  {pm.label}
+                  <div style={{ fontWeight: 800, fontSize: 12, marginBottom: 2 }}>{pm.label}</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--am-text-muted)' }}>{pm.desc}</div>
                 </div>
               ))}
             </div>
+
+            {/* Kotak QRIS Dinamis Simulator */}
+            {payment === 'qris_sim' && (
+              <div style={{ padding: 18, borderRadius: 16, background: 'var(--am-bg2)', border: '1.5px solid #10B981', marginTop: 14, textAlign: 'center' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(16, 185, 129, 0.15)', color: '#059669', padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 800, marginBottom: 10 }}>
+                  <span>⚡ QRIS DINAMIS KAMPUS SIMULATOR</span>
+                </div>
+                <div style={{ display: 'inline-block', padding: 12, background: 'white', borderRadius: 16, boxShadow: '0 4px 15px rgba(0,0,0,0.08)', marginBottom: 10 }}>
+                  <QRCodeSVG
+                    value={`00020101021226580016ID.CO.CAMPUSMART0118936000000000000000520454115303360540${total}5802ID5912ANTASARIMART6013BANJARMASIN6304ABCD`}
+                    size={155}
+                  />
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 2 }}>
+                  Nominal Pembayaran:
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--am-primary)', marginBottom: 6 }}>
+                  {formatRupiah(total)}
+                </div>
+                <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 12 }}>
+                  ⏱️ Selesaikan pembayaran dalam: <strong style={{ color: '#e11d48' }}>{Math.floor(qrisSecsLeft / 60).toString().padStart(2, '0')}:{(qrisSecsLeft % 60).toString().padStart(2, '0')}</strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playCelebrationFanfare();
+                    handleRegularOrder();
+                  }}
+                  disabled={loadingPayment}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #10B981, #059669)',
+                    color: 'white',
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 3px 10px rgba(16, 185, 129, 0.3)'
+                  }}
+                >
+                  ⚡ Simulasi Bayar QRIS Sukses (Instan)
+                </button>
+              </div>
+            )}
+
+            {/* Kotak Saldo Dompet Kampus (AntasariPay) */}
+            {payment === 'campus_wallet' && (
+              <div style={{ padding: 18, borderRadius: 16, background: 'var(--am-bg2)', border: '1.5px solid var(--am-primary)', marginTop: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 24 }}>💳</span>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--am-primary)', textTransform: 'uppercase' }}>
+                        DOMPET KAMPUS (ANTASARIPAY)
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--am-text)' }}>
+                        Saldo Tersedia: <strong>{formatRupiah(walletBalance)}</strong>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{
+                    padding: '4px 10px',
+                    borderRadius: 8,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    background: walletBalance >= total ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                    color: walletBalance >= total ? '#059669' : '#dc2626'
+                  }}>
+                    {walletBalance >= total ? '✓ Saldo Cukup' : '⚠️ Saldo Kurang'}
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
+                  {walletBalance >= total
+                    ? `Total pesanan ${formatRupiah(total)} akan langsung dipotong dari saldo dompet Anda secara instan tanpa biaya admin.`
+                    : `Saldo Anda tidak mencukupi untuk membayar ${formatRupiah(total)}. Silakan lakukan simulasi Top Up di bawah ini.`
+                  }
+                </div>
+
+                {/* Top Up Simulator Button */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--am-text-muted)' }}>Top-Up Simulator:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newBal = walletBalance + 50000;
+                      setWalletBalance(newBal);
+                      localStorage.setItem('am_wallet_balance', String(newBal));
+                      window.dispatchEvent(new Event('storage'));
+                    }}
+                    style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-primary)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    + Rp 50.000
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newBal = walletBalance + 100000;
+                      setWalletBalance(newBal);
+                      localStorage.setItem('am_wallet_balance', String(newBal));
+                      window.dispatchEvent(new Event('storage'));
+                    }}
+                    style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-primary)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    + Rp 100.000
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Kotak Rincian Rekening SeaBank */}
             {payment === 'seabank' && (
@@ -933,30 +1154,56 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
               <span>{formatRupiah(total)}</span>
             </div>
 
-            <button
-              onClick={() => {
-                if (payment === 'qris') {
-                  handleMidtransPayment();
-                } else {
-                  handleRegularOrder();
-                }
-              }}
-              disabled={loadingPayment}
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: 14,
-                border: 'none',
-                background: 'linear-gradient(135deg, #5FA874 0%, #5FA874 100%)',
-                color: 'white',
-                fontSize: 15,
-                fontWeight: 800,
-                cursor: loadingPayment ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 14px rgba(244, 174, 194, 0.35)'
-              }}
-            >
-              {loadingPayment ? 'Memproses Pesanan...' : (payment === 'seabank' || payment === 'gopay') ? 'Saya Sudah Transfer, Dapatkan Token Vending 🚀' : payment === 'qris' ? 'Bayar via Midtrans Snap 💳' : 'Konfirmasi Pesanan Sekarang 🚀'}
-            </button>
+            {(() => {
+              const activeUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('am_user_session') || '{}') : {};
+              const hasOwnProduct = items.some(i => isUserProductOwner(i.product, activeUser));
+              const isSubmitDisabled = loadingPayment || hasOwnProduct;
+
+              return (
+                <button
+                  onClick={() => {
+                    if (hasOwnProduct) {
+                      alert('Penjual tidak dapat membeli produk dari tokonya sendiri.');
+                      return;
+                    }
+                    if (payment === 'qris') {
+                      handleMidtransPayment();
+                    } else {
+                      handleRegularOrder();
+                    }
+                  }}
+                  disabled={isSubmitDisabled}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    borderRadius: 14,
+                    border: 'none',
+                    background: hasOwnProduct ? '#64748B' : 'linear-gradient(135deg, #5FA874 0%, #5FA874 100%)',
+                    color: 'white',
+                    fontSize: 15,
+                    fontWeight: 800,
+                    cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
+                    boxShadow: !hasOwnProduct ? '0 4px 14px rgba(244, 174, 194, 0.35)' : 'none',
+                    opacity: hasOwnProduct ? 0.7 : 1
+                  }}
+                >
+                  {hasOwnProduct
+                    ? '⚠️ Penjual Tidak Dapat Membeli Produk Sendiri'
+                    : loadingPayment
+                    ? 'Memproses Pesanan...'
+                    : payment === 'campus_wallet'
+                    ? `Bayar Instan Potong Dompet (${formatRupiah(total)}) 💳`
+                    : payment === 'qris_sim'
+                    ? `Konfirmasi Bayar QRIS Dinamis (${formatRupiah(total)}) ⚡`
+                    : (delivery === 'vending')
+                      ? ((payment === 'seabank' || payment === 'gopay') ? 'Saya Sudah Transfer, Dapatkan Token Vending 🚀' : payment === 'qris' ? 'Bayar via Midtrans Snap 💳' : 'Dapatkan Token Vending 🚀')
+                      : (delivery === 'pickup')
+                        ? ((payment === 'seabank' || payment === 'gopay') ? 'Saya Sudah Transfer, Ambil Struk Antrean Toko 🧾' : payment === 'qris' ? 'Bayar via Midtrans Snap 💳' : 'Ambil Struk Antrean Toko 🧾')
+                        : ((payment === 'seabank' || payment === 'gopay') ? 'Saya Sudah Transfer, Lacak Kurir Pengantar 🛵' : payment === 'qris' ? 'Bayar via Midtrans Snap 💳' : 'Konfirmasi Pesanan Kurir 🛵')
+                  }
+                </button>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -1094,62 +1341,133 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
             Terima kasih telah berbelanja produk Myammiy Craft di Campus Mart & Vending Machine UIN Antasari!
           </p>
           <button
-            onClick={() => onConfirmOrder('pickup', payment, finalLocation)}
-            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #5FA874 0%, #5FA874 100%)', color: 'white', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 14px rgba(244, 174, 194, 0.35)' }}
+            onClick={() => {
+              localStorage.removeItem('am_active_order');
+              localStorage.removeItem('am_active_vending_qr');
+              onBack();
+            }}
+            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #5FA874 0%, #3D8B54 100%)', color: 'white', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 14px rgba(95, 168, 116, 0.35)' }}
           >
             Selesai & Kembali ke Beranda 🏠
           </button>
         </div>
       )}
 
-      {/* Tampilan Struk Pick-Up */}
+      {/* Tampilan Struk Pick-Up di Toko Koperasi (Bukan Vending Machine) */}
       {step === 'receipt_pickup' && receiptData && (
-        <div className="am-card" style={{ padding: 30, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>🧾✨</div>
-          <h2 style={{ margin: '0 0 6px', fontSize: 20, color: 'var(--am-text)' }}>Nomor Antrean Pesanan</h2>
-          <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 20 }}>
-            Tunjukkan nomor antrean ini ke kasir/tenant saat mengambil pesanan.
+        <div className="am-card" style={{ padding: '32px 20px', borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center', maxWidth: 520, margin: '0 auto', border: '1.5px solid var(--am-primary)' }}>
+          <div style={{ fontSize: 46, marginBottom: 8 }}>🏪🧾</div>
+          <div style={{ display: 'inline-block', padding: '4px 14px', borderRadius: 20, background: 'rgba(74, 197, 108, 0.15)', color: '#166534', fontSize: 11.5, fontWeight: 800, marginBottom: 10 }}>
+            🟢 Pesanan Sedang Disiapkan
+          </div>
+          <h2 style={{ margin: '0 0 6px', fontSize: 20, color: 'var(--am-text)', fontWeight: 900 }}>
+            Pesanan Sedang Disiapkan Penjual!
+          </h2>
+          <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
+            Tunjukkan nomor antrean ini ke <strong>Stand Kasir Toko Koperasi Kampus UIN Antasari</strong> ({campus === 'banjarmasin' ? 'Kampus 1 Banjarmasin' : 'Kampus 2 Banjarbaru'}).
           </p>
 
-          <div style={{ background: 'var(--am-bg2)', padding: '20px', borderRadius: 16, marginBottom: 24 }}>
-            <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--am-primary)', letterSpacing: 2 }}>
+          <div style={{ background: 'var(--am-bg2)', padding: '22px 18px', borderRadius: 18, marginBottom: 22, border: '2px dashed var(--am-primary)' }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--am-text-muted)', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 4 }}>
+              NOMOR ANTRIAN PENGAMBILAN KASIR
+            </div>
+            <div style={{ fontSize: 42, fontWeight: 900, color: 'var(--am-primary)', letterSpacing: 2 }}>
               {receiptData.queueNumber}
             </div>
             <div style={{ fontSize: 12, color: 'var(--am-text-muted)', marginTop: 4 }}>
               Order ID: {receiptData.orderId}
             </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#16A34A', marginTop: 8, display: 'inline-block', background: 'rgba(74, 197, 108, 0.15)', padding: '4px 12px', borderRadius: 20 }}>
+              📍 Titik Ambil: Stand Kasir Koperasi Kampus
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              onClick={() => onConfirmOrder('pickup', payment, finalLocation)}
+              style={{ width: '100%', padding: '13px 20px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, fontSize: 13.5, cursor: 'pointer', boxShadow: '0 4px 14px rgba(95, 168, 116, 0.3)' }}
+            >
+              Lihat Detail Struk & Peta Stand Kasir 📍
+            </button>
+            <button
+              onClick={() => {
+                localStorage.removeItem('am_active_order');
+                onBack();
+              }}
+              style={{ width: '100%', padding: '11px 20px', borderRadius: 12, border: '1px solid var(--am-border)', background: 'var(--am-bg2)', color: 'var(--am-text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+            >
+              🏠 Selesai & Kembali ke Beranda
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mencari Driver Kurir (Gojek / Grab Style Radar UI) */}
+      {step === 'searching_driver' && (
+        <div className="am-card" style={{ padding: '40px 20px', borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center', maxWidth: 480, margin: '0 auto', border: '1.5px solid var(--am-primary)' }}>
+          <style>{`
+            @keyframes amRadarPulse {
+              0% { transform: scale(0.6); opacity: 0.8; }
+              50% { opacity: 0.4; }
+              100% { transform: scale(2.2); opacity: 0; }
+            }
+            @keyframes amMotorBounce {
+              0%, 100% { transform: translateY(0); }
+              50% { transform: translateY(-8px); }
+            }
+          `}</style>
+          <div style={{ position: 'relative', width: 120, height: 120, margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(95, 168, 116, 0.25)', animation: 'amRadarPulse 2s cubic-bezier(0.2, 0.8, 0.4, 1) infinite' }} />
+            <div style={{ position: 'absolute', inset: 15, borderRadius: '50%', background: 'rgba(95, 168, 116, 0.35)', animation: 'amRadarPulse 2s cubic-bezier(0.2, 0.8, 0.4, 1) infinite 0.6s' }} />
+            <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'linear-gradient(135deg, #5FA874 0%, #3D8B54 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, color: 'white', zIndex: 2, boxShadow: '0 8px 20px rgba(95, 168, 116, 0.4)', animation: 'amMotorBounce 1.4s ease-in-out infinite' }}>
+              🛵
+            </div>
+          </div>
+          <div style={{ display: 'inline-block', padding: '4px 14px', borderRadius: 20, background: 'rgba(95, 168, 116, 0.12)', color: 'var(--am-primary)', fontSize: 11.5, fontWeight: 800, marginBottom: 10 }}>
+            ● Radar GPS Kurir Aktif
+          </div>
+          <h3 style={{ margin: '0 0 8px', fontSize: 19, fontWeight: 900, color: 'var(--am-text)' }}>
+            Mencari Kurir Mahasiswa Terdekat...
+          </h3>
+          <p style={{ fontSize: 13, color: 'var(--am-text-muted)', margin: '0 auto 16px', maxWidth: 360, lineHeight: 1.5 }}>
+            Sistem otomatis sedang menghubungkan pesananmu dengan kurir mahasiswa terdekat di area Kampus UIN Antasari.
+          </p>
+          <div style={{ fontSize: 12, color: 'var(--am-primary)', fontWeight: 700 }}>
+            ⏳ Menghubungkan ke armada aktif...
+          </div>
+        </div>
+      )}
+
+      {/* Driver Ditemukan (Gojek / Grab Style Driver Found) */}
+      {step === 'success' && (
+        <div className="am-card" style={{ padding: '36px 20px', borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center', maxWidth: 480, margin: '0 auto', border: '2px solid #10B981' }}>
+          <div style={{ fontSize: 52, marginBottom: 8, animation: 'bounce 0.6s ease-out' }}>🛵🎉</div>
+          <div style={{ display: 'inline-block', padding: '4px 14px', borderRadius: 20, background: '#DCFCE7', color: '#166534', fontSize: 11.5, fontWeight: 800, marginBottom: 12 }}>
+            ✓ Kurir Terkonfirmasi
+          </div>
+          <h2 style={{ margin: '0 0 6px', fontSize: 20, color: '#16A34A', fontWeight: 900 }}>
+            Kurir Berhasil Ditemukan!
+          </h2>
+          <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
+            <strong>Ahmad Fauzi</strong> (Honda Vario 125 - DA 4521 AB) menerima pesananmu dan sedang meluncur ke toko penjual!
+          </p>
+
+          <div style={{ background: 'var(--am-bg2)', padding: '14px 16px', borderRadius: 16, border: '1px solid var(--am-border)', marginBottom: 20, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <img src="https://i.pravatar.cc/150?img=8" alt="Driver" style={{ width: 46, height: 46, borderRadius: '50%', objectFit: 'cover', border: '2px solid #10B981' }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--am-text)' }}>Ahmad Fauzi</div>
+              <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>⭐ 4.9 • Mahasiswa Fakultas Tarbiyah</div>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 800, background: '#DCFCE7', color: '#166534', padding: '3px 8px', borderRadius: 8 }}>
+              🛵 Siap Antar
+            </span>
           </div>
 
           <button
-            onClick={() => onConfirmOrder('pickup', payment, finalLocation)}
-            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, cursor: 'pointer' }}
-          >
-            Kembali ke Beranda 🏠
-          </button>
-        </div>
-      )}
-
-      {/* Mencari Driver */}
-      {step === 'searching_driver' && (
-        <div className="am-card" style={{ padding: 40, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
-          <div style={{ fontSize: 54, marginBottom: 12 }}>🛵🔍</div>
-          <h3 style={{ margin: '0 0 8px', color: 'var(--am-text)' }}>Mencari Driver Antasari Terdekat...</h3>
-          <p style={{ fontSize: 13, color: 'var(--am-text-muted)' }}>Sistem sedang menyambungkan pesananmu dengan kurir mahasiswa yang bertugas.</p>
-        </div>
-      )}
-
-      {step === 'success' && (
-        <div className="am-card" style={{ padding: 30, borderRadius: 24, background: 'var(--am-surface)', textAlign: 'center' }}>
-          <div style={{ fontSize: 54, marginBottom: 12 }}>🛵🎉</div>
-          <h2 style={{ margin: '0 0 8px', color: '#16A34A' }}>Driver Berhasil Ditemukan!</h2>
-          <p style={{ fontSize: 13, color: 'var(--am-text-muted)', marginBottom: 24 }}>
-            Kurir sedang menuju lokasi penjual untuk mengambil pesananmu.
-          </p>
-          <button
             onClick={() => onConfirmOrder('courier', payment, finalLocation)}
-            style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, cursor: 'pointer' }}
+            style={{ width: '100%', padding: '13px 20px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: 'white', fontWeight: 800, fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)' }}
           >
-            Lihat Status Pengantaran 📍
+            Buka Peta Live Tracking Sekarang 📍
           </button>
         </div>
       )}

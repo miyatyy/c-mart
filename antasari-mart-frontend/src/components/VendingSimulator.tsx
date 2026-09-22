@@ -3,6 +3,7 @@ import Swal from 'sweetalert2';
 import type { ThemeMode } from '../types';
 import { claimVendingApi, checkoutApi } from '../lib/api';
 import { playCuteVendingSpinningMusic, playCuteVendingSuccessJingle, playCuteVendingFullExperience } from '../lib/vendingAudio';
+import { cleanupSnapOverlays, loadSnapScript } from '../lib/snapCleanup';
 
 interface VendingSimulatorProps {
   theme: ThemeMode;
@@ -419,7 +420,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
       slot: finalSlot,
       quantity: finalQty,
       qty: finalQty,
-      buyerName: 'Pembeli Antasari Mart'
+      buyerName: 'Pembeli Campus Mart'
     };
 
     // 1. Cloud MongoDB Atlas Queue Trigger
@@ -654,7 +655,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
       const currentQty = purchaseQty;
 
       // 💳 Jika memilih QRIS / Midtrans & Snap SDK tersedia
-      if (selectedPaymentMethod === 'qris' && typeof window !== 'undefined' && window.snap) {
+      if (selectedPaymentMethod === 'qris') {
         try {
           const res = await checkoutApi({
             grossAmount: finalPrice,
@@ -664,21 +665,31 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
           });
 
           if (res && res.token) {
-            window.snap.pay(res.token, {
-              onSuccess: () => {
-                completeVendingDispense(generatedToken, finalPrice, slotData, currentQty);
-              },
-              onPending: () => {
-                completeVendingDispense(generatedToken, finalPrice, slotData, currentQty);
-              },
-              onError: () => {
-                Swal.fire({ icon: 'error', title: 'Pembayaran Dibatalkan', text: 'Silakan selesaikan pembayaran untuk membuka loker.' });
-              },
-              onClose: () => {
-                completeVendingDispense(generatedToken, finalPrice, slotData, currentQty);
-              }
-            });
-            return;
+            try {
+              await loadSnapScript();
+            } catch (_loadErr) {}
+
+            if (window.snap) {
+              window.snap.pay(res.token, {
+                onSuccess: () => {
+                  cleanupSnapOverlays();
+                  completeVendingDispense(generatedToken, finalPrice, slotData, currentQty);
+                },
+                onPending: () => {
+                  cleanupSnapOverlays();
+                  completeVendingDispense(generatedToken, finalPrice, slotData, currentQty);
+                },
+                onError: () => {
+                  cleanupSnapOverlays();
+                  Swal.fire({ icon: 'error', title: 'Pembayaran Dibatalkan', text: 'Silakan selesaikan pembayaran untuk membuka loker.' });
+                },
+                onClose: () => {
+                  cleanupSnapOverlays();
+                  completeVendingDispense(generatedToken, finalPrice, slotData, currentQty);
+                }
+              });
+              return;
+            }
           }
         } catch (_err) {
           // Fallback instan

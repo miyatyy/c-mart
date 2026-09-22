@@ -74,10 +74,10 @@ function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2:
   const Δφ = (lat2 - lat1) * Math.PI / 180
   const Δλ = (lon2 - lon1) * Math.PI / 180
 
-  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) *
+    Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   return Math.round(R * c)
 }
 
@@ -90,12 +90,12 @@ function MapController({ center, zoom }: { center: [number, number]; zoom?: numb
   return null
 }
 
-export default function CourierTracker({ 
-  theme: _theme, 
-  campus, 
+export default function CourierTracker({
+  theme: _theme,
+  campus,
   hasActiveOrder = false,
-  driverName = 'Ahmad Fauzi', 
-  driverPhone = '08121235001', 
+  driverName = 'Ahmad Fauzi',
+  driverPhone = '08121235001',
   driverAvatar = 'https://i.pravatar.cc/150?img=8',
   userName = 'Pengunjung',
   userEmail = 'pengguna@antasari.ac.id',
@@ -105,8 +105,8 @@ export default function CourierTracker({
 }: CourierTrackerProps) {
   const savedActive = hasActiveOrder && localStorage.getItem('am_active_order') === 'true'
   const savedMethod = (localStorage.getItem('am_delivery_method') || '').toLowerCase()
-  
-  const isCourierActive = savedActive && (savedMethod === 'delivery' || savedMethod === 'kurir' || savedMethod === 'antar')
+
+  const isCourierActive = savedActive && (savedMethod === 'courier' || savedMethod === 'delivery' || savedMethod === 'kurir' || savedMethod === 'antar')
   const isPickupActive = savedActive && (savedMethod === 'pickup' || savedMethod === 'ambil_sendiri' || savedMethod === 'ambil')
 
   const defaultCenter = CAMPUS_COORDINATES[campus] || CAMPUS_COORDINATES.banjarmasin
@@ -152,19 +152,29 @@ export default function CourierTracker({
     return calculateDistanceMeters(userCoords[0], userCoords[1], campusCoords[0], campusCoords[1])
   }, [userCoords, campus])
 
-  // OpenStreetMap Nominatim Reverse Geocoding Function
+  // OpenStreetMap Nominatim Reverse Geocoding Function (Throttled & Safe)
+  const lastGeocodeTimeRef = useRef<number>(0)
   const fetchNominatimAddress = async (lat: number, lng: number) => {
-    if (lastGeocodeCoords.current && 
-        Math.abs(lastGeocodeCoords.current[0] - lat) < 0.0001 && 
-        Math.abs(lastGeocodeCoords.current[1] - lng) < 0.0001) {
+    const now = Date.now()
+    if (now - lastGeocodeTimeRef.current < 30000) {
+      return
+    }
+    if (lastGeocodeCoords.current &&
+      Math.abs(lastGeocodeCoords.current[0] - lat) < 0.001 &&
+      Math.abs(lastGeocodeCoords.current[1] - lng) < 0.001) {
       return
     }
 
+    lastGeocodeTimeRef.current = now
     setIsGeocodingLoading(true)
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 3000)
       const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
-        headers: { 'Accept-Language': 'id-ID, id;q=0.9, en;q=0.8' }
+        headers: { 'Accept-Language': 'id-ID, id;q=0.9, en;q=0.8' },
+        signal: controller.signal
       })
+      clearTimeout(timeoutId)
       if (res.ok) {
         const data = await res.json()
         if (data && data.display_name) {
@@ -387,7 +397,7 @@ export default function CourierTracker({
     setShowPointNotification(false)
     localStorage.removeItem('am_active_order')
     localStorage.removeItem('am_delivery_method')
-    
+
     if (onFinishTracking) {
       onFinishTracking()
     } else if (onNavigateHome) {
@@ -455,10 +465,10 @@ export default function CourierTracker({
 
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <h2 className="am-heading" style={{ margin: '0 0 4px', fontSize: 22, color: 'var(--am-text)' }}>
-            🎟️ Struk Pengambilan Mandiri
+            🎟️ Struk Pengambilan di Kasir Koperasi
           </h2>
           <p style={{ fontSize: 13, color: 'var(--am-text-muted)', margin: 0 }}>
-            Tunjukkan struk digital ini ke kasir / tenant toko koperasi kampus! ✨
+            Tunjukkan nomor antrean ini ke <strong>petugas kasir / tenant toko</strong> di Koperasi Kampus UIN Antasari! ✨
           </p>
         </div>
 
@@ -467,26 +477,26 @@ export default function CourierTracker({
           boxShadow: '0 15px 35px rgba(0,0,0,0.08)', border: '2px dashed var(--am-primary)',
           textAlign: 'center', marginBottom: 20
         }}>
-          <div style={{ fontSize: 44, marginBottom: 8 }}>🛍️</div>
+          <div style={{ fontSize: 44, marginBottom: 8 }}>🏪🛍️</div>
           <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--am-text-muted)', letterSpacing: 2, marginBottom: 2 }}>
-            ANTASARI MART KOPERASI
+            CAMPUS MART KOPERASI
           </div>
-          <div style={{ fontSize: 13, color: 'var(--am-primary)', fontWeight: 700, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: 'var(--am-primary)', fontWeight: 700, marginBottom: 12 }}>
             Kampus {campus === 'banjarmasin' ? '1 Banjarmasin' : '2 Banjarbaru'}
           </div>
 
           <div style={{ padding: '6px 14px', background: 'rgba(74, 197, 108, 0.15)', color: '#16A34A', borderRadius: 999, fontSize: 12, fontWeight: 700, display: 'inline-block', marginBottom: 16 }}>
-            🟢 Pesanan Siap Diambil di Kasir
+            🟢 Siap Diambil di Stand Kasir Toko
           </div>
 
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--am-text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
-            NOMOR ANTRIAN
+            NOMOR ANTRIAN KASIR
           </div>
           <div style={{ fontSize: 46, fontWeight: 900, color: 'var(--am-primary)', margin: '4px 0 16px', letterSpacing: 3 }}>
             {queueNumber}
           </div>
 
-          <div style={{ background: 'var(--am-bg2)', padding: 16, borderRadius: 16, textAlign: 'left', marginBottom: 20, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid var(--am-border)' }}>
+          <div style={{ background: 'var(--am-bg2)', padding: 16, borderRadius: 16, textAlign: 'left', marginBottom: 16, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid var(--am-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--am-text-muted)' }}>Nama Pemesan:</span>
               <span style={{ fontWeight: 700, color: 'var(--am-text)' }}>{userName}</span>
@@ -497,13 +507,21 @@ export default function CourierTracker({
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--am-text-muted)' }}>Metode:</span>
-              <span style={{ fontWeight: 700, color: 'var(--am-text)' }}>Ambil Sendiri di Toko 🏪</span>
+              <span style={{ fontWeight: 700, color: 'var(--am-text)' }}>Ambil Sendiri di Kasir Toko 🏪</span>
             </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--am-text-muted)' }}>Lokasi Pengambilan:</span>
+              <span style={{ fontWeight: 700, color: '#16A34A' }}>Stand Kasir Koperasi Kampus</span>
+            </div>
+          </div>
+
+          <div style={{ padding: '10px 12px', background: 'rgba(239, 68, 68, 0.08)', borderRadius: 12, border: '1px solid rgba(239, 68, 68, 0.2)', marginBottom: 18, fontSize: 11.5, color: '#DC2626', textAlign: 'left' }}>
+            ℹ️ <strong>Catatan:</strong> Produk ini diambil langsung di Kasir Toko Koperasi Kampus UIN Antasari. Mesin vending IoT hanya digunakan untuk produk suvenir ganci/keychain.
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <a
-              href="https://wa.me/628121235001?text=Halo%20Admin,%20saya%20ingin%20konfirmasi%20pengambilan%20pesanan%20Antasari%20Mart%20Nomor%20Antrian%20"
+              href={`https://wa.me/628121235001?text=Halo%20Admin%20Koperasi,%20saya%20ingin%20mengambil%20pesanan%20Antasari%20Mart%20Nomor%20Antrian%20${queueNumber}`}
               target="_blank"
               rel="noreferrer"
               style={{
@@ -512,7 +530,7 @@ export default function CourierTracker({
                 boxShadow: '0 4px 12px rgba(37, 211, 102, 0.25)'
               }}
             >
-              💬 Hubungi Admin / Penjual Toko
+              💬 Hubungi Admin Kasir Toko
             </a>
 
             <button
@@ -520,7 +538,7 @@ export default function CourierTracker({
               onClick={handleClosePointNotification}
               style={{ width: '100%', padding: '12px 0', borderRadius: 12, fontSize: 13, fontWeight: 700, background: 'var(--am-primary)', color: 'white', border: 'none', cursor: 'pointer' }}
             >
-              ✅ Selesai & Kembali ke Peta Lokasi
+              ✅ Selesai & Kembali ke Peta Toko
             </button>
           </div>
         </div>
@@ -596,7 +614,7 @@ export default function CourierTracker({
               onClick={() => setShowRatingModal(true)}
               style={{ width: '100%', padding: '12px 0', borderRadius: 12, fontSize: 13, fontWeight: 700, background: 'var(--am-primary)', color: 'white', border: 'none', cursor: 'pointer' }}
             >
-              ⭐ Beri Ulasan & Ambil +5 Poin Antasari Mart! 🎁
+              ⭐ Beri Ulasan & Ambil +5 Poin Campus Mart! 🎁
             </button>
           )}
 
@@ -655,9 +673,9 @@ export default function CourierTracker({
           </div>
 
           <div style={{ height: 350, width: '100%', position: 'relative' }}>
-            <MapContainer 
-              center={userCoords} 
-              zoom={16} 
+            <MapContainer
+              center={userCoords}
+              zoom={16}
               style={{ width: '100%', height: '100%' }}
               zoomControl={false}
             >
@@ -700,7 +718,7 @@ export default function CourierTracker({
                   Beri Ulasan Pengantaran
                 </h3>
                 <p style={{ fontSize: 12, color: 'var(--am-text-muted)', marginTop: 4 }}>
-                  Ulas pelayanan driver & dapatkan <strong style={{ color: 'var(--am-primary)' }}>+5 Poin Antasari Mart!</strong> 🎁
+                  Ulas pelayanan driver & dapatkan <strong style={{ color: 'var(--am-primary)' }}>+5 Poin Campus Mart!</strong> 🎁
                 </p>
               </div>
 
@@ -803,7 +821,7 @@ export default function CourierTracker({
           <h2 className="am-heading" style={{ margin: 0, fontSize: 22, color: 'var(--am-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>📍</span> Titik Lokasi Real-Time Anda
           </h2>
-          
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px',
@@ -877,7 +895,7 @@ export default function CourierTracker({
               {resolvedAddress}
             </div>
             <div style={{ fontSize: 11, color: 'var(--am-text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span>📏 Jarak ke Koperasi: <strong>{distanceToShop < 1000 ? `${distanceToShop} Meter` : `${(distanceToShop/1000).toFixed(1)} Km`}</strong></span>
+              <span>📏 Jarak ke Koperasi: <strong>{distanceToShop < 1000 ? `${distanceToShop} Meter` : `${(distanceToShop / 1000).toFixed(1)} Km`}</strong></span>
               <span>🚶 Waktu tempuh: <strong>±{Math.max(1, Math.round(distanceToShop / 70))} menit</strong></span>
             </div>
           </div>
@@ -961,9 +979,9 @@ export default function CourierTracker({
         </div>
 
         <div style={{ height: 380, width: '100%', position: 'relative' }}>
-          <MapContainer 
-            center={userCoords} 
-            zoom={mapZoom} 
+          <MapContainer
+            center={userCoords}
+            zoom={mapZoom}
             style={{ width: '100%', height: '100%' }}
           >
             <MapController center={userCoords} zoom={mapZoom} />
@@ -1004,7 +1022,7 @@ export default function CourierTracker({
               <Popup>
                 <div style={{ textAlign: 'center', padding: 4 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#065F46', marginBottom: 2 }}>
-                    🏪 Toko Koperasi Antasari Mart
+                    🏪 Toko Koperasi Campus Mart
                   </div>
                   <div style={{ fontSize: 11, color: '#4B5563' }}>
                     Kampus {campus === 'banjarmasin' ? '1 Banjarmasin' : '2 Banjarbaru'}

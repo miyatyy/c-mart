@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, Component, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo, Component, type ReactNode } from 'react';
 import type { AppTab, Campus, CartItem, DeliveryMethod, PaymentMethod, SessionUser, ThemeMode, UserRole } from './types';
 import type { Product } from './types';
+import { formatRupiah } from './data';
 import TopBar from './components/TopBar';
 import Sidebar from './components/Sidebar';
 import ProductList from './components/ProductList';
@@ -12,28 +13,22 @@ import AdminPanel from './components/AdminPanel';
 import DriverDashboard from './components/DriverDashboard';
 import Login from './components/Login';
 import ChatPage from './components/ChatPage';
+import StandaloneVueChat from './components/chat/StandaloneVueChat';
 import ProModal from './components/ProModal';
 import { ProfileModal, SuccessPopup, InfoModal, LoginPromptModal } from './components/AppModals';
 import SuperAdminPanel from './components/SuperAdminPanel';
 import VendingSimulator from './components/VendingSimulator';
 import MyammiyVoiceAssistant from './components/MyammiyVoiceAssistant';
 import BottomNavBar from './components/BottomNavBar';
-import CampusMartSplashScreen from './components/CampusMartSplashScreen';
 import InAppNotification, { type InAppNotificationData } from './components/InAppNotification';
+import DebugSystemMenu from './components/DebugSystemMenu';
 import { getChatsApi, sendChatApi } from './lib/api';
-
-const PRESET_AVATARS = [
-  { id: 1, name: 'Maya (Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4' },
-  { id: 2, name: 'Ahmad (Ramah)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=AhmadHappy&backgroundColor=c0aede' },
-  { id: 3, name: 'Siti (Manis Senyum)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=SitiJoy&backgroundColor=ffd5dc' },
-  { id: 4, name: 'Rizky (Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=RizkyFun&backgroundColor=d1d4f9' },
-  { id: 5, name: 'Dewi (Friendly)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=DewiBright&backgroundColor=ffdfbf' },
-  { id: 6, name: 'Fajar (Semangat)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=FajarSmile&backgroundColor=c1f4c5' },
-  { id: 7, name: 'Alya (Kreatif Ceria)', type: 'reguler', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=AlyaCheer&backgroundColor=ffcdec' },
-  { id: 8, name: 'Zain (Pro Senyum)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=ZainPro&backgroundColor=00b4d8' },
-  { id: 9, name: 'Zara (Pro Elegan)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=ZaraPro&backgroundColor=7209b7' },
-  { id: 10, name: 'Ken (Pro Stylish)', type: 'pro', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585' },
-];
+import { getSocket } from './lib/socket';
+import { getUserAvatar, saveUserAvatarToGlobalMap, PRESET_AVATARS } from './lib/userAvatars';
+import { normalizeUserId, subscribeToCloudChatStream } from './lib/cloudChatSync';
+import { cleanupSnapOverlays } from './lib/snapCleanup';
+import { isUserProductOwner } from './lib/productOwnership';
+import { requestBrowserNotificationPermission, showSystemWebNotification } from './lib/webNotification';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; errorText?: string }> {
   constructor(props: { children: ReactNode }) {
@@ -53,7 +48,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
     if (this.state.hasError) {
       return (
         <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: 'system-ui, sans-serif' }}>
-          <div style={{ fontSize: 54, marginBottom: 12 }}>🌸 Antasari Mart</div>
+          <div style={{ fontSize: 54, marginBottom: 12 }}>🌸 Campus Mart</div>
           <h2 style={{ color: '#5FA874', margin: '0 0 8px' }}>Memuat Ulang Tampilan...</h2>
           <p style={{ color: '#64748B', marginBottom: 16 }}>Sistem baru saja diperbarui. Silakan klik tombol di bawah untuk menyinkronkan:</p>
           {this.state.errorText && (
@@ -103,11 +98,16 @@ function MainAppContent() {
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [chatUnread, setChatUnread] = useState(0);
-  const [showSplash, setShowSplash] = useState(true);
 
   // 🔔 In-App Push Notification & Quick Reply State
   const [inAppNotification, setInAppNotification] = useState<InAppNotificationData | null>(null);
   const lastNotifiedChatIdRef = useRef<string | number | null>(null);
+
+  // 🧹 Bersihkan overlay atau iframe Midtrans Snap saat berganti tab / halaman + Reset Scroll
+  useEffect(() => {
+    cleanupSnapOverlays();
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+  }, [activeTab]);
 
   function getEffectiveUserName(u: SessionUser | null): string {
     if (!u) return 'Pengunjung Tamu';
@@ -137,18 +137,23 @@ function MainAppContent() {
 
   const isGuest = !user;
 
+  const [isChatRoomActive, setIsChatRoomActive] = useState(false);
+  const isFullScreenChat = activeTab === 'chat' && isChatRoomActive;
+
   const [hasActiveOrder, setHasActiveOrder] = useState(() => {
     return !isGuest && localStorage.getItem('am_active_order') === 'true';
   });
 
-  const currentUser = user || {
-    id: 'guest',
-    nama: 'Pengunjung Tamu',
-    email: 'tamu@antasari.mart',
-    role: 'buyer' as UserRole,
-    roles: ['buyer' as UserRole],
-    avatar: ''
-  };
+  const currentUser = useMemo(() => {
+    return user || {
+      id: 'guest',
+      nama: 'Pengunjung Tamu',
+      email: 'tamu@antasari.mart',
+      role: 'buyer' as UserRole,
+      roles: ['buyer' as UserRole],
+      avatar: ''
+    };
+  }, [user]);
 
   const [modalMessage, setModalMessage] = useState<{ title: string; desc: string; icon: string } | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -197,6 +202,14 @@ function MainAppContent() {
     .check-icon-anim {
       animation: checkAnim 0.4s ease-in-out 0.1s both;
     }
+    .am-main-content-container {
+      padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    @media (min-width: 768px) {
+      .am-hide-on-desktop-chat {
+        display: none !important;
+      }
+    }
   `;
 
   useEffect(() => {
@@ -235,63 +248,203 @@ function MainAppContent() {
     // Listener untuk pemicu notifikasi kustom dari seluruh aplikasi
     const handleCustomNotification = (e: any) => {
       if (e && e.detail) {
+        // Jangan tampilkan floating in-app popup jika sedang berada di layar obrolan
+        if (activeTab === 'chat' && e.detail.type !== 'order') {
+          return;
+        }
         setInAppNotification(e.detail);
       }
     };
+    const handleUserChanged = (e: any) => {
+      if (e && e.detail) {
+        setUser(e.detail);
+      }
+    };
     window.addEventListener('am_trigger_notification', handleCustomNotification);
-    return () => window.removeEventListener('am_trigger_notification', handleCustomNotification);
+    window.addEventListener('am_user_changed', handleUserChanged);
+    return () => {
+      window.removeEventListener('am_trigger_notification', handleCustomNotification);
+      window.removeEventListener('am_user_changed', handleUserChanged);
+    };
+  }, [activeTab]);
+
+  useEffect(() => {
+    // Request permission for Web Push Notifications on app load
+    requestBrowserNotificationPermission().catch(() => {});
   }, []);
 
   useEffect(() => {
-    const fetchUnreadChats = async () => {
-      if (isGuest || !currentUser?.email) {
-        setChatUnread(0);
-        return;
+    if (isGuest || !currentUser?.email || currentUser.email === 'tamu@antasari.mart') {
+      return;
+    }
+
+    const myNorm = normalizeUserId(currentUser.email);
+    const activeTabRef = { current: activeTab };
+    activeTabRef.current = activeTab;
+    const isChatRoomActiveRef = { current: isChatRoomActive };
+    isChatRoomActiveRef.current = isChatRoomActive;
+
+    const handleIncomingChatMessage = (incomingMsg: any) => {
+      if (!incomingMsg) return;
+      const sNorm = normalizeUserId(incomingMsg.senderId || incomingMsg.fromId);
+      const rNorm = normalizeUserId(incomingMsg.receiverId || incomingMsg.toId);
+      const isToMe = rNorm === myNorm;
+      if (!isToMe || sNorm === myNorm) return;
+
+      const effectiveRoomId = incomingMsg.roomId || buildRoomId(sNorm, rNorm);
+      const senderName = incomingMsg.senderName || incomingMsg.fromName || 'Pengguna Antasari';
+      const senderRole = incomingMsg.senderRole || incomingMsg.fromRole || 'buyer';
+      const senderAvatar = getUserAvatar(incomingMsg.senderId || sNorm, senderName, senderRole);
+      const msgText = incomingMsg.text || 'Mengirim pesan baru';
+      const timeStr = incomingMsg.time || 'Baru saja';
+
+      setChatUnread(prev => prev + 1);
+
+      // 🔔 1. Tampilkan In-App Floating Notification Bubble jika tidak sedang berada di tab obrolan
+      const isInChat = activeTabRef.current === 'chat';
+      if (!isInChat) {
+        setInAppNotification({
+          id: String(incomingMsg.id || Date.now()),
+          senderId: incomingMsg.senderId || sNorm,
+          senderName,
+          senderRole,
+          senderAvatar,
+          roomId: effectiveRoomId,
+          text: msgText,
+          time: timeStr
+        });
       }
 
+      // 🌐 2. Tampilkan Browser System Push Notification jika tab/layar di latar belakang atau tidak fokus
+      if (document.hidden || !document.hasFocus() || activeTabRef.current !== 'chat' || !isChatRoomActiveRef.current) {
+        showSystemWebNotification(`Pesan baru dari ${senderName}`, {
+          body: msgText,
+          icon: senderAvatar,
+          tag: `chat_${effectiveRoomId}`,
+          data: { roomId: effectiveRoomId, senderId: incomingMsg.senderId || sNorm },
+          onClick: () => {
+            setActiveTab('chat');
+            localStorage.setItem('am_target_chat_room', effectiveRoomId);
+            setIsChatRoomActive(true);
+            window.dispatchEvent(new CustomEvent('am_open_chat_room', {
+              detail: { roomId: effectiveRoomId, senderId: incomingMsg.senderId || sNorm }
+            }));
+          }
+        });
+      }
+    };
+
+    // ⚡ 1. Langganan Cloud Realtime Stream (SSE) Global di App.tsx (< 100ms Push)
+    const unsubscribeCloudStream = subscribeToCloudChatStream(currentUser.email, handleIncomingChatMessage);
+
+    const handleIncomingOrderNotification = (orderData: any) => {
+      if (!orderData) return;
+      const activeUser = currentUser || (() => {
+        try { return JSON.parse(localStorage.getItem('am_user_session') || '{}'); } catch { return {}; }
+      })();
+      const isSellerOrAdmin = activeUser.role === 'seller' || activeUser.role === 'admin' || activeUser.role === 'super_admin' ||
+        (Array.isArray(activeUser.roles) && (activeUser.roles.includes('seller') || activeUser.roles.includes('admin') || activeUser.roles.includes('super_admin')));
+
+      if (!isSellerOrAdmin) return;
+
+      const buyerName = orderData.buyerName || orderData.customerDetails?.name || 'Mahasiswa UIN';
+      const totalStr = orderData.total ? formatRupiah(orderData.total) : (orderData.grossAmount ? formatRupiah(orderData.grossAmount) : '');
+      const itemSummary = orderData.items && orderData.items.length > 0 
+        ? orderData.items.map((i: any) => `${i.qty || i.quantity || 1}x ${i.name || i.product?.name || 'Produk'}`).join(', ')
+        : 'Produk Kampus';
+
+      setInAppNotification({
+        id: `order_${Date.now()}`,
+        senderId: 'order_system',
+        senderName: `Pesanan Baru dari ${buyerName}`,
+        senderRole: 'buyer',
+        text: `${itemSummary}${totalStr ? ` • Total: ${totalStr}` : ''}`,
+        time: 'Baru saja',
+        type: 'order',
+        orderData: orderData
+      });
+    };
+
+    // ⚡ 2. Socket.io Real-time Global Unread & Notification Listener
+    const socket = getSocket();
+    if (socket) {
+      socket.on('new_chat_notification', handleIncomingChatMessage);
+      socket.on('chat_list_update', handleIncomingChatMessage);
+      socket.on('new_order_notification', handleIncomingOrderNotification);
+    }
+
+    const handleLocalOrderCreated = (e: any) => {
+      if (e && e.detail) {
+        handleIncomingOrderNotification(e.detail);
+      }
+    };
+    window.addEventListener('am_order_created', handleLocalOrderCreated);
+
+    let isFetchingChats = false;
+    // 🔄 3. Polling Sinkronisasi Rutin Unread Chat
+    const fetchUnreadChats = async () => {
+      if (isFetchingChats) return;
+      isFetchingChats = true;
       try {
-        const identifier = currentUser.email;
+        const identifier = myNorm;
         const data = await getChatsApi(identifier);
         if (data.success && Array.isArray(data.chats)) {
-          const unreadChats = data.chats.filter((c: any) =>
-            c.receiverId === identifier && c.isRead === false
-          );
-          setChatUnread(Math.max(0, unreadChats.length));
-
-          // 🔔 Jika ada pesan baru masuk dan pengguna tidak sedang di tab chat, tampilkan pop-up notifikasi
-          if (unreadChats.length > 0) {
-            const latestUnread = unreadChats[unreadChats.length - 1];
-            if (latestUnread && latestUnread.id !== lastNotifiedChatIdRef.current) {
-              lastNotifiedChatIdRef.current = latestUnread.id;
-              if (activeTab !== 'chat') {
-                setInAppNotification({
-                  id: String(latestUnread.id),
-                  senderId: latestUnread.senderId,
-                  senderName: latestUnread.senderName || 'Pengguna Antasari',
-                  senderRole: latestUnread.senderRole || 'seller',
-                  senderAvatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=' + encodeURIComponent(latestUnread.senderName || 'User'),
-                  roomId: latestUnread.roomId,
-                  text: latestUnread.text,
-                  time: latestUnread.time || 'Baru saja'
-                });
-              }
-            }
-          }
+          const unreadChats = data.chats.filter((c: any) => {
+            const receiverNorm = normalizeUserId(c.receiverId);
+            const senderNorm = normalizeUserId(c.senderId);
+            const isToMe = receiverNorm === myNorm;
+            const isFromMe = senderNorm === myNorm;
+            return isToMe && !isFromMe && c.isRead !== true;
+          });
+          setChatUnread(prev => prev === unreadChats.length ? prev : unreadChats.length);
         }
       } catch (_err) {
-        // Fallback offline / mock mode
         try {
-          const local = JSON.parse(localStorage.getItem(`am_local_chats_${currentUser.email.toLowerCase().trim()}`) || '[]');
-          const unread = local.filter((c: any) => c.receiverId?.toLowerCase() === currentUser.email?.toLowerCase() && c.isRead === false);
-          setChatUnread(unread.length);
+          const local = JSON.parse(localStorage.getItem(`am_local_chats_${myNorm}`) || '[]');
+          const unread = local.filter((c: any) => {
+            const receiverNorm = normalizeUserId(c.receiverId);
+            const senderNorm = normalizeUserId(c.senderId);
+            const isToMe = receiverNorm === myNorm;
+            const isFromMe = senderNorm === myNorm;
+            return isToMe && !isFromMe && c.isRead !== true;
+          });
+          setChatUnread(prev => prev === unread.length ? prev : unread.length);
         } catch (_e) {}
+      } finally {
+        isFetchingChats = false;
       }
     };
 
     fetchUnreadChats();
-    const interval = setInterval(fetchUnreadChats, 3000);
-    return () => clearInterval(interval);
-  }, [currentUser, isGuest, activeTab]);
+    const interval = setInterval(fetchUnreadChats, 15000);
+
+    const handleChatRead = () => {
+      try {
+        const local = JSON.parse(localStorage.getItem(`am_local_chats_${myNorm}`) || '[]');
+        const unread = local.filter((c: any) => {
+          const receiverNorm = normalizeUserId(c.receiverId);
+          const senderNorm = normalizeUserId(c.senderId);
+          const isToMe = receiverNorm === myNorm;
+          const isFromMe = senderNorm === myNorm;
+          return isToMe && !isFromMe && c.isRead !== true;
+        });
+        setChatUnread(unread.length);
+      } catch (_e) {}
+    };
+    window.addEventListener('am_chat_read', handleChatRead);
+
+    return () => {
+      unsubscribeCloudStream();
+      clearInterval(interval);
+      window.removeEventListener('am_chat_read', handleChatRead);
+      window.removeEventListener('am_order_created', handleLocalOrderCreated);
+      if (socket) {
+        socket.off('new_chat_notification', handleIncomingChatMessage);
+        socket.off('chat_list_update', handleIncomingChatMessage);
+        socket.off('new_order_notification', handleIncomingOrderNotification);
+      }
+    };
+  }, [currentUser.email, isGuest]);
 
   function handleLogin(r: UserRole, _gender: 'male' | 'female', c: Campus, userData: any) {
     const effectiveName = getEffectiveUserName(userData);
@@ -307,6 +460,8 @@ function MainAppContent() {
       localStorage.setItem('am_user_avatar', updatedUser.avatar);
     }
     setCampus(c);
+
+    saveUserAvatarToGlobalMap(updatedUser.email, effectiveName, updatedUser.avatar || '');
 
     localStorage.setItem('am_user_session', JSON.stringify(updatedUser));
     localStorage.setItem('am_current_user', JSON.stringify(updatedUser));
@@ -339,6 +494,12 @@ function MainAppContent() {
       setShowLoginModal(true);
       return;
     }
+    if (tab === 'chat') {
+      localStorage.removeItem('am_target_chat_room');
+      localStorage.removeItem('am_target_chat');
+      localStorage.removeItem('am_target_chat_contact');
+      window.dispatchEvent(new CustomEvent('am_reset_chat_view'));
+    }
     setActiveTab(tab);
     setIsMobileSidebarOpen(false);
   };
@@ -356,6 +517,10 @@ function MainAppContent() {
   function addToCart(product: Product, qty: number) {
     if (isGuest) {
       setShowLoginModal(true);
+      return;
+    }
+    if (isUserProductOwner(product, currentUser)) {
+      alert('Penjual tidak dapat membeli produk dari tokonya sendiri.');
       return;
     }
     setCart(prev => {
@@ -379,57 +544,72 @@ function MainAppContent() {
       return;
     }
 
+    const effectiveSellerId = sellerId || 'seller_1';
+    const effectiveSellerName = sellerName || (effectiveSellerId === 'seller_1' ? 'Myammiy Craft (Katalog Resmi)' : 'Penjual Toko');
+    const sellerAvatar = getUserAvatar(effectiveSellerId, effectiveSellerName, 'seller');
+
     const buyerEmail = currentUser.email;
     const buyerName = currentUser.nama || currentUser.name || 'Pengguna';
-    const targetRoomId = [buyerEmail.toLowerCase(), (sellerId || 'seller_1').toLowerCase()].sort().join('__');
-    const initialMessage = `Halo Kak ${sellerName}, saya tertarik dan ingin bertanya mengenai produk "${productName}" apakah stoknya masih tersedia?`;
+    const targetRoomId = [buyerEmail.toLowerCase().trim(), effectiveSellerId.toLowerCase().trim()].sort().join('__');
+    const initialMessage = `Halo Kak ${effectiveSellerName}, saya tertarik dan ingin bertanya mengenai produk "${productName}" apakah stoknya masih tersedia?`;
+    const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // 1. Simpan target kontak ke localStorage agar ChatPage langsung membukanya
+    // 1. Simpan target kontak ke localStorage agar ChatPage langsung membuka chat penjual
     localStorage.setItem('am_target_chat_contact', JSON.stringify({
       id: Date.now(),
-      nama: sellerName,
-      email: sellerId || 'seller_1',
+      nama: effectiveSellerName,
+      email: effectiveSellerId,
       role: 'seller',
+      avatar: sellerAvatar,
       productName
     }));
 
-    // 2. Buat & Simpan pesan langsung ke daftar obrolan lokal
+    // 2. Buat & Simpan pesan langsung ke daftar obrolan lokal kedua akun
     const localMsg = {
       id: Date.now(),
       roomId: targetRoomId,
       senderId: buyerEmail,
       senderName: buyerName,
       senderRole: currentUser.role || 'buyer',
-      receiverId: sellerId || 'seller_1',
-      receiverName: sellerName,
+      receiverId: effectiveSellerId,
+      receiverName: effectiveSellerName,
       receiverRole: 'seller',
       text: initialMessage,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: timeNow,
       createdAt: new Date().toISOString()
     };
 
     try {
-      const existingLocal = JSON.parse(localStorage.getItem('am_local_chats') || '[]');
-      existingLocal.push(localMsg);
-      localStorage.setItem('am_local_chats', JSON.stringify(existingLocal));
+      const bKey = `am_local_chats_${buyerEmail.toLowerCase().trim()}`;
+      const existingB = JSON.parse(localStorage.getItem(bKey) || '[]');
+      const existsB = existingB.some((c: any) => c.text === initialMessage && c.time === timeNow);
+      if (!existsB) {
+        existingB.push({ ...localMsg, isRead: true });
+        localStorage.setItem(bKey, JSON.stringify(existingB));
+      }
+
+      const sKey = `am_local_chats_${effectiveSellerId.toLowerCase().trim()}`;
+      const existingS = JSON.parse(localStorage.getItem(sKey) || '[]');
+      const existsS = existingS.some((c: any) => c.text === initialMessage && c.time === timeNow);
+      if (!existsS) {
+        existingS.push({ ...localMsg, isRead: false });
+        localStorage.setItem(sKey, JSON.stringify(existingS));
+      }
     } catch (_e) {}
 
-    // 3. Update counter unread
-    setChatUnread(prev => prev + 1);
-
-    // 4. Kirim ke backend jika online
+    // 3. Kirim ke backend jika online
     sendChatApi({
       fromId: buyerEmail,
       fromName: buyerName,
       fromRole: currentUser.role || 'buyer',
-      toId: sellerId || 'seller_1',
-      toName: sellerName,
+      toId: effectiveSellerId,
+      toName: effectiveSellerName,
       toRole: 'seller',
       text: initialMessage
     }).catch(() => {});
 
-    // 5. Tampilkan popup konfirmasi & langsung buka tab Obrolan
-    setSuccessPopupMessage(`💬 Pesan terkirim ke Kak ${sellerName} untuk produk "${productName}"!`);
+    // 4. Tampilkan popup konfirmasi & langsung buka tab Obrolan
+    setSuccessPopupMessage(`💬 Membuka obrolan dengan Kak ${effectiveSellerName} untuk produk "${productName}"...`);
     setActiveTab('chat');
   }
 
@@ -449,197 +629,235 @@ function MainAppContent() {
   }
 
   return (
-    <div className={`am-root theme-${theme}`} style={{ display: 'flex', minHeight: '100vh', background: 'var(--am-bg)', position: 'relative' }}>
+    <div
+      className={`am-root theme-${theme} min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col md:flex-row pt-0 m-0`}
+      style={{ display: 'flex', minHeight: '100vh', background: 'var(--am-bg)', position: 'relative', paddingTop: 0, marginTop: 0 }}
+    >
       <style>{customModalStyles}</style>
 
-      {/* 🌸 ELEGANT CAMPUS MART PASTEL SPLASH SCREEN */}
-      {showSplash && <CampusMartSplashScreen onFinish={() => setShowSplash(false)} />}
-
-      <Sidebar
-        theme={theme}
-        role={role}
-        activeTab={activeTab}
-        setActiveTab={handleSetActiveTab}
-        userName={currentUser.nama || currentUser.name || 'Pengunjung Tamu'}
-        userEmail={currentUser.email}
-        userAvatar={isGuest ? '' : userAvatar}
-        setUserAvatar={setUserAvatar}
-        campus={campus}
-        setCampus={setCampus}
-        onLogout={isGuest ? () => setActiveTab('login_page') : handleLogout}
-        isGuest={isGuest}
-        onRequireLogin={() => setShowLoginModal(true)}
-        hasActiveOrder={hasActiveOrder}
-        onOpenProModal={() => {
-          if (isGuest) {
-            setShowLoginModal(true);
-          } else {
-            setShowProModal(true);
-          }
-        }}
-        isOpenExternal={isMobileSidebarOpen}
-        onCloseExternal={() => setIsMobileSidebarOpen(false)}
-        onToggleTheme={() => setTheme(t => t === 'aesthetic' ? 'modern' : 'aesthetic')}
-      />
-
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <TopBar
+      {activeTab !== 'chat' && (
+        <Sidebar
           theme={theme}
-          campus={campus}
-          setCampus={setCampus}
-          activeTab={activeTab}
-          onOpenProfileModal={() => {
-            if (isGuest) {
-              setShowLoginModal(true);
-            } else {
-              setShowProfileModal(true);
-            }
-          }}
-          setActiveTab={handleSetActiveTab}
           role={role}
-          setRole={handleRoleChange}
-          userName={currentUser.nama || currentUser.name || 'Pengunjung'}
+          activeTab={activeTab}
+          setActiveTab={handleSetActiveTab}
+          userName={currentUser.nama || currentUser.name || 'Pengunjung Tamu'}
           userEmail={currentUser.email}
           userAvatar={isGuest ? '' : userAvatar}
-          cartItems={cart}
-          chatUnread={chatUnread}
-          onToggleTheme={() => setTheme(t => t === 'aesthetic' ? 'modern' : 'aesthetic')}
+          setUserAvatar={setUserAvatar}
+          campus={campus}
+          setCampus={setCampus}
           onLogout={isGuest ? () => setActiveTab('login_page') : handleLogout}
           isGuest={isGuest}
           onRequireLogin={() => setShowLoginModal(true)}
           hasActiveOrder={hasActiveOrder}
-          onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
+          onOpenProModal={() => {
+            if (isGuest) {
+              setShowLoginModal(true);
+            } else {
+              setShowProModal(true);
+            }
+          }}
+          isOpenExternal={isMobileSidebarOpen}
+          onCloseExternal={() => setIsMobileSidebarOpen(false)}
+          onToggleTheme={() => setTheme(t => t === 'aesthetic' ? 'modern' : 'aesthetic')}
         />
+      )}
 
-        <main style={{ flex: 1, paddingBottom: 72, minHeight: 'calc(100vh - 60px)' }}>
-          {activeTab === 'home' && (
-            <ProductList
-              theme={theme}
-              campus={campus}
-              cartItems={cart}
-              onAddToCart={addToCart}
-              onChat={handleOpenChat}
-              onNavigateCheckout={() => setActiveTab('checkout')}
-              onOpenVending={() => setActiveTab('vending')}
-              isGuest={isGuest}
-              onRequireLogin={() => setShowLoginModal(true)}
-            />
-          )}
-          {activeTab === 'cart' && (
-            isGuest ? (
-              <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--am-text-muted)' }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
-                <h3 style={{ color: 'var(--am-text)', margin: '0 0 8px' }}>Fitur Keranjang Terkunci</h3>
-                <p style={{ fontSize: 13, marginBottom: 20 }}>Silakan Masuk atau Daftar akun terlebih dahulu untuk melihat dan mengelola keranjang belanja.</p>
-                <button onClick={() => setShowLoginModal(true)} style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, cursor: 'pointer' }}>
-                  🔑 Masuk / Daftar Akun
-                </button>
-              </div>
-            ) : (
-              <Cart
-                theme={theme}
-                items={cart}
-                onUpdateQty={(id, qty) => setCart(prev => prev.map(i => i.product.id === id ? { ...i, quantity: qty } : i))}
-                onRemove={id => setCart(prev => prev.filter(i => i.product.id !== id))}
-                onCheckout={() => {
-                  if (isGuest) {
-                    setShowLoginModal(true);
-                  } else {
-                    setActiveTab('checkout');
-                  }
-                }}
-                onContinueShopping={() => setActiveTab('home')}
-                onAddToCart={addToCart}
-              />
-            )
-          )}
-          {activeTab === 'checkout' && (
-            isGuest ? (
-              <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--am-text-muted)' }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
-                <h3 style={{ color: 'var(--am-text)', margin: '0 0 8px' }}>Fitur Belanja Terkunci</h3>
-                <p style={{ fontSize: 13, marginBottom: 20 }}>Tingkat keamanan akun aktif: Anda harus Masuk atau Mendaftar akun terlebih dahulu sebelum dapat membeli barang.</p>
-                <button onClick={() => setShowLoginModal(true)} style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, cursor: 'pointer' }}>
-                  🔑 Masuk / Daftar Akun Sekarang
-                </button>
-              </div>
-            ) : (
-              <Checkout
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingTop: 0, marginTop: 0 }}>
+        {activeTab !== 'chat' && (
+          <TopBar
+            theme={theme}
+            campus={campus}
+            setCampus={setCampus}
+            activeTab={activeTab}
+            onOpenProfileModal={() => {
+              if (isGuest) {
+                setShowLoginModal(true);
+              } else {
+                setShowProfileModal(true);
+              }
+            }}
+            setActiveTab={handleSetActiveTab}
+            role={role}
+            setRole={handleRoleChange}
+            userName={currentUser.nama || currentUser.name || 'Pengunjung'}
+            userEmail={currentUser.email}
+            userAvatar={isGuest ? '' : userAvatar}
+            cartItems={cart}
+            chatUnread={chatUnread}
+            onToggleTheme={() => setTheme(t => t === 'aesthetic' ? 'modern' : 'aesthetic')}
+            onLogout={isGuest ? () => setActiveTab('login_page') : handleLogout}
+            isGuest={isGuest}
+            onRequireLogin={() => setShowLoginModal(true)}
+            hasActiveOrder={hasActiveOrder}
+            onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
+          />
+        )}
+
+        <main
+          className={`am-main-content-container ${activeTab === 'chat' || isFullScreenChat ? '' : 'pb-24'}`}
+          style={{
+            flex: 1,
+            paddingBottom: activeTab === 'chat' || isFullScreenChat ? 0 : undefined,
+            minHeight: activeTab === 'chat' ? '100vh' : (isFullScreenChat ? '100vh' : 'calc(100vh - 60px)'),
+            height: activeTab === 'chat' ? '100vh' : undefined,
+            overflow: activeTab === 'chat' ? 'hidden' : undefined,
+            display: activeTab === 'chat' ? 'flex' : undefined,
+            flexDirection: activeTab === 'chat' ? 'column' : undefined,
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          <div
+            key={activeTab}
+            className="am-page-transition"
+            style={{
+              minHeight: activeTab === 'chat' ? '100%' : (isFullScreenChat ? '100vh' : 'calc(100vh - 140px)'),
+              height: activeTab === 'chat' ? '100%' : undefined,
+              flex: activeTab === 'chat' ? 1 : undefined,
+              display: activeTab === 'chat' ? 'flex' : 'block',
+              flexDirection: activeTab === 'chat' ? 'column' : undefined
+            }}
+          >
+            {activeTab === 'home' && (
+              <ProductList
                 theme={theme}
                 campus={campus}
-                items={cart}
-                onConfirmOrder={handleCheckout}
-                onBack={() => setActiveTab('home')}
+                cartItems={cart}
+                onAddToCart={addToCart}
+                onChat={handleOpenChat}
+                onNavigateCheckout={() => setActiveTab('checkout')}
+                onOpenVending={() => setActiveTab('vending_simulator')}
+                isGuest={isGuest}
+                onRequireLogin={() => setShowLoginModal(true)}
+                currentUser={currentUser}
               />
-            )
-          )}
-          {activeTab === 'tracker' && (
-            <CourierTracker
-              theme={theme}
-              campus={campus}
-              hasActiveOrder={hasActiveOrder}
-              userName={currentUser.nama || currentUser.name || 'Pengunjung'}
-              userEmail={currentUser.email}
-              onNavigateHome={() => setActiveTab('home')}
-              onNavigateCart={() => setActiveTab('cart')}
-              onFinishTracking={() => {
-                setHasActiveOrder(false)
-                setActiveTab('home')
-              }}
-            />
-          )}
-          {activeTab === 'chat' && (
-            isGuest ? (
-              <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--am-text-muted)' }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>💬🔒</div>
-                <h3 style={{ color: 'var(--am-text)', margin: '0 0 8px' }}>Akses Pesan Dibatasi</h3>
-                <p style={{ fontSize: 13, marginBottom: 20 }}>Silakan login terlebih dahulu untuk mulai mengirim pesan kepada penjual.</p>
-                <button className="am-btn-primary" onClick={() => setShowLoginModal(true)} style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
-                  Masuk / Daftar Sekarang 🚀
-                </button>
-              </div>
-            ) : (
-              <ChatPage theme={theme} campus={campus} onBack={() => setActiveTab('home')} />
-            )
-          )}
+            )}
+            {activeTab === 'cart' && (
+              isGuest ? (
+                <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--am-text-muted)' }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+                  <h3 style={{ color: 'var(--am-text)', margin: '0 0 8px' }}>Fitur Keranjang Terkunci</h3>
+                  <p style={{ fontSize: 13, marginBottom: 20 }}>Silakan Masuk atau Daftar akun terlebih dahulu untuk melihat dan mengelola keranjang belanja.</p>
+                  <button onClick={() => setShowLoginModal(true)} style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, cursor: 'pointer' }}>
+                    🔑 Masuk / Daftar Akun
+                  </button>
+                </div>
+              ) : (
+                <Cart
+                  theme={theme}
+                  items={cart}
+                  onUpdateQty={(id, qty) => setCart(prev => prev.map(i => i.product.id === id ? { ...i, quantity: qty } : i))}
+                  onRemove={id => setCart(prev => prev.filter(i => i.product.id !== id))}
+                  onCheckout={() => {
+                    if (isGuest) {
+                      setShowLoginModal(true);
+                    } else {
+                      setActiveTab('checkout');
+                    }
+                  }}
+                  onContinueShopping={() => setActiveTab('home')}
+                  onAddToCart={addToCart}
+                  currentUser={currentUser}
+                />
+              )
+            )}
+            {activeTab === 'checkout' && (
+              isGuest ? (
+                <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--am-text-muted)' }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+                  <h3 style={{ color: 'var(--am-text)', margin: '0 0 8px' }}>Fitur Belanja Terkunci</h3>
+                  <p style={{ fontSize: 13, marginBottom: 20 }}>Tingkat keamanan akun aktif: Anda harus Masuk atau Mendaftar akun terlebih dahulu sebelum dapat membeli barang.</p>
+                  <button onClick={() => setShowLoginModal(true)} style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 800, cursor: 'pointer' }}>
+                    🔑 Masuk / Daftar Akun Sekarang
+                  </button>
+                </div>
+              ) : (
+                <Checkout
+                  theme={theme}
+                  campus={campus}
+                  items={cart}
+                  onConfirmOrder={handleCheckout}
+                  onBack={() => setActiveTab('home')}
+                />
+              )
+            )}
+            {activeTab === 'tracker' && (
+              <CourierTracker
+                theme={theme}
+                campus={campus}
+                hasActiveOrder={hasActiveOrder}
+                userName={currentUser.nama || currentUser.name || 'Pengunjung'}
+                userEmail={currentUser.email}
+                onNavigateHome={() => setActiveTab('home')}
+                onNavigateCart={() => setActiveTab('cart')}
+                onFinishTracking={() => {
+                  setHasActiveOrder(false)
+                  setActiveTab('home')
+                }}
+              />
+            )}
+            {activeTab === 'chat' && (
+              isGuest ? (
+                <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--am-text-muted)' }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>💬🔒</div>
+                  <h3 style={{ color: 'var(--am-text)', margin: '0 0 8px' }}>Akses Pesan Dibatasi</h3>
+                  <p style={{ fontSize: 13, marginBottom: 20 }}>Silakan login terlebih dahulu untuk mulai mengirim pesan kepada penjual.</p>
+                  <button className="am-btn-primary" onClick={() => setShowLoginModal(true)} style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: 'var(--am-primary)', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
+                    Masuk / Daftar Sekarang 🚀
+                  </button>
+                </div>
+              ) : (
+                <StandaloneVueChat
+                  theme={theme}
+                  campus={campus}
+                  onBack={() => setActiveTab('home')}
+                  onRoomActiveChange={setIsChatRoomActive}
+                />
+              )
+            )}
 
-          {activeTab === 'seller' && (
-            <SellerDashboard
-              theme={theme}
-              campus={campus}
-              sellerId={currentUser.email || 'seller_1'}
-              sellerName={currentUser.nama || currentUser.name || 'Penjual Koperasi'}
-            />
-          )}
+            {activeTab === 'seller' && (
+              <SellerDashboard
+                theme={theme}
+                campus={campus}
+                sellerId={currentUser.email || 'seller_1'}
+                sellerName={currentUser.nama || currentUser.name || 'Penjual Koperasi'}
+              />
+            )}
 
-          {activeTab === 'driver' && (
-            <DriverDashboard
-              theme={theme}
-              campus={campus}
-              driverName={currentUser.nama || currentUser.name || 'Driver Antasari'}
-            />
-          )}
+            {activeTab === 'driver' && (
+              <DriverDashboard
+                theme={theme}
+                campus={campus}
+                driverName={currentUser.nama || currentUser.name || 'Driver Antasari'}
+                driverEmail={currentUser.email || ''}
+                onNavigateTab={(targetTab) => handleSetActiveTab(targetTab as any)}
+                cartItemCount={cart.reduce((acc, i) => acc + (i.quantity || 1), 0)}
+              />
+            )}
 
-          {activeTab === 'admin' && (
-            <AdminPanel
-              theme={theme}
-              campus={campus}
-              currentUserId={currentUser.email || 'admin@koperasi.com'}
-              currentUserName={currentUser.nama || currentUser.name || 'Pengurus Koperasi'}
-            />
-          )}
+            {activeTab === 'admin' && (
+              <AdminPanel
+                theme={theme}
+                campus={campus}
+                currentUserId={currentUser.email || 'admin@koperasi.com'}
+                currentUserName={currentUser.nama || currentUser.name || 'Pengurus Koperasi'}
+              />
+            )}
 
-          {activeTab === 'super_admin' && (
-            <SuperAdminPanel
-              theme={theme}
-            />
-          )}
+            {activeTab === 'super_admin' && (
+              <SuperAdminPanel
+                theme={theme}
+              />
+            )}
 
-          {activeTab === 'vending_simulator' && (
-            <VendingSimulator
-              theme={theme}
-            />
-          )}
+            {activeTab === 'vending_simulator' && (
+              <VendingSimulator
+                theme={theme}
+              />
+            )}
+          </div>
         </main>
       </div>
 
@@ -668,7 +886,7 @@ function MainAppContent() {
           onClose={() => setShowProModal(false)}
           onSuccess={() => {
             setShowProModal(false);
-            setSuccessPopupMessage('Selamat! Akun Anda kini telah resmi di-upgrade ke Antasari Mart PRO 💎');
+            setSuccessPopupMessage('Selamat! Akun Anda kini telah resmi di-upgrade ke Campus Mart PRO 💎');
           }}
         />
       )}
@@ -687,6 +905,7 @@ function MainAppContent() {
           onSave={() => {
             setCampus(selectedCampus);
             setUserAvatar(currentAvatar);
+            saveUserAvatarToGlobalMap(currentUser.email || currentName, currentName, currentAvatar);
             localStorage.setItem('am_user_avatar', currentAvatar);
             localStorage.setItem('am_user_name', currentName);
             if (user) {
@@ -699,6 +918,10 @@ function MainAppContent() {
             setSuccessPopupMessage('Profil & Avatar Anda berhasil diperbarui! ✨');
           }}
           onClose={() => setShowProfileModal(false)}
+          onLogout={isGuest ? () => setActiveTab('login_page') : handleLogout}
+          isGuest={isGuest}
+          onNavigateTab={(targetTab) => handleSetActiveTab(targetTab as any)}
+          userRoles={currentUser.roles || [role]}
         />
       )}
 
@@ -718,7 +941,7 @@ function MainAppContent() {
       )}
 
       {/* 📱 MODERN FIXED BOTTOM NAVIGATION BAR */}
-      {activeTab !== 'login_page' && (
+      {activeTab !== 'login_page' && activeTab !== 'chat' && !isFullScreenChat && (
         <BottomNavBar
           activeTab={activeTab}
           setActiveTab={handleSetActiveTab}
@@ -741,13 +964,23 @@ function MainAppContent() {
 
       {/* 🔔 FLOATING IN-APP PUSH NOTIFICATION & QUICK REPLY POP-UP */}
       <InAppNotification
-        notification={inAppNotification}
+        notification={activeTab === 'chat' && inAppNotification?.type !== 'order' ? null : inAppNotification}
         onDismiss={() => setInAppNotification(null)}
-        onOpenChat={(roomId, _senderId) => {
+        onOpenSellerDashboard={() => {
+          setInAppNotification(null);
+          setActiveTab('seller');
+        }}
+        onOpenChat={(roomId, senderId) => {
           setInAppNotification(null);
           setActiveTab('chat');
-          if (roomId) {
-            localStorage.setItem('am_target_chat_room', roomId);
+          const myNorm = normalizeUserId(currentUser.email);
+          const effectiveRoomId = roomId || (senderId ? buildRoomId(myNorm, normalizeUserId(senderId)) : null);
+          if (effectiveRoomId) {
+            localStorage.setItem('am_target_chat_room', effectiveRoomId);
+            setIsChatRoomActive(true);
+            window.dispatchEvent(new CustomEvent('am_open_chat_room', {
+              detail: { roomId: effectiveRoomId, senderId }
+            }));
           }
         }}
         currentUserId={currentUser.id || currentUser.email || 'user_active'}
@@ -755,6 +988,17 @@ function MainAppContent() {
         currentUserRole={role || 'buyer'}
         theme={theme}
       />
+
+      {/* 🛠️ FLOATING DEBUG & LAPOR BUG SYSTEM (Disembunyikan khusus saat ruang chat aktif agar tidak menutupi tombol kirim) */}
+      {activeTab !== 'login_page' && !isFullScreenChat && (
+        <DebugSystemMenu
+          theme={theme}
+          userEmail={currentUser?.email}
+          userName={currentUser?.nama || currentUser?.name || 'Pengguna Antasari'}
+          userRole={role || 'buyer'}
+          isGuest={isGuest}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const dns = require('dns');
+try { dns.setServers(['8.8.8.8', '1.1.1.1']); } catch (e) {}
 require('dotenv').config({ path: 'C:/Users/nurmi/Documents/project-antasari-mart/antasari-mart-backend/.env' });
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/Antasari_Mart_Chat';

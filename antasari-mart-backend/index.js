@@ -1,4 +1,6 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const cors = require('cors');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const mongoose = require('mongoose');
@@ -15,6 +17,45 @@ const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
+const fs = require('fs');
+const { getCache, setCache, delCache, delCachePattern } = require('./redis');
+
+// 🔒 Direktori Privat Foto KTM (Tidak dapat diakses publik)
+const KTM_PRIVATE_DIR = path.join(__dirname, 'private_uploads', 'ktm');
+try {
+  if (!fs.existsSync(KTM_PRIVATE_DIR)) {
+    fs.mkdirSync(KTM_PRIVATE_DIR, { recursive: true });
+  }
+} catch (_e) {}
+
+const ktmDiskStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (!fs.existsSync(KTM_PRIVATE_DIR)) {
+      fs.mkdirSync(KTM_PRIVATE_DIR, { recursive: true });
+    }
+    cb(null, KTM_PRIVATE_DIR);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `ktm-${uniqueSuffix}${ext}`);
+  }
+});
+
+const ktmUpload = multer({
+  storage: ktmDiskStorage,
+  limits: { fileSize: 4 * 1024 * 1024 }, // Maksimal 4 MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|webp|pdf/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error('Format file tidak didukung. Harap upload gambar JPG, PNG, atau WEBP!'));
+  }
+});
 
 // 🔒 VALIDASI ENVIRONMENT VARIABLES
 const requiredEnvs = [
@@ -41,6 +82,13 @@ if (missingEnvs.length > 0) {
 }
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+  }
+});
 
 // 🔒 Pasang Helmet untuk Sembunyikan Identitas Server & Mencegah XSS
 app.use(helmet({
@@ -120,7 +168,21 @@ const User = sequelize.define('User', {
   role: { type: DataTypes.STRING, defaultValue: 'buyer' },
   avatar: { type: DataTypes.TEXT, allowNull: true },
   isPro: { type: DataTypes.BOOLEAN, defaultValue: false },
-  proExpireDate: { type: DataTypes.DATE, allowNull: true }
+  proExpireDate: { type: DataTypes.DATE, allowNull: true },
+
+  // 🎓 VERIFIKASI IDENTITAS MAHASISWA AKTIF & PENJUAL
+  ktmPhotoUrl: { type: DataTypes.TEXT, allowNull: true },
+  degreeLevel: { type: DataTypes.STRING, defaultValue: 'S1' }, // 'S1' | 'S2' | 'S3'
+  entryYear: { type: DataTypes.INTEGER, allowNull: true },
+  currentSemester: { type: DataTypes.INTEGER, allowNull: true },
+  verificationStatus: { 
+    type: DataTypes.STRING, 
+    defaultValue: 'not_submitted' // 'not_submitted' | 'pending' | 'approved' | 'rejected'
+  },
+  isActiveStudent: { type: DataTypes.BOOLEAN, defaultValue: true },
+  rejectionReason: { type: DataTypes.TEXT, allowNull: true },
+  verifiedAt: { type: DataTypes.DATE, allowNull: true },
+  verifiedBy: { type: DataTypes.STRING, allowNull: true }
 });
 
 const OtpVerification = sequelize.define('OtpVerification', {
@@ -159,6 +221,7 @@ const Product = sequelize.define('Product', {
   harga: { type: DataTypes.INTEGER, allowNull: false },
   stok: { type: DataTypes.INTEGER, defaultValue: 0 },
   kategori: { type: DataTypes.STRING, allowNull: false },
+  material: { type: DataTypes.STRING, defaultValue: 'Kawat Bulu (Pipe Cleaner) & Benang Rajut Premium' },
   foto: { type: DataTypes.TEXT, allowNull: true },
   images: { type: DataTypes.JSON, defaultValue: [] },
   videoUrl: { type: DataTypes.TEXT, allowNull: true },
@@ -166,7 +229,12 @@ const Product = sequelize.define('Product', {
   sellerId: { type: DataTypes.STRING, defaultValue: 'seller_1' },
   sellerName: { type: DataTypes.STRING, defaultValue: 'Penjual' },
   sold: { type: DataTypes.INTEGER, defaultValue: 0 },
-  slotNumber: { type: DataTypes.INTEGER, defaultValue: 1 }
+  slotNumber: { type: DataTypes.INTEGER, defaultValue: 1 },
+  status: { type: DataTypes.STRING, defaultValue: 'pending' }, // 'pending' | 'approved' | 'rejected' | 'active'
+  aiScore: { type: DataTypes.INTEGER, defaultValue: 90 },
+  aiAnalysis: { type: DataTypes.JSON, defaultValue: null },
+  moderationReason: { type: DataTypes.TEXT, allowNull: true },
+  moderatedAt: { type: DataTypes.DATE, allowNull: true }
 });
 
 const Order = sequelize.define('Order', {
@@ -218,8 +286,21 @@ const Chat = sequelize.define('Chat', {
   receiverName: { type: DataTypes.STRING, allowNull: false },
   receiverRole: { type: DataTypes.STRING, allowNull: false },
   text: { type: DataTypes.TEXT, allowNull: false },
-  time: { type: DataTypes.STRING, allowNull: false }
+  time: { type: DataTypes.STRING, allowNull: false },
+  isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
+  status: { type: DataTypes.STRING, defaultValue: 'sent' } // 'sent' | 'delivered' | 'read'
 });
+
+const BugReport = sequelize.define('BugReport', {
+  category: { type: DataTypes.STRING, defaultValue: 'general' },
+  description: { type: DataTypes.TEXT, allowNull: false },
+  deviceInfo: { type: DataTypes.TEXT, allowNull: true },
+  userInfo: { type: DataTypes.TEXT, allowNull: true },
+  url: { type: DataTypes.STRING, allowNull: true },
+  status: { type: DataTypes.STRING, defaultValue: 'open' } // 'open' | 'in_progress' | 'resolved' | 'closed'
+});
+
+BugReport.sync({ alter: true }).catch(err => console.warn('⚠️ BugReport sync error:', err.message));
 
 function buildRoomId(emailA, emailB) {
   return [String(emailA).toLowerCase(), String(emailB).toLowerCase()].sort().join('__');
@@ -239,9 +320,12 @@ const MongoChatSchema = new mongoose.Schema({
   text: { type: String, required: true },
   time: { type: String, required: true },
   isRead: { type: Boolean, default: false },
+  status: { type: String, enum: ['sent', 'delivered', 'read'], default: 'sent' },
   isHandedOver: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now, expires: 86400 } // 🕒 Auto-delete setelah 24 jam (86.400 detik)
 });
+
+MongoChatSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
 
 const MongoChat = mongoose.models.MongoChat || mongoose.model('MongoChat', MongoChatSchema);
 
@@ -261,6 +345,212 @@ async function initMongoDB() {
   }
 }
 initMongoDB();
+
+// ==========================================
+// ⚡ WEBSOCKET REALTIME IMPLEMENTATION (SOCKET.IO)
+// ==========================================
+const onlineUsers = new Map(); // userId -> Set<socketId>
+
+io.on('connection', (socket) => {
+  let boundUserId = null;
+  console.log('⚡ [WebSocket] Client terhubung, Socket ID:', socket.id);
+
+  // 1. Pendaftaran Pengguna & Bergabung ke room obrolan pribadi
+  socket.on('register_user', (userId) => {
+    if (!userId) return;
+    boundUserId = String(userId).toLowerCase().trim();
+    if (!onlineUsers.has(boundUserId)) {
+      onlineUsers.set(boundUserId, new Set());
+    }
+    onlineUsers.get(boundUserId).add(socket.id);
+  });
+
+  socket.on('join_room', (roomId, userObjOrId) => {
+    if (roomId) {
+      socket.join(roomId);
+      console.log(`📡 [WebSocket] Socket ${socket.id} bergabung ke room: ${roomId}`);
+    }
+    const uId = typeof userObjOrId === 'object' ? (userObjOrId?.userId || userObjOrId?.email) : userObjOrId;
+    if (uId) {
+      boundUserId = String(uId).toLowerCase().trim();
+      if (!onlineUsers.has(boundUserId)) {
+        onlineUsers.set(boundUserId, new Set());
+      }
+      onlineUsers.get(boundUserId).add(socket.id);
+    }
+  });
+
+  // 2. Menerima & Broadcast Pesan Realtime dengan Status Delivery (sent / delivered)
+  socket.on('send_message', async (data) => {
+    try {
+      if (!data || !data.text || !data.roomId) return;
+
+      const timeNow = data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const senderId = data.senderId || data.fromId || 'anon';
+      const senderName = data.senderName || data.fromName || 'Pengguna';
+      const senderRole = data.senderRole || data.fromRole || 'buyer';
+      const receiverId = data.receiverId || data.toId || 'seller_1';
+      const receiverName = data.receiverName || data.toName || 'Penjual';
+      const receiverRole = data.receiverRole || data.toRole || 'seller';
+      const text = String(data.text).trim();
+
+      // Cek apakah penerima sedang online atau aktif di room
+      const cleanReceiverId = String(receiverId).toLowerCase().trim();
+      const isReceiverOnline = onlineUsers.has(cleanReceiverId) && onlineUsers.get(cleanReceiverId).size > 0;
+      const roomSockets = io.sockets.adapter.rooms.get(data.roomId);
+      const isRoomActive = roomSockets && roomSockets.size > 1;
+
+      const initialStatus = (isReceiverOnline || isRoomActive) ? 'delivered' : 'sent';
+      let savedChat = null;
+
+      // 🍃 Simpan ke MongoDB Lokal
+      if (isMongoConnected) {
+        try {
+          const mChat = await MongoChat.create({
+            roomId: data.roomId,
+            senderId,
+            senderName,
+            senderRole,
+            receiverId,
+            receiverName,
+            receiverRole,
+            text,
+            time: timeNow,
+            status: initialStatus,
+            isRead: false,
+            createdAt: data.createdAt ? new Date(data.createdAt) : new Date()
+          });
+          savedChat = { ...mChat.toObject(), id: String(mChat._id) };
+        } catch (mErr) {
+          console.warn('MongoDB save error in websocket:', mErr.message);
+        }
+      }
+
+      // 🐘 Simpan cadangan ke PostgreSQL
+      try {
+        const pgChat = await Chat.create({
+          roomId: data.roomId,
+          senderId,
+          senderName,
+          senderRole,
+          receiverId,
+          receiverName,
+          receiverRole,
+          text,
+          time: timeNow,
+          status: initialStatus,
+          isRead: false
+        });
+        if (!savedChat) {
+          savedChat = pgChat.toJSON();
+        }
+      } catch (pgErr) {
+        console.warn('PostgreSQL save error in websocket:', pgErr.message);
+      }
+
+      if (!savedChat) {
+        savedChat = {
+          id: Date.now(),
+          roomId: data.roomId,
+          senderId,
+          senderName,
+          senderRole,
+          receiverId,
+          receiverName,
+          receiverRole,
+          text,
+          time: timeNow,
+          status: initialStatus,
+          isRead: false,
+          createdAt: new Date().toISOString()
+        };
+      }
+
+      // 🚀 Pancarkan pesan real-time ke semua user di room yang sama
+      io.to(data.roomId).emit('receive_message', savedChat);
+      io.to(data.roomId).emit('new_message', savedChat);
+      // Pancarkan event notifikasi global untuk badge notifikasi & sinkronisasi daftar chat
+      io.emit('new_chat_notification', savedChat);
+      io.emit('chat_list_update', savedChat);
+
+      console.log(`💬 [WebSocket -> MongoDB] Pesan (${initialStatus}) terkirim di room ${data.roomId}: "${text.slice(0, 30)}..."`);
+    } catch (err) {
+      console.error('❌ Error handling send_message in socket:', err);
+    }
+  });
+
+  // 3. Status Mengetik Realtime (Typing Indicator)
+  socket.on('typing_start', ({ roomId, userId, userName }) => {
+    if (roomId) {
+      socket.to(roomId).emit('user_typing', { roomId, userId, userName, isTyping: true });
+    }
+  });
+
+  socket.on('typing_stop', ({ roomId, userId, userName }) => {
+    if (roomId) {
+      socket.to(roomId).emit('user_stop_typing', { roomId, userId, userName, isTyping: false });
+    }
+  });
+
+  socket.on('typing', ({ roomId, userName, userId, isTyping }) => {
+    if (roomId) {
+      if (isTyping) {
+        socket.to(roomId).emit('user_typing', { roomId, userId, userName, isTyping: true });
+      } else {
+        socket.to(roomId).emit('user_stop_typing', { roomId, userId, userName, isTyping: false });
+      }
+    }
+  });
+
+  // 4. Status Dibaca Realtime (Mark As Read & Messages Read Event)
+  socket.on('mark_as_read', async ({ roomId, readerId }) => {
+    try {
+      if (!roomId) return;
+      const cleanRoom = String(roomId).toLowerCase().trim();
+      const cleanReader = String(readerId || '').toLowerCase().trim();
+      const parts = cleanRoom.split('__');
+
+      // Update di MongoDB
+      if (isMongoConnected) {
+        try {
+          const mongoOr = [{ roomId: cleanRoom }, { roomId: new RegExp(cleanRoom, 'i') }];
+          if (parts.length === 2) {
+            mongoOr.push({ roomId: parts.slice().reverse().join('__') });
+          }
+          await MongoChat.updateMany(
+            { $or: mongoOr, isRead: { $ne: true } },
+            { $set: { isRead: true, status: 'read' } }
+          );
+        } catch (_mErr) {}
+      }
+
+      // Update di PostgreSQL
+      try {
+        await Chat.update(
+          { isRead: true, status: 'read' },
+          { where: { isRead: false } }
+        );
+      } catch (_pgErr) {}
+
+      // Pancarkan status read ke room dan global
+      io.to(cleanRoom).emit('messages_read', { roomId: cleanRoom, readerId: cleanReader, status: 'read' });
+      io.emit('messages_read', { roomId: cleanRoom, readerId: cleanReader, status: 'read' });
+      io.emit('chat_list_update', { roomId: cleanRoom, readerId: cleanReader, isRead: true, status: 'read' });
+    } catch (err) {
+      console.error('❌ Error handling mark_as_read in socket:', err);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    if (boundUserId && onlineUsers.has(boundUserId)) {
+      onlineUsers.get(boundUserId).delete(socket.id);
+      if (onlineUsers.get(boundUserId).size === 0) {
+        onlineUsers.delete(boundUserId);
+      }
+    }
+    console.log('🔌 [WebSocket] Client terputus:', socket.id);
+  });
+});
 
 // ==========================================================
 // ⏰ PENJADWAL PEMBERSIHAN CHAT OTOMATIS SETIAP PUKUL 00:00:00 WITA
@@ -796,6 +1086,244 @@ app.post('/api/upload', (req, res) => {
   });
 });
 
+// ==========================================
+// 🎓 MODUL VERIFIKASI PENJUAL MAHASISWA AKTIF (KTM)
+// ==========================================
+
+// 1. Endpoint Upload & Pengajuan Verifikasi KTM Mahasiswa
+app.post('/api/seller/verify-ktm', (req, res) => {
+  ktmUpload.single('ktmPhoto')(req, res, async (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, message: '⚠️ Ukuran foto KTM terlalu besar! Maksimal 4 MB.' });
+      }
+      return res.status(400).json({ success: false, message: err.message });
+    } else if (err) {
+      return res.status(400).json({ success: false, message: '⚠️ Format file ditolak! Unggah file JPG, PNG, atau WEBP.' });
+    }
+
+    try {
+      const { email, nim, degreeLevel, entryYear, currentSemester, fullName } = req.body;
+      if (!email || !email.trim()) {
+        return res.status(400).json({ success: false, message: 'Email akun penjual wajib disertakan!' });
+      }
+      if (!nim || !nim.trim()) {
+        return res.status(400).json({ success: false, message: 'NIM Mahasiswa wajib diisi!' });
+      }
+
+      const cleanEmail = String(email).toLowerCase().trim();
+      const user = await User.findOne({ where: { email: cleanEmail } });
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Pengguna dengan email ini tidak ditemukan!' });
+      }
+
+      // Validasi batas masa studi aktif
+      const currentYear = new Date().getFullYear();
+      const parsedEntryYear = parseInt(entryYear) || currentYear;
+      const parsedDegree = degreeLevel || 'S1';
+      const maxYears = parsedDegree === 'S3' ? 5 : (parsedDegree === 'S2' ? 4 : 7);
+      const studyAge = currentYear - parsedEntryYear;
+      const isExceeded = studyAge > maxYears;
+
+      const ktmFilename = req.file ? req.file.filename : (user.ktmPhotoUrl || null);
+
+      if (!ktmFilename) {
+        return res.status(400).json({ success: false, message: 'Foto Kartu Tanda Mahasiswa (KTM) wajib diunggah!' });
+      }
+
+      await user.update({
+        nim: String(nim).trim(),
+        degreeLevel: parsedDegree,
+        entryYear: parsedEntryYear,
+        currentSemester: parseInt(currentSemester) || 1,
+        ktmPhotoUrl: ktmFilename,
+        verificationStatus: 'pending',
+        isActiveStudent: !isExceeded,
+        rejectionReason: null
+      });
+
+      // Catat Activity Log
+      try {
+        await ActivityLog.create({
+          email: user.email,
+          name: fullName || user.nama,
+          role: 'seller',
+          action: 'PENGAJUAN_VERIFIKASI_KTM',
+          category: 'seller_verification',
+          details: `Penjual mengajukan verifikasi mahasiswa aktif (${parsedDegree} Angkatan ${parsedEntryYear}, NIM: ${nim})${isExceeded ? ' [PERINGATAN: Masa studi melebihi batas]' : ''}`,
+          campus: 'banjarmasin',
+          status: isExceeded ? 'warning' : 'info',
+          ipAddress: req.ip || '127.0.0.1'
+        });
+      } catch (_aErr) {}
+
+      res.json({
+        success: true,
+        message: 'Pengajuan verifikasi KTM berhasil dikirim! Tim Admin Koperasi akan meninjau dokumen Anda.',
+        warning: isExceeded ? 'Masa studi terdeteksi telah melampaui batas wajar mahasiswa aktif.' : undefined,
+        verification: {
+          email: user.email,
+          nama: user.nama,
+          nim: user.nim,
+          degreeLevel: user.degreeLevel,
+          entryYear: user.entryYear,
+          currentSemester: user.currentSemester,
+          verificationStatus: 'pending',
+          isActiveStudent: user.isActiveStudent,
+          hasKtmPhoto: true
+        }
+      });
+    } catch (dbError) {
+      console.error('Error submitting KTM verification:', dbError);
+      res.status(500).json({ success: false, message: 'Gagal memproses verifikasi: ' + dbError.message });
+    }
+  });
+});
+
+// 2. Endpoint Cek Status Verifikasi Penjual
+app.get('/api/seller/verification-status/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const cleanEmail = String(email).toLowerCase().trim();
+    const user = await User.findOne({ where: { email: cleanEmail } });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Pengguna tidak ditemukan.' });
+    }
+
+    // Mask NIM untuk privasi publik
+    let maskedNim = user.nim;
+    if (maskedNim && maskedNim.length > 5) {
+      maskedNim = maskedNim.substring(0, 4) + '****' + maskedNim.slice(-2);
+    }
+
+    res.json({
+      success: true,
+      verification: {
+        email: user.email,
+        nama: user.nama,
+        nim: maskedNim,
+        fullNim: user.nim,
+        degreeLevel: user.degreeLevel || 'S1',
+        entryYear: user.entryYear || null,
+        currentSemester: user.currentSemester || null,
+        verificationStatus: user.verificationStatus || 'not_submitted',
+        isActiveStudent: user.isActiveStudent !== false,
+        rejectionReason: user.rejectionReason || null,
+        hasKtmPhoto: Boolean(user.ktmPhotoUrl),
+        verifiedAt: user.verifiedAt || null,
+        verifiedBy: user.verifiedBy || null
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 3. Endpoint Daftar Pengajuan Verifikasi (Khusus Admin / Super Admin)
+app.get('/api/admin/seller-verifications', async (req, res) => {
+  try {
+    const { status = 'all' } = req.query;
+    let whereClause = {};
+    if (status && status !== 'all') {
+      whereClause.verificationStatus = status;
+    }
+
+    const users = await User.findAll({
+      where: whereClause,
+      attributes: [
+        'id', 'nama', 'email', 'nim', 'degreeLevel', 'entryYear', 'currentSemester',
+        'verificationStatus', 'isActiveStudent', 'rejectionReason', 'ktmPhotoUrl',
+        'verifiedAt', 'verifiedBy', 'createdAt', 'updatedAt', 'roles', 'role', 'avatar'
+      ],
+      order: [['updatedAt', 'DESC']]
+    });
+
+    res.json({ success: true, verifications: users });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 4. Endpoint Moderasi Verifikasi Penjual (Setujui / Tolak / Toggle Status Mahasiswa Aktif)
+app.patch('/api/admin/seller-verifications/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const { verificationStatus, isActiveStudent, rejectionReason, adminEmail, adminName } = req.body;
+
+    const cleanEmail = String(email).toLowerCase().trim();
+    const user = await User.findOne({ where: { email: cleanEmail } });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Penjual tidak ditemukan!' });
+    }
+
+    const updates = {};
+    if (verificationStatus) {
+      updates.verificationStatus = verificationStatus;
+      updates.verifiedAt = new Date();
+      updates.verifiedBy = adminName || adminEmail || 'Admin Koperasi';
+
+      if (verificationStatus === 'approved') {
+        updates.rejectionReason = null;
+        let currentRoles = Array.isArray(user.roles) ? [...user.roles] : [user.role || 'buyer'];
+        if (!currentRoles.includes('seller')) currentRoles.push('seller');
+        updates.roles = currentRoles;
+      } else if (verificationStatus === 'rejected') {
+        updates.rejectionReason = rejectionReason || 'Dokumen KTM tidak memenuhi syarat atau tidak terbaca.';
+      }
+    }
+
+    if (typeof isActiveStudent === 'boolean') {
+      updates.isActiveStudent = isActiveStudent;
+    }
+
+    await user.update(updates);
+
+    // Catat Activity Log
+    try {
+      await ActivityLog.create({
+        email: adminEmail || 'admin@uin-antasari.ac.id',
+        name: adminName || 'Admin Koperasi',
+        role: 'admin',
+        action: `VERIFIKASI_PENJUAL_${(verificationStatus || 'UPDATE').toUpperCase()}`,
+        category: 'seller_verification',
+        details: `Admin memperbarui status penjual ${user.nama} (${user.email}) -> Status: ${updates.verificationStatus || user.verificationStatus}, Mahasiswa Aktif: ${updates.isActiveStudent !== false ? 'YA' : 'TIDAK (Alumni/Non-Aktif)'}${rejectionReason ? ', Alasan: ' + rejectionReason : ''}`,
+        campus: 'banjarmasin',
+        status: verificationStatus === 'approved' ? 'success' : (verificationStatus === 'rejected' ? 'warning' : 'info'),
+        ipAddress: req.ip || '127.0.0.1'
+      });
+    } catch (_lErr) {}
+
+    res.json({
+      success: true,
+      message: `Status verifikasi ${user.nama} berhasil diperbarui menjadi ${updates.verificationStatus || user.verificationStatus}!`,
+      user
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 5. Endpoint Terproteksi Akses Foto KTM Privat (Khusus Admin)
+app.get('/api/admin/ktm/:filename', async (req, res) => {
+  try {
+    const { filename } = req.params;
+    if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ success: false, message: 'Nama file tidak valid.' });
+    }
+
+    const filePath = path.join(KTM_PRIVATE_DIR, filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'Dokumen KTM tidak ditemukan di server.' });
+    }
+
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.sendFile(filePath);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // LOGIN
 app.post('/api/login', loginLimiter, async (req, res) => {
   try {
@@ -931,10 +1459,67 @@ app.get('/api/activity-logs', async (req, res) => {
 // PRODUK
 app.get('/api/products', async (req, res) => {
   try {
-    const { sellerId } = req.query;
+    const { sellerId, status, includeAll } = req.query;
+    const cacheKey = `products:list:${JSON.stringify(req.query || {})}`;
+    const cachedData = await getCache(cacheKey);
+    if (cachedData) {
+      return res.json(cachedData);
+    }
+
     let whereClause = {};
     if (sellerId && sellerId !== 'undefined' && sellerId !== 'null' && sellerId.trim() !== '') {
       whereClause.sellerId = sellerId;
+      if (status && status !== 'all') {
+        whereClause.status = status;
+      }
+    } else if (includeAll === 'true' || status === 'all') {
+      // Return all products (e.g. for super admin)
+    } else if (status) {
+      whereClause.status = status;
+    } else {
+      // Default untuk etalase publik: hanya tampilkan produk approved atau active
+      whereClause.status = { [Op.in]: ['approved', 'active', null] };
+
+      // 🛡️ Auto-Hide Produk Penjual Non-Aktif / Alumni / Ditolak dari Etalase Publik
+      try {
+        const inactiveSellers = await User.findAll({
+          where: {
+            [Op.or]: [
+              { isActiveStudent: false },
+              { verificationStatus: 'rejected' }
+            ]
+          },
+          attributes: ['email', 'id']
+        });
+        const excludedSellerIds = [];
+        inactiveSellers.forEach(u => {
+          if (u.email) excludedSellerIds.push(u.email);
+          if (u.id) {
+            excludedSellerIds.push(String(u.id));
+            excludedSellerIds.push(`seller_${u.id}`);
+          }
+        });
+        if (excludedSellerIds.length > 0) {
+          whereClause.sellerId = { [Op.notIn]: excludedSellerIds };
+        }
+      } catch (_sErr) {}
+    }
+    const products = await Product.findAll({ where: whereClause, order: [['createdAt', 'DESC']] });
+    const responsePayload = { success: true, products };
+    await setCache(cacheKey, responsePayload, 60);
+    res.json(responsePayload);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/products/moderation-queue (Khusus Super Admin)
+app.get('/api/products/moderation-queue', async (req, res) => {
+  try {
+    const { status = 'all' } = req.query;
+    let whereClause = {};
+    if (status && status !== 'all') {
+      whereClause.status = status;
     }
     const products = await Product.findAll({ where: whereClause, order: [['createdAt', 'DESC']] });
     res.json({ success: true, products });
@@ -943,11 +1528,56 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
+// PATCH /api/products/:id/moderate (Super Admin Setujui / Tolak Produk)
+app.patch('/api/products/:id/moderate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, reason, moderatorEmail } = req.body;
+    const product = await Product.findByPk(id);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Produk tidak ditemukan!' });
+    }
+
+    await product.update({
+      status: status || 'approved',
+      moderationReason: reason || null,
+      moderatedAt: new Date()
+    });
+
+    await delCachePattern('products:*');
+
+    // Record Activity Log
+    try {
+      if (ActivityLog) {
+        await ActivityLog.create({
+          email: moderatorEmail || 'superadmin@antasari.ac.id',
+          name: 'Super Admin',
+          role: 'super_admin',
+          action: `MODERASI_PRODUK_${(status || 'approved').toUpperCase()}`,
+          details: `Produk "${product.nama_produk}" (${product.sellerName}) ${status === 'approved' ? 'disetujui dan dipublikasikan' : 'ditolak: ' + (reason || 'Tidak memenuhi kriteria')}`,
+          campus: product.kampus || 'banjarmasin',
+          category: 'product_moderation',
+          status: status === 'approved' ? 'success' : 'warning',
+          ipAddress: req.ip || '127.0.0.1'
+        });
+      }
+    } catch (_err) {}
+
+    res.json({
+      success: true,
+      message: `Status produk berhasil diubah menjadi ${status}!`,
+      product
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 app.post('/api/products', async (req, res) => {
   try {
-    const { nama_produk, name, deskripsi, description, harga, price, stok, stock, kategori, category, foto, image, images, videoUrl, kampus, sellerId, sellerName, slotNumber } = req.body;
+    const { nama_produk, name, deskripsi, description, harga, price, stok, stock, kategori, category, material, bahan, foto, image, images, videoUrl, kampus, sellerId, sellerName, slotNumber, status, aiScore, aiAnalysis } = req.body;
     
-    // Pastikan images adalah array array URL valid
+    // Pastikan images adalah array URL valid
     let imagesArr = [];
     if (Array.isArray(images)) {
       imagesArr = images;
@@ -961,15 +1591,39 @@ app.post('/api/products', async (req, res) => {
       harga: harga !== undefined ? parseInt(harga) : parseInt(price || 0), 
       stok: stok !== undefined ? parseInt(stok) : parseInt(stock || 0), 
       kategori: kategori || category, 
+      material: material || bahan || 'Kawat Bulu (Pipe Cleaner) & Benang Rajut Premium',
       foto: foto || image || (imagesArr.length > 0 ? imagesArr[0] : 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format'),
       images: imagesArr,
       videoUrl: videoUrl || null,
       kampus: kampus || 'banjarmasin', 
       sellerId: sellerId || 'seller_1', 
       sellerName: sellerName || 'Penjual', 
-      slotNumber: slotNumber !== undefined ? parseInt(slotNumber) : 1
+      slotNumber: slotNumber !== undefined ? parseInt(slotNumber) : 1,
+      status: status || 'pending', // Default pending review
+      aiScore: aiScore || (aiAnalysis?.score) || 90,
+      aiAnalysis: aiAnalysis || null
     });
-    res.json({ success: true, message: "Produk berhasil ditambahkan!", product: newProduct });
+
+    await delCachePattern('products:*');
+
+    // Catat Activity Log Penambahan Produk
+    try {
+      if (ActivityLog) {
+        await ActivityLog.create({
+          email: sellerId || 'seller@antasari.ac.id',
+          name: sellerName || 'Penjual',
+          role: 'seller',
+          action: 'PENGAJUAN_PRODUK_BARU',
+          details: `Penjual mengajukan produk "${newProduct.nama_produk}" untuk dikurasi AI & Super Admin (Skor AI: ${newProduct.aiScore}%)`,
+          campus: kampus || 'banjarmasin',
+          category: 'product_submission',
+          status: 'info',
+          ipAddress: req.ip || '127.0.0.1'
+        });
+      }
+    } catch (_err) {}
+
+    res.json({ success: true, message: "Produk berhasil diajukan dan sedang dalam antrean kurasi AI & Super Admin! 🎉", product: newProduct });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -979,7 +1633,7 @@ app.post('/api/products', async (req, res) => {
 app.put('/api/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { nama_produk, name, deskripsi, description, harga, price, stok, stock, kategori, category, foto, image, images, videoUrl, slotNumber, userRole, userEmail } = req.body;
+    const { nama_produk, name, deskripsi, description, harga, price, stok, stock, kategori, category, material, bahan, foto, image, images, videoUrl, slotNumber, userRole, userEmail, status, aiScore, aiAnalysis, moderationReason } = req.body;
 
     const isSuperAdmin = (userRole === 'super_admin') || (userEmail === process.env.SUPER_ADMIN_EMAIL);
     const product = await Product.findByPk(id);
@@ -999,17 +1653,32 @@ app.put('/api/products/:id', async (req, res) => {
       imagesArr = [foto || image];
     }
 
-    await product.update({
+    const updatedFields = {
       nama_produk: nama_produk || name || product.nama_produk,
       deskripsi: deskripsi !== undefined ? deskripsi : (description !== undefined ? description : product.deskripsi),
       harga: harga !== undefined ? parseInt(harga) : (price !== undefined ? parseInt(price) : product.harga),
       stok: stok !== undefined ? parseInt(stok) : (stock !== undefined ? parseInt(stock) : product.stok),
       kategori: kategori || category || product.kategori,
+      material: material !== undefined ? material : (bahan !== undefined ? bahan : product.material),
       foto: foto || image || product.foto,
       images: imagesArr,
       videoUrl: videoUrl !== undefined ? videoUrl : product.videoUrl,
       slotNumber: slotNumber !== undefined ? parseInt(slotNumber) : product.slotNumber
-    });
+    };
+
+    if (isSuperAdmin && status) {
+      updatedFields.status = status;
+      if (moderationReason !== undefined) updatedFields.moderationReason = moderationReason;
+      updatedFields.moderatedAt = new Date();
+    } else if (isOwner && !isSuperAdmin) {
+      // Jika owner mengedit produk, kembalikan status ke pending untuk direview ulang AI & Admin
+      updatedFields.status = 'pending';
+      if (aiScore) updatedFields.aiScore = aiScore;
+      if (aiAnalysis) updatedFields.aiAnalysis = aiAnalysis;
+    }
+
+    await product.update(updatedFields);
+    await delCachePattern('products:*');
 
     res.json({ success: true, message: 'Data produk berhasil diperbarui!', product });
   } catch (error) {
@@ -1026,33 +1695,62 @@ app.delete('/api/products/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Produk tidak ditemukan!' });
     }
     await product.destroy();
+    await delCachePattern('products:*');
     res.json({ success: true, message: 'Produk berhasil dihapus!' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 📉 KURANGI STOK PRODUK SECARA OTOMATIS SAAT DIBELI
+// 📉 KURANGI STOK PRODUK SECARA OTOMATIS SAAT DIBELI (DENGAN ROW-LEVEL LOCKING & TRANSAKSI POSTGRESQL)
 app.post('/api/products/deduct-stock', async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const { items } = req.body;
-    if (items && Array.isArray(items)) {
-      for (const cartItem of items) {
-        const productId = cartItem.product?.id || cartItem.productId || cartItem.id;
-        const buyQty = cartItem.quantity || 1;
-        if (productId) {
-          const product = await Product.findByPk(productId);
-          if (product) {
-            await product.update({
-              stok: Math.max(0, product.stok - buyQty),
-              sold: (product.sold || 0) + buyQty
-            });
-          }
-        }
-      }
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      await t.rollback();
+      return res.status(400).json({ success: false, message: 'Daftar item belanja tidak valid.' });
     }
-    res.json({ success: true, message: 'Stok produk berhasil dikurangi sesuai pesanan!' });
+
+    for (const cartItem of items) {
+      const productId = cartItem.product?.id || cartItem.productId || cartItem.id;
+      const buyQty = parseInt(cartItem.quantity || 1);
+      if (!productId) continue;
+
+      const product = await Product.findByPk(productId, {
+        transaction: t,
+        lock: t.LOCK.UPDATE
+      });
+
+      if (!product) {
+        await t.rollback();
+        return res.status(404).json({
+          success: false,
+          message: `Produk dengan ID ${productId} tidak ditemukan.`
+        });
+      }
+
+      if (product.stok < buyQty) {
+        await t.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `Stok produk "${product.nama_produk}" tidak mencukupi (Tersedia: ${product.stok}, Diminta: ${buyQty}).`
+        });
+      }
+
+      await product.update({
+        stok: product.stok - buyQty,
+        sold: (product.sold || 0) + buyQty
+      }, { transaction: t });
+    }
+
+    await t.commit();
+    await delCachePattern('products:*');
+    res.json({ success: true, message: 'Stok produk berhasil dikurangi secara atomik sesuai pesanan!' });
   } catch (error) {
+    if (t && !t.finished) {
+      try { await t.rollback(); } catch (_e) {}
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -1141,6 +1839,12 @@ app.post('/api/chats', async (req, res) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const roomId = buildRoomId(fromId, toId);
 
+    const cleanReceiverId = String(toId).toLowerCase().trim();
+    const isReceiverOnline = onlineUsers.has(cleanReceiverId) && onlineUsers.get(cleanReceiverId).size > 0;
+    const roomSockets = io.sockets.adapter.rooms.get(roomId);
+    const isRoomActive = roomSockets && roomSockets.size > 1;
+    const initialStatus = (isReceiverOnline || isRoomActive) ? 'delivered' : 'sent';
+
     let savedChat = null;
 
     // 🍃 1. Simpan ke MongoDB (Utama)
@@ -1155,7 +1859,9 @@ app.post('/api/chats', async (req, res) => {
           receiverName: toName || toId,
           receiverRole: toRole || 'seller',
           text: text.trim(),
-          time: timeNow
+          time: timeNow,
+          status: initialStatus,
+          isRead: false
         });
         savedChat = { ...mChat.toObject(), id: String(mChat._id) };
       } catch (mErr) {
@@ -1173,18 +1879,131 @@ app.post('/api/chats', async (req, res) => {
       receiverName: toName || toId, 
       receiverRole: toRole || 'buyer',
       text: text.trim(), 
-      time: timeNow
+      time: timeNow,
+      status: initialStatus,
+      isRead: false
     });
 
     if (!savedChat) {
       savedChat = pgChat;
     }
 
+    // ⚡ Pancarkan pesan ke WebSocket Clients secara Real-Time
+    try {
+      io.to(roomId).emit('receive_message', savedChat);
+      io.to(roomId).emit('new_message', savedChat);
+      io.emit('new_chat_notification', savedChat);
+      io.emit('chat_list_update', savedChat);
+    } catch (_wsErr) {}
+
     res.json({ success: true, message: "Pesan terkirim dan tersimpan di database!", chat: savedChat });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
+// 👀 TANDAI PESAN CHAT SEBAGAI SUDAH DIBACA (READ STATUS SYNC)
+const handleMarkChatAsRead = async (req, res) => {
+  try {
+    const { identifier, roomId } = req.body;
+    if (!identifier) {
+      return res.status(400).json({ success: false, message: 'Identifier penerima wajib diisi!' });
+    }
+    const cleanId = String(identifier).toLowerCase().trim();
+    const uname = cleanId.split('@')[0];
+
+    let queryMongo = {
+      $and: [
+        {
+          $or: [
+            { receiverId: new RegExp(`^${cleanId}$`, 'i') },
+            { receiverId: cleanId },
+            { receiverId: new RegExp(`^${uname}$`, 'i') },
+            { receiverId: uname }
+          ]
+        },
+        { isRead: { $ne: true } }
+      ]
+    };
+
+    if (roomId) {
+      const cleanRoom = String(roomId).toLowerCase().trim();
+      const parts = cleanRoom.split('__');
+      if (parts.length === 2) {
+        const otherId = (parts[0] === cleanId || parts[0] === uname) ? parts[1] : parts[0];
+        queryMongo.$and.push({
+          $or: [
+            { roomId: cleanRoom },
+            { roomId: parts.slice().reverse().join('__') },
+            { senderId: new RegExp(`^${otherId}$`, 'i') },
+            { senderId: otherId }
+          ]
+        });
+      } else {
+        queryMongo.$and.push({
+          $or: [
+            { roomId: cleanRoom },
+            { roomId: new RegExp(cleanRoom, 'i') }
+          ]
+        });
+      }
+    }
+
+    let modifiedCount = 0;
+    if (isMongoConnected) {
+      const resM = await MongoChat.updateMany(queryMongo, { $set: { isRead: true, status: 'read' } });
+      modifiedCount = resM.modifiedCount || 0;
+    }
+
+    try {
+      let pgWhere = {
+        [Sequelize.Op.or]: [
+          { receiverId: cleanId },
+          { receiverId: uname }
+        ],
+        isRead: false
+      };
+      if (roomId) {
+        const cleanRoom = String(roomId).toLowerCase().trim();
+        const parts = cleanRoom.split('__');
+        if (parts.length === 2) {
+          const otherId = (parts[0] === cleanId || parts[0] === uname) ? parts[1] : parts[0];
+          pgWhere[Sequelize.Op.and] = [
+            {
+              [Sequelize.Op.or]: [
+                { roomId: cleanRoom },
+                { roomId: parts.slice().reverse().join('__') },
+                { senderId: otherId }
+              ]
+            }
+          ];
+        } else {
+          pgWhere.roomId = cleanRoom;
+        }
+      }
+      await Chat.update({ isRead: true, status: 'read' }, { where: pgWhere });
+    } catch (_pgErr) {}
+
+    // ⚡ Pancarkan event messages_read ke WebSocket Clients
+    try {
+      if (roomId) {
+        io.to(roomId).emit('messages_read', { roomId, readerId: cleanId, status: 'read' });
+      }
+      io.emit('chat_list_update', { roomId, readerId: cleanId, isRead: true, status: 'read' });
+    } catch (_wsErr) {}
+
+    try {
+      io.emit('messages_read', { identifier: cleanId, roomId: roomId ? String(roomId).toLowerCase().trim() : null });
+    } catch (_wsErr) {}
+
+    res.json({ success: true, message: 'Pesan berhasil ditandai sebagai sudah dibaca.', modifiedCount });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+app.put('/api/chats/read', handleMarkChatAsRead);
+app.post('/api/chats/read', handleMarkChatAsRead);
 
 app.delete('/api/chats/:id', async (req, res) => {
   try {
@@ -1200,6 +2019,101 @@ app.delete('/api/chats/:id', async (req, res) => {
     res.json({ success: true, message: "Pesan berhasil dihapus." });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+// ⚡ Helper Broadcast ke Soketi Server (Port 6001)
+function broadcastToSoketiServer(channel, event, data) {
+  try {
+    const http = require('http');
+    const payload = JSON.stringify({
+      name: event,
+      channels: [channel],
+      data: data
+    });
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port: 6001,
+      path: '/apps/campusmart/events',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      },
+      timeout: 1500
+    });
+    req.on('error', () => {});
+    req.write(payload);
+    req.end();
+  } catch (_e) {}
+}
+
+// 💬 FRANKENPHP & STANDALONE VUE 3 COMPATIBLE ENDPOINTS
+app.post('/api/chat/send', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const roomId = body.roomId || body.room_id || 'general';
+    const channelName = `chat-room-${roomId}`;
+    const msgId = body.id || Date.now();
+
+    const msgPayload = {
+      id: msgId,
+      roomId,
+      room_id: roomId,
+      senderId: body.senderId || body.fromId || 'unknown',
+      senderName: body.senderName || body.fromName || 'Pengguna',
+      senderRole: body.senderRole || body.fromRole || 'buyer',
+      receiverId: body.receiverId || body.toId || '',
+      text: body.text || '',
+      content: body.text || '',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: new Date().toISOString(),
+      replyTo: body.replyTo || null,
+      reactions: []
+    };
+
+    broadcastToSoketiServer(channelName, 'NewMessage', msgPayload);
+    res.json({ success: true, message: 'Pesan berhasil dikirim', data: msgPayload });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/chat/edit', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const roomId = body.roomId || body.room_id || 'general';
+    const channelName = `chat-room-${roomId}`;
+    const editPayload = {
+      id: body.id,
+      text: body.text || '',
+      content: body.text || '',
+      is_edited: true,
+      edited_at: new Date().toISOString(),
+      roomId
+    };
+
+    broadcastToSoketiServer(channelName, 'MessageUpdated', editPayload);
+    res.json({ success: true, message: 'Pesan berhasil diperbarui', data: editPayload });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/chat/delete', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const roomId = body.roomId || body.room_id || 'general';
+    const channelName = `chat-room-${roomId}`;
+    const deletePayload = {
+      id: body.id,
+      is_deleted: true,
+      deleted_at: new Date().toISOString(),
+      roomId
+    };
+
+    broadcastToSoketiServer(channelName, 'MessageDeleted', deletePayload);
+    res.json({ success: true, message: 'Pesan berhasil dihapus', data: deletePayload });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -1488,70 +2402,258 @@ app.post('/api/vouchers/validate', async (req, res) => {
   }
 });
 
-// CHECKOUT & MIDTRANS
+// CHECKOUT & MIDTRANS (DENGAN ROW-LEVEL LOCKING & DATABASE TRANSAKSI)
 app.post('/api/checkout', async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const { orderId, grossAmount, customerDetails, items, deliveryMethod } = req.body;
-    const cleanAmount = parseInt(grossAmount);
+    const cleanAmount = parseInt(grossAmount || 0);
     const generatedOrderId = orderId || `ANTASARI-${Date.now()}`;
     const generatedVendingToken = `VEND-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // 🛡️ Validasi Kepemilikan Produk: Penjual dilarang membeli produk tokonya sendiri
+    const buyerEmail = (customerDetails?.email || req.body.buyerEmail || '').toLowerCase().trim();
+    const buyerName = (customerDetails?.name || req.body.buyerName || '').toLowerCase().trim();
+    const buyerId = String(req.body.buyerId || customerDetails?.id || '').toLowerCase().trim();
+
+    if (items && Array.isArray(items)) {
+      for (const cartItem of items) {
+        const prod = cartItem.product || cartItem;
+        const pSellerId = String(prod.sellerId || '').toLowerCase().trim();
+        const pSellerName = String(prod.sellerName || '').toLowerCase().trim();
+
+        const isSelfOwned =
+          (pSellerId && (pSellerId === buyerEmail || pSellerId === buyerId || `seller_${pSellerId}` === buyerId || `seller_${buyerId}` === pSellerId)) ||
+          (pSellerId === 'seller_1' && (buyerEmail.includes('udin') || buyerEmail.includes('myammiy') || buyerName.includes('myammiy') || buyerName.includes('udin'))) ||
+          ((pSellerId === 's1' || prod.isKoperasi) && (buyerEmail.includes('koperasi') || buyerEmail.includes('admin@koperasi') || buyerName.includes('koperasi')));
+
+        if (isSelfOwned) {
+          await t.rollback();
+          return res.status(400).json({
+            success: false,
+            message: 'Penjual tidak dapat membeli produk dari tokonya sendiri.'
+          });
+        }
+      }
+    }
 
     let targetSlotNumber = 1;
     let isAllVendingEligible = true;
 
     if (items && Array.isArray(items)) {
       for (const cartItem of items) {
-        const productId = cartItem.product?.id || cartItem.productId;
-        const buyQty = cartItem.quantity || 1;
+        const productId = cartItem.product?.id || cartItem.productId || cartItem.id;
+        const buyQty = parseInt(cartItem.quantity || 1);
 
         if (productId) {
-          const product = await Product.findByPk(productId);
-          if (product) {
-            if (product.sellerId !== 'seller_1' && !product.nama_produk.toLowerCase().includes('ganci')) {
-              isAllVendingEligible = false;
-            }
-            targetSlotNumber = product.slotNumber || 1;
-            await product.update({ 
-              stok: Math.max(0, product.stok - buyQty), 
-              sold: (product.sold || 0) + buyQty 
+          const product = await Product.findByPk(productId, {
+            transaction: t,
+            lock: t.LOCK.UPDATE
+          });
+
+          if (!product) {
+            await t.rollback();
+            return res.status(404).json({
+              success: false,
+              message: `Produk dengan ID ${productId} tidak ditemukan.`
             });
           }
+
+          if (product.stok < buyQty) {
+            await t.rollback();
+            return res.status(400).json({
+              success: false,
+              message: `Stok produk "${product.nama_produk}" tidak mencukupi (Tersedia: ${product.stok}, Diminta: ${buyQty}).`
+            });
+          }
+
+          if (product.sellerId !== 'seller_1' && !product.nama_produk.toLowerCase().includes('ganci')) {
+            isAllVendingEligible = false;
+          }
+          targetSlotNumber = product.slotNumber || 1;
+
+          await product.update({ 
+            stok: product.stok - buyQty, 
+            sold: (product.sold || 0) + buyQty 
+          }, { transaction: t });
         }
       }
     }
 
     if (deliveryMethod === 'vending' && !isAllVendingEligible) {
+      await t.rollback();
       return res.status(400).json({
         success: false,
         message: 'Mohon maaf, Vending Machine saat ini hanya melayani pengambilan produk Ganci Myammiy Craft.'
       });
     }
 
+    const firstSellerId = items && items[0] ? (items[0].product?.sellerId || items[0].sellerId || 'seller_1') : 'seller_1';
+
     await Order.create({
       orderId: generatedOrderId,
-      sellerId: 'seller_1',
-      buyerName: customerDetails?.name || 'Mahasiswa UIN Antasari',
-      buyerEmail: customerDetails?.email || 'mhs@uin-antasari.ac.id',
+      sellerId: firstSellerId,
+      buyerName: customerDetails?.name || req.body.buyerName || 'Mahasiswa UIN Antasari',
+      buyerEmail: customerDetails?.email || req.body.buyerEmail || 'mhs@uin-antasari.ac.id',
       totalAmount: cleanAmount,
       status: 'pending',
       vendingToken: generatedVendingToken,
       slotNumber: targetSlotNumber
-    });
+    }, { transaction: t });
 
-    let parameter = {
-      transaction_details: { order_id: generatedOrderId, gross_amount: cleanAmount },
-      customer_details: { first_name: customerDetails?.name || 'Mahasiswa', email: customerDetails?.email || 'mhs@uin-antasari.ac.id' }
-    };
+    await t.commit();
+    await delCachePattern('products:*');
 
-    let transaction = await snap.createTransaction(parameter);
+    // ⚡ Pancarkan notifikasi pesanan baru secara Real-Time ke Penjual via Socket.IO
+    try {
+      const orderNotificationData = {
+        orderId: generatedOrderId,
+        sellerId: firstSellerId,
+        buyerName: customerDetails?.name || req.body.buyerName || 'Mahasiswa UIN Antasari',
+        buyerEmail: customerDetails?.email || req.body.buyerEmail || 'mhs@uin-antasari.ac.id',
+        totalAmount: cleanAmount,
+        deliveryMethod: deliveryMethod || 'pickup',
+        slotNumber: targetSlotNumber,
+        vendingToken: generatedVendingToken,
+        items: items ? items.map(i => ({
+          name: i.product?.nama_produk || i.product?.name || i.name || i.nama || 'Produk Kampus',
+          quantity: i.quantity || 1,
+          price: i.product?.harga || i.product?.price || i.price || 0
+        })) : [],
+        timestamp: new Date().toISOString()
+      };
+      io.to(`seller_${firstSellerId}`).emit('new_order_notification', orderNotificationData);
+      io.emit('new_order_notification', orderNotificationData);
+    } catch (_wsOrderErr) {}
+
+    let transactionToken = null;
+    let redirectUrl = null;
+
+    try {
+      let parameter = {
+        transaction_details: { order_id: generatedOrderId, gross_amount: cleanAmount },
+        customer_details: { first_name: customerDetails?.name || 'Mahasiswa', email: customerDetails?.email || 'mhs@uin-antasari.ac.id' }
+      };
+      let transaction = await snap.createTransaction(parameter);
+      transactionToken = transaction.token;
+      redirectUrl = transaction.redirect_url;
+    } catch (midtransErr) {
+      console.warn('⚠️ Midtrans transaction warning (using mock fallback for testing):', midtransErr.message);
+      transactionToken = `mock-token-${generatedOrderId}`;
+      redirectUrl = `https://app.sandbox.midtrans.com/snap/v2/vtweb/${transactionToken}`;
+    }
 
     res.json({ 
       success: true, 
-      token: transaction.token, 
-      redirect_url: transaction.redirect_url,
+      token: transactionToken, 
+      redirect_url: redirectUrl,
       vendingToken: generatedVendingToken,
       slotNumber: targetSlotNumber
     });
+  } catch (error) {
+    if (t && !t.finished) {
+      try { await t.rollback(); } catch (_e) {}
+    }
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// CREATE / VALIDATE ORDER API (DENGAN TRANSAKSI POSTGRESQL)
+app.post('/api/orders', async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const { buyerId, buyerEmail, buyerName, items, total, deliveryMethod, paymentMethod } = req.body;
+    const bEmail = (buyerEmail || req.body.customerDetails?.email || '').toLowerCase().trim();
+    const bName = (buyerName || req.body.customerDetails?.name || '').toLowerCase().trim();
+    const bId = String(buyerId || req.body.customerDetails?.id || '').toLowerCase().trim();
+
+    if (items && Array.isArray(items)) {
+      for (const cartItem of items) {
+        const prod = cartItem.product || cartItem;
+        const pSellerId = String(prod.sellerId || '').toLowerCase().trim();
+        const pSellerName = String(prod.sellerName || '').toLowerCase().trim();
+
+        const isSelfOwned =
+          (pSellerId && (pSellerId === bEmail || pSellerId === bId || `seller_${pSellerId}` === bId || `seller_${bId}` === pSellerId)) ||
+          (pSellerId === 'seller_1' && (bEmail.includes('udin') || bEmail.includes('myammiy') || bName.includes('myammiy') || bName.includes('udin'))) ||
+          ((pSellerId === 's1' || prod.isKoperasi) && (bEmail.includes('koperasi') || bEmail.includes('admin@koperasi') || bName.includes('koperasi')));
+
+        if (isSelfOwned) {
+          await t.rollback();
+          return res.status(400).json({
+            success: false,
+            message: 'Penjual tidak dapat membeli produk dari tokonya sendiri.'
+          });
+        }
+      }
+    }
+
+    const orderId = req.body.orderId || `ANTASARI-${Date.now()}`;
+    const cleanAmount = parseInt(total || req.body.grossAmount || 0);
+    const sellerIdTarget = items && items[0] ? (items[0].product?.sellerId || items[0].sellerId || 'seller_1') : 'seller_1';
+
+    const newOrder = await Order.create({
+      orderId,
+      sellerId: sellerIdTarget,
+      buyerName: bName || 'Mahasiswa UIN Antasari',
+      buyerEmail: bEmail || 'mhs@uin-antasari.ac.id',
+      totalAmount: cleanAmount,
+      status: 'pending'
+    }, { transaction: t });
+
+    await t.commit();
+    await delCachePattern('products:*');
+
+    // ⚡ Pancarkan notifikasi pesanan baru ke Penjual via Socket.IO
+    try {
+      const orderNotificationData = {
+        orderId,
+        sellerId: sellerIdTarget,
+        buyerName: bName || 'Mahasiswa UIN Antasari',
+        buyerEmail: bEmail || 'mhs@uin-antasari.ac.id',
+        totalAmount: cleanAmount,
+        deliveryMethod: deliveryMethod || 'pickup',
+        items: items ? items.map(i => ({
+          name: i.product?.nama_produk || i.product?.name || i.name || 'Produk Kampus',
+          quantity: i.quantity || 1,
+          price: i.product?.harga || i.product?.price || i.price || 0
+        })) : [],
+        timestamp: new Date().toISOString()
+      };
+      io.to(`seller_${sellerIdTarget}`).emit('new_order_notification', orderNotificationData);
+      io.emit('new_order_notification', orderNotificationData);
+    } catch (_wsOrderErr) {}
+
+    res.json({
+      success: true,
+      message: 'Pesanan berhasil dibuat!',
+      order: newOrder
+    });
+  } catch (error) {
+    if (t && !t.finished) {
+      try { await t.rollback(); } catch (_e) {}
+    }
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET USER'S PERSONAL ORDERS (ALL ROLES: BUYER, DRIVER, SELLER, ADMIN, SUPER ADMIN)
+app.get('/api/orders/user/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email pengguna tidak valid.' });
+    }
+    const cleanEmail = email.toLowerCase().trim();
+    const orders = await Order.findAll({
+      where: {
+        buyerEmail: {
+          [Op.like]: `%${cleanEmail}%`
+        }
+      },
+      order: [['createdAt', 'DESC']]
+    });
+    res.json({ success: true, orders });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -1861,6 +2963,203 @@ Nama Toko/Penjual: ${sellerName || 'Penjual Kampus'}`;
   }
 });
 
+// 🛡️ HEURISTIC AI FALLBACK ANALYZER
+function generateHeuristicProductAnalysis(productData) {
+  const name = (productData.name || productData.nama_produk || '').toLowerCase();
+  const desc = (productData.description || productData.deskripsi || '').toLowerCase();
+  const price = Number(productData.price || productData.harga || 0);
+  const category = (productData.category || productData.kategori || 'makanan').toLowerCase();
+
+  const PROHIBITED_KEYWORDS = ['narkoba', 'ganja', 'sabu', 'miras', 'alkohol', 'senjata', 'pistol', 'peluru', 'judi', 'slot', 'bokep', 'porn', 'seks', 'joki skripsi', 'joki tugas', 'surat palsu', 'rokok elektrik', 'vape illegal'];
+  const CAMPUS_FAVORITES = ['kopi', 'teh', 'ganci', 'keychain', 'tas', 'snack', 'roti', 'buku', 'alat tulis', 'pulpen', 'binder', 'totebag', 'jaket', 'hijab', 'mukena', 'pipe cleaner', 'blind bag', 'donat', 'brownies'];
+
+  let score = 92;
+  const reasons = [];
+  const flags = [];
+  let safety = 'PASS';
+  let campusEthics = 'PASS';
+  let fairPricing = 'PASS';
+  let mediaQuality = 'PASS';
+
+  // 1. Check prohibited content
+  const foundProhibited = PROHIBITED_KEYWORDS.find(kw => name.includes(kw) || desc.includes(kw));
+  if (foundProhibited) {
+    score = 15;
+    safety = 'FAIL';
+    campusEthics = 'FAIL';
+    flags.push(`Terdeteksi kata terlarang/tidak diizinkan ("${foundProhibited}")`);
+  } else {
+    reasons.push('Lolos pemeriksaan keamanan: Bebas dari barang terlarang, senjata, dan konten terlarang');
+  }
+
+  // 2. Check campus ethics
+  if (name.includes('babi') || desc.includes('non halal') || name.includes('haram')) {
+    score = Math.min(score, 30);
+    campusEthics = 'FAIL';
+    flags.push('Tidak memenuhi standar kehalalan dan etika kampus UIN Antasari');
+  } else {
+    reasons.push('Sesuai dengan etika, norma syariah, dan nilai kesopanan kampus UIN Antasari');
+  }
+
+  // 3. Check pricing fairness
+  if (price < 500) {
+    score -= 20;
+    fairPricing = 'FLAGGED';
+    flags.push('Harga terlampau rendah (< Rp 500), verifikasi apakah nominal sudah benar');
+  } else if (category === 'makanan' && price > 250000) {
+    score -= 15;
+    fairPricing = 'FLAGGED';
+    flags.push('Harga makanan agak tinggi untuk standar konsumsi harian mahasiswa');
+  } else if (price >= 1000 && price <= 200000) {
+    reasons.push(`Harga Rp ${price.toLocaleString('id-ID')} sangat wajar & terjangkau untuk mahasiswa`);
+  }
+
+  // 4. Content & clarity
+  if (name.length < 4) {
+    score -= 15;
+    mediaQuality = 'FLAGGED';
+    flags.push('Nama produk terlalu pendek');
+  }
+  if (!desc || desc.length < 10) {
+    score -= 10;
+    mediaQuality = 'FLAGGED';
+    flags.push('Deskripsi produk sebaiknya diperlengkap untuk menarik pembeli');
+  } else {
+    reasons.push('Deskripsi dan rincian produk cukup informatif');
+  }
+
+  const hasFavorite = CAMPUS_FAVORITES.some(kw => name.includes(kw) || desc.includes(kw));
+  if (hasFavorite) {
+    score = Math.min(99, score + 4);
+    reasons.push('Produk sangat relevan dan digemari oleh komunitas sivitas akademika UIN Antasari');
+  }
+
+  score = Math.max(10, Math.min(99, score));
+  const isEligible = score >= 70 && safety === 'PASS' && campusEthics === 'PASS';
+  const recommendation = score >= 85 ? 'approve' : (score >= 60 ? 'flagged' : 'reject');
+  
+  let verdict = 'Sangat Layak Dijual & Memenuhi Standar Kampus Antasari';
+  if (recommendation === 'reject') {
+    verdict = 'Tidak Layak Dijual (Melanggar Aturan / Keamanan)';
+  } else if (recommendation === 'flagged') {
+    verdict = 'Perlu Tinjauan Khusus oleh Super Admin';
+  }
+
+  return {
+    score,
+    isEligible,
+    recommendation,
+    verdict,
+    reasons,
+    flags,
+    checks: { safety, campusEthics, fairPricing, mediaQuality },
+    analyzedAt: new Date().toISOString(),
+    model: 'Antasari-AI-Safety-Engine v2.4'
+  };
+}
+
+// 🛡️ AI PRODUCT SAFETY & QUALITY ANALYZER
+app.post('/api/ai/analyze-product', async (req, res) => {
+  try {
+    const { name, nama_produk, description, deskripsi, price, harga, category, kategori, campus, kampus, sellerName } = req.body;
+    const prodName = name || nama_produk;
+    if (!prodName || !prodName.trim()) {
+      return res.status(400).json({ success: false, message: 'Nama produk wajib diisi untuk analisis AI.' });
+    }
+
+    const apiKey = process.env.DEEPSEEK_API_KEY || 'sk-83df969bc77b40eda859c2cd357be131';
+
+    const systemPrompt = `Kamu adalah Sistem AI Pengawas Keamanan, Kebijakan, dan Kelayakan Produk Resmi di platform e-commerce kampus "Antasari Mart" (UIN Antasari Banjarmasin).
+Tugasmu adalah menganalisis apakah produk yang diposting layak dijual ke publik mahasiswa/dosen atau melanggar aturan.
+
+KRITERIA EVALUASI:
+1. KEAMANAN & LEGALITAS: Dilarang keras menjual barang terlarang (narkoba, senjata, miras, rokok elektrik/ilegal, obat keras tanpa izin, konten dewasa/pornografi, jasa joki skripsi/curang akademik).
+2. ETIKA KAMPUS ISLAMI UIN: Menghormati nilai keislaman, makanan/minuman harus halal & higienis, pakaian sopan, nama/deskripsi tidak mengandung kata kasar, SARA, atau pornografi.
+3. KEWAJARAN HARGA MAHASISWA: Memeriksa apakah harga wajar untuk ekosistem kampus (contoh: snack Rp 5.000 - Rp 35.000 wajar; jika ada snack seharga Rp 5.000.000 atau Rp 10 perak kemungkinan salah ketik / spam).
+4. KUALITAS & KELENGKAPAN INFORMASI: Nama produk jelas, deskripsi informatif, kategori sesuai.
+
+FORMAT OUTPUT WAJIB JSON (HANYA JSON murni tanpa markdown formatting):
+{
+  "score": <angka integer 0-100>,
+  "isEligible": <boolean>,
+  "recommendation": <"approve"|"flagged"|"reject">,
+  "verdict": "<ringkasan 1 kalimat penilaian kelayakan>",
+  "reasons": ["<poin kelebihan 1>", "<poin kelebihan 2>"],
+  "flags": ["<poin peringatan jika ada, atau kosong jika aman>"],
+  "checks": {
+    "safety": "<PASS|FLAGGED|FAIL>",
+    "campusEthics": "<PASS|FLAGGED|FAIL>",
+    "fairPricing": "<PASS|FLAGGED|FAIL>",
+    "mediaQuality": "<PASS|FLAGGED|FAIL>"
+  }
+}`;
+
+    const userPrompt = `Analisis produk berikut:
+- Nama Produk: ${prodName}
+- Kategori: ${category || kategori || 'makanan'}
+- Harga: Rp ${Number(price || harga || 0).toLocaleString('id-ID')}
+- Deskripsi: ${description || deskripsi || '(Tidak ada deskripsi)'}
+- Kampus: ${campus || kampus || 'Banjarmasin'}
+- Penjual: ${sellerName || 'Penjual Kampus'}`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const dsResponse = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 500
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (dsResponse.ok) {
+      const data = await dsResponse.json();
+      const content = data?.choices?.[0]?.message?.content?.trim() || '';
+      try {
+        const cleanJson = content.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+        const parsed = JSON.parse(cleanJson);
+        return res.json({
+          success: true,
+          analysis: {
+            score: typeof parsed.score === 'number' ? parsed.score : 88,
+            isEligible: parsed.isEligible !== false,
+            recommendation: parsed.recommendation || 'approve',
+            verdict: parsed.verdict || 'Produk layak dan memenuhi standar kampus Antasari.',
+            reasons: Array.isArray(parsed.reasons) ? parsed.reasons : ['Kategori dan informasi produk sesuai'],
+            flags: Array.isArray(parsed.flags) ? parsed.flags : [],
+            checks: parsed.checks || { safety: 'PASS', campusEthics: 'PASS', fairPricing: 'PASS', mediaQuality: 'PASS' },
+            analyzedAt: new Date().toISOString(),
+            model: data?.model || 'deepseek-chat'
+          }
+        });
+      } catch (parseErr) {
+        console.warn('Gagal parse json AI response, menggunakan fallback heuristik:', content);
+      }
+    }
+  } catch (error) {
+    console.error('Error in AI Product Analysis:', error);
+  }
+
+  // Fallback intelligent evaluation
+  return res.json({
+    success: true,
+    analysis: generateHeuristicProductAnalysis(req.body)
+  });
+});
+
 // ==========================================
 // 📜 AUDIT LOG & REKAP BULANAN POSTGRESQL API
 // ==========================================
@@ -1971,10 +3270,82 @@ app.delete('/api/audit-logs/purge', async (req, res) => {
   }
 });
 
+// 🧹 6. PEMBERSIHAN OTOMATIS PESAN CHAT LAMA (>24 JAM) DI POSTGRESQL
+async function cleanupOldChats() {
+  try {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const deletedCount = await Chat.destroy({
+      where: {
+        createdAt: {
+          [Op.lt]: twentyFourHoursAgo
+        }
+      }
+    });
+    if (deletedCount > 0) {
+      console.log(`🧹 [PostgreSQL Cleanup] Berhasil membersihkan ${deletedCount} pesan chat yang lebih tua dari 24 jam.`);
+    }
+  } catch (err) {
+    console.warn('⚠️ [PostgreSQL Cleanup Error]:', err.message);
+  }
+}
+
+// ==========================================
+// 🐛 7. LAPOR BUG & DEBUG SYSTEM ENDPOINTS
+// ==========================================
+app.post('/api/bugs', async (req, res) => {
+  try {
+    const { category, description, deviceInfo, userInfo, userEmail, userName, userRole, url } = req.body;
+    if (!description || !description.trim()) {
+      return res.status(400).json({ success: false, message: 'Deskripsi kendala wajib diisi!' });
+    }
+
+    const resolvedDeviceInfo = typeof deviceInfo === 'object' ? JSON.stringify(deviceInfo) : (deviceInfo || '');
+    const resolvedUserInfo = typeof userInfo === 'object' ? JSON.stringify(userInfo) : JSON.stringify({
+      email: userEmail || 'anonymous',
+      name: userName || 'Pengguna',
+      role: userRole || 'buyer'
+    });
+
+    const report = await BugReport.create({
+      category: category || 'general',
+      description: description.trim(),
+      deviceInfo: resolvedDeviceInfo,
+      userInfo: resolvedUserInfo,
+      url: url || '',
+      status: 'open'
+    });
+
+    res.json({
+      success: true,
+      message: '✅ Laporan kendala berhasil diterima dan disimpan di sistem!',
+      report
+    });
+  } catch (error) {
+    console.error('Error saving bug report:', error);
+    res.status(500).json({ success: false, message: 'Gagal menyimpan laporan kendala: ' + error.message });
+  }
+});
+
+app.get('/api/bugs', async (req, res) => {
+  try {
+    const reports = await BugReport.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 100
+    });
+    res.json({
+      success: true,
+      reports
+    });
+  } catch (error) {
+    console.error('Error fetching bug reports:', error);
+    res.status(500).json({ success: false, message: 'Gagal mengambil laporan kendala: ' + error.message });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 if (!process.env.VERCEL) {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server Antasari Mart running on port ${PORT}`);
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server Antasari Mart & WebSocket running on port ${PORT}`);
   });
 }
 

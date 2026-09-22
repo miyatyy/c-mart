@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { ThemeMode } from '../types';
+import type { ThemeMode, Product } from '../types';
 import { formatRupiah } from '../data';
+import {
+  getProductsApi,
+  moderateProductApi,
+  analyzeProductAiApi,
+  evaluateProductSuitabilityLocally
+} from '../lib/api';
+import AdminSellerVerificationPanel from './AdminSellerVerificationPanel';
 
 interface SuperAdminProps {
   theme: ThemeMode;
@@ -27,7 +34,7 @@ interface ActivityLogItem {
   role: 'buyer' | 'seller' | 'driver' | 'admin' | 'super_admin';
   actorName: string;
   actorEmail: string;
-  type: 'order' | 'vending' | 'user' | 'driver' | 'payment' | 'system' | 'pro' | 'admin_action';
+  type: 'order' | 'vending' | 'user' | 'driver' | 'payment' | 'system' | 'pro' | 'admin_action' | 'product_moderation';
   title: string;
   desc: string;
   campus: 'banjarmasin' | 'banjarbaru';
@@ -178,8 +185,101 @@ const INITIAL_AUDIT_LOGS: ActivityLogItem[] = [
   }
 ];
 
+const INITIAL_PENDING_MODERATIONS: Product[] = [
+  {
+    id: 'pend-mod-1',
+    name: 'Paket Ricebowl Ayam Sambal Matah Spesial',
+    description: 'Nasi pulen hangat dengan ayam fillet krispi berbalut sambal matah khas Bali segar, timun, dan telur mata sapi. 100% Halal, higienis & ramah kantong mahasiswa.',
+    price: 18000,
+    stock: 25,
+    category: 'Makanan',
+    campus: 'banjarmasin',
+    sellerId: 's_geprek_tarbiyah',
+    sellerName: 'Kantin Mbak Siti (Fakultas Tarbiyah)',
+    image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=400&fit=crop',
+    rating: 4.9,
+    status: 'pending',
+    aiAnalysis: {
+      score: 94,
+      recommendation: 'layak_dijual',
+      summary: 'Produk makanan halal, higienis, harga sangat terjangkau mahasiswa, dan deskripsi sangat jelas.',
+      explanation: 'Pemeriksaan AI DeepSeek mengonfirmasi produk ini bebas barang terlarang, memenuhi standar halal kampus UIN Antasari, dan harga Rp 18.000 sangat wajar bagi mahasiswa.',
+      reasons: ['100% Halal & higienis', 'Harga bersahabat mahasiswa', 'Deskripsi dan foto lengkap'],
+      flags: [],
+      checks: {
+        noProhibitedGoods: { passed: true, score: 100, reason: 'Tidak terindikasi miras, narkoba, atau bahan berbahaya.' },
+        islamicEthicsHalal: { passed: true, score: 100, reason: 'Bahan baku makanan halal sesuai syariah dan etika kampus.' },
+        studentPriceFairness: { passed: true, score: 90, reason: 'Harga Rp 18.000 sangat bersaing untuk paket makan siang mahasiswa.' },
+        mediaAndDescriptionQuality: { passed: true, score: 85, reason: 'Foto dan rincian menu sangat informatif.' }
+      },
+      analyzedAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+      model: 'Antasari-AI-Safety-Engine v2.4'
+    }
+  },
+  {
+    id: 'pend-mod-2',
+    name: 'Jasa Desain Banner Seminar & Jilid Skripsi Hardcover',
+    description: 'Jasa pembuatan desain banner akademik UIN Antasari + cetak & jilid hardcover kilat 1 hari selesai untuk keperluan munaqasyah dan seminar proposal.',
+    price: 35000,
+    stock: 99,
+    category: 'Jasa',
+    campus: 'banjarmasin',
+    sellerId: 's_percetakan_berkah',
+    sellerName: 'Percetakan Digital Berkah Mhs',
+    image: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=400&fit=crop',
+    rating: 4.8,
+    status: 'pending',
+    aiAnalysis: {
+      score: 89,
+      recommendation: 'layak_dijual',
+      summary: 'Layanan akademik yang sangat dibutuhkan civitas akademika UIN Antasari dengan harga terstandarisasi.',
+      explanation: 'Layanan jasa jilid dan cetak memenuhi norma etika akademik UIN Antasari dan bebas pelanggaran plagiarisme atau joki skripsi ilegal.',
+      reasons: ['Layanan cetak resmi', 'Bukan joki skripsi terlarang', 'Harga wajar'],
+      flags: [],
+      checks: {
+        noProhibitedGoods: { passed: true, score: 100, reason: 'Jasa legal, murni percetakan & jilid hardcover.' },
+        islamicEthicsHalal: { passed: true, score: 95, reason: 'Mendukung produktivitas tugas akhir mahasiswa secara jujur.' },
+        studentPriceFairness: { passed: true, score: 85, reason: 'Harga Rp 35.000 standar ongkos jilid kampus.' },
+        mediaAndDescriptionQuality: { passed: true, score: 78, reason: 'Informasi layanan cukup lengkap.' }
+      },
+      analyzedAt: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
+      model: 'Antasari-AI-Safety-Engine v2.4'
+    }
+  },
+  {
+    id: 'pend-mod-3',
+    name: 'Kaos Polo Eksklusif UIN Antasari Banjarmasin 2026',
+    description: 'Kaos polo berkerah bahan 100% Cotton Lacoste CVC tebal, adem, jahitan rapi dengan bordir logo UIN Antasari presisi di dada kiri. Cocok untuk kuliah & organisasi.',
+    price: 75000,
+    stock: 30,
+    category: 'Pakaian',
+    campus: 'banjarbaru',
+    sellerId: 's_myammiy_apparel',
+    sellerName: 'Myammiy Campus Apparel',
+    image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=400&fit=crop',
+    rating: 5.0,
+    status: 'pending',
+    aiAnalysis: {
+      score: 92,
+      recommendation: 'layak_dijual',
+      summary: 'Merchandise resmi beretika sopan & menutup aurat untuk civitas akademika.',
+      explanation: 'Produk pakaian berkerah rapi memenuhi aturan tata tertib busana mahasiswa UIN Antasari dan mutu bahan terjamin.',
+      reasons: ['Busana sopan sesuai dresscode kampus', 'Bahan premium CVC', 'Harga kompetitif'],
+      flags: [],
+      checks: {
+        noProhibitedGoods: { passed: true, score: 100, reason: 'Bebas gambar/tulisan pornografi atau provokatif.' },
+        islamicEthicsHalal: { passed: true, score: 100, reason: 'Sopan, santun, sesuai tata tertib kampus Islami.' },
+        studentPriceFairness: { passed: true, score: 85, reason: 'Harga Rp 75.000 standar distro polo bordir.' },
+        mediaAndDescriptionQuality: { passed: true, score: 85, reason: 'Deskripsi bahan dan ukuran jelas.' }
+      },
+      analyzedAt: new Date(Date.now() - 1000 * 60 * 50).toISOString(),
+      model: 'Antasari-AI-Safety-Engine v2.4'
+    }
+  }
+];
+
 export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
-  const [activeTab, setActiveTab] = useState<'realtime' | 'users' | 'vending' | 'finance' | 'broadcast' | 'logs'>('realtime');
+  const [activeTab, setActiveTab] = useState<'realtime' | 'moderation' | 'verifications' | 'users' | 'vending' | 'finance' | 'broadcast' | 'logs'>('realtime');
   const [users, setUsers] = useState<UserManageItem[]>(() => {
     try {
       const saved = localStorage.getItem('am_superadmin_users');
@@ -199,18 +299,25 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
     }
   });
 
-  // Real-time Traffic Simulator (24h Live Waveform stream)
+  const [moderationProducts, setModerationProducts] = useState<Product[]>([]);
+  const [moderationLoading, setModerationLoading] = useState<boolean>(true);
+  const [moderationFilter, setModerationFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const [moderationSearch, setModerationSearch] = useState<string>('');
+  const [rejectingProduct, setRejectingProduct] = useState<Product | null>(null);
+  const [rejectReason, setRejectReason] = useState<string>('');
+  const [inspectingProduct, setInspectingProduct] = useState<Product | null>(null);
+  const [isProcessingModeration, setIsProcessingModeration] = useState<boolean>(false);
+  const [moderationToast, setModerationToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const [liveTrafficPoints, setLiveTrafficPoints] = useState<number[]>([42, 48, 55, 60, 58, 64, 72, 80, 75, 88, 94, 91, 98, 104, 110, 115, 108, 122]);
   const [livePingMs, setLivePingMs] = useState<number>(24);
   const [activeUsersNow, setActiveUsersNow] = useState<number>(38);
   const [serverUptime] = useState<string>('99.98% (PostgreSQL & pgAdmin Synced)');
 
-  // Filter & Search Pengguna
   const [userSearch, setUserSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [campusFilter, setCampusFilter] = useState('all');
 
-  // Modal Tambah / Edit Pengguna
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -218,13 +325,11 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
   const [newUserRole, setNewUserRole] = useState<'buyer' | 'seller' | 'driver' | 'admin'>('buyer');
   const [newUserCampus, setNewUserCampus] = useState<'banjarmasin' | 'banjarbaru'>('banjarmasin');
 
-  // Broadcast Notification Form
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [broadcastTarget, setBroadcastTarget] = useState<'all' | 'students' | 'sellers' | 'drivers'>('all');
   const [broadcastSentFeedback, setBroadcastSentFeedback] = useState(false);
 
-  // 📧 Email Rekap & Audit Log Management States
   const [adminRecapEmail, setAdminRecapEmail] = useState<string>(() => {
     return localStorage.getItem('am_admin_recap_email') || 'miyya@gmail.com';
   });
@@ -234,12 +339,281 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
   const [logRoleFilter, setLogRoleFilter] = useState<'all' | 'buyer' | 'seller' | 'driver' | 'admin' | 'super_admin'>('all');
   const [logSearchQuery, setLogSearchQuery] = useState('');
 
-  // Helper untuk menyimpan log & auto-persist
   const saveLogs = (newLogs: ActivityLogItem[]) => {
     setActivityLogs(newLogs);
     try {
       localStorage.setItem('am_superadmin_logs', JSON.stringify(newLogs));
     } catch {}
+  };
+
+  const loadModerationQueue = () => {
+    setModerationLoading(true);
+    let localPending: Product[] = [];
+    try {
+      const saved = localStorage.getItem('am_pending_moderations');
+      localPending = saved ? JSON.parse(saved) : INITIAL_PENDING_MODERATIONS;
+    } catch {
+      localPending = INITIAL_PENDING_MODERATIONS;
+    }
+
+    const localCustom: Product[] = JSON.parse(localStorage.getItem('am_custom_products') || '[]');
+    const mergedLocal = [...localPending, ...localCustom.filter(c => !localPending.some(p => p.id === c.id))];
+
+    getProductsApi(undefined, 'all')
+      .then(res => {
+        if (res.success && Array.isArray(res.products)) {
+          const serverList = res.products;
+          const combined = [...mergedLocal, ...serverList.filter(s => !mergedLocal.some(m => m.id === s.id))];
+          setModerationProducts(combined);
+        } else {
+          setModerationProducts(mergedLocal);
+        }
+        setModerationLoading(false);
+      })
+      .catch(() => {
+        setModerationProducts(mergedLocal);
+        setModerationLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    loadModerationQueue();
+
+    const handleSub = () => loadModerationQueue();
+    const handleMod = () => loadModerationQueue();
+    window.addEventListener('am_product_submitted', handleSub);
+    window.addEventListener('am_product_moderated', handleMod);
+    return () => {
+      window.removeEventListener('am_product_submitted', handleSub);
+      window.removeEventListener('am_product_moderated', handleMod);
+    };
+  }, []);
+
+  const handleApproveProduct = async (prodOrId: Product | string) => {
+    setIsProcessingModeration(true);
+    const prodId = typeof prodOrId === 'string' ? prodOrId : prodOrId.id;
+    const prod = typeof prodOrId === 'object' ? prodOrId : moderationProducts.find(p => p.id === prodId);
+    
+    if (!prod) {
+        setIsProcessingModeration(false);
+        return;
+    }
+
+    try {
+      await moderateProductApi(prod.id, 'approved', 'Disetujui dan lolos kurasi Super Admin', adminRecapEmail);
+      
+      const logEntry: ActivityLogItem = {
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        role: 'super_admin',
+        actorName: 'Nurmiyaty (Super Admin)',
+        actorEmail: adminRecapEmail,
+        type: 'admin_action',
+        title: `Produk Disetujui: ${prod.name}`,
+        desc: `Super Admin menyetujui produk dari "${prod.sellerName}" (Harga: ${formatRupiah(prod.price)}). Produk kini tayang ke publik.`,
+        campus: (prod.campus as any) || 'banjarmasin',
+        status: 'success'
+      };
+      saveLogs([logEntry, ...activityLogs]);
+
+      setModerationToast({
+        type: 'success',
+        message: `✅ Produk "${prod.name}" berhasil disetujui & dipublikasikan ke etalase Campus Mart!`
+      });
+      loadModerationQueue();
+    } catch (err: any) {
+      setModerationToast({ type: 'error', message: 'Gagal menyetujui produk: ' + err.message });
+    } finally {
+      setIsProcessingModeration(false);
+      setTimeout(() => setModerationToast(null), 8000);
+    }
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectingProduct) return;
+    const reason = rejectReason.trim() || 'Tidak memenuhi standar kelayakan produk kampus';
+    setIsProcessingModeration(true);
+    try {
+      await moderateProductApi(rejectingProduct.id, 'rejected', reason, adminRecapEmail);
+
+      const logEntry: ActivityLogItem = {
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        role: 'super_admin',
+        actorName: 'Nurmiyaty (Super Admin)',
+        actorEmail: adminRecapEmail,
+        type: 'admin_action',
+        title: `Produk Ditolak: ${rejectingProduct.name}`,
+        desc: `Super Admin menolak produk dari "${rejectingProduct.sellerName}". Alasan: ${reason}`,
+        campus: (rejectingProduct.campus as any) || 'banjarmasin',
+        status: 'warning'
+      };
+      saveLogs([logEntry, ...activityLogs]);
+
+      setModerationToast({
+        type: 'success',
+        message: `❌ Produk "${rejectingProduct.name}" ditolak. Alasan telah dicatat & dikirim ke seller.`
+      });
+      setRejectingProduct(null);
+      setRejectReason('');
+      loadModerationQueue();
+    } catch (err: any) {
+      setModerationToast({ type: 'error', message: 'Gagal menolak produk: ' + err.message });
+    } finally {
+      setIsProcessingModeration(false);
+      setTimeout(() => setModerationToast(null), 8000);
+    }
+  };
+
+  // 🛡️ HANDLER: AUTO-APPROVE BATCH BERDASARKAN SKOR AI >= 85%
+  const handleBatchAutoApprove = async () => {
+    const pendingHighScores = moderationProducts.filter(p => p.status === 'pending' && (p.aiAnalysis?.score || 90) >= 85);
+    if (pendingHighScores.length === 0) {
+      alert('Tidak ada produk pending dengan skor AI >= 85% untuk auto-approve.');
+      return;
+    }
+
+    if (!window.confirm(`⚡ Apakah Anda yakin ingin menyetujui ${pendingHighScores.length} produk sekaligus berdasarkan rekomendasi AI Skor >= 85%?`)) {
+      return;
+    }
+
+    setIsProcessingModeration(true);
+    let count = 0;
+    for (const prod of pendingHighScores) {
+      await moderateProductApi(prod.id, 'approved', 'Auto-Approve rekomendasi AI (Skor >= 85%)', adminRecapEmail);
+      count++;
+    }
+
+    const logEntry: ActivityLogItem = {
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      role: 'super_admin',
+      actorName: 'Nurmiyaty (Super Admin)',
+      actorEmail: adminRecapEmail,
+      type: 'admin_action',
+      title: `Auto-Approve Batch AI (${count} Produk)`,
+      desc: `Super Admin menyetujui ${count} produk secara otomatis berdasarkan skor kelayakan AI >= 85%`,
+      campus: 'banjarmasin',
+      status: 'success'
+    };
+    saveLogs([logEntry, ...activityLogs]);
+
+    setModerationToast({
+      type: 'success',
+      message: `⚡ Berhasil menyetujui dan mempublikasikan ${count} produk rekomendasi AI!`
+    });
+    setIsProcessingModeration(false);
+    loadModerationQueue();
+    setTimeout(() => setModerationToast(null), 8000);
+  };
+
+  // 🛡️ HANDLER: RE-ANALISA AI PRODUK
+  const handleReanalyzeWithAi = async (prod: Product) => {
+    setIsProcessingModeration(true);
+    try {
+      const res = await analyzeProductAiApi({
+        name: prod.name,
+        description: prod.description,
+        price: prod.price,
+        category: prod.category,
+        campus: prod.campus,
+        sellerName: prod.sellerName
+      });
+
+      setModerationProducts(prev => prev.map(p => p.id === prod.id ? { ...p, aiAnalysis: res.analysis } : p));
+      
+      const existing: Product[] = JSON.parse(localStorage.getItem('am_custom_products') || '[]');
+      const updated = existing.map(p => p.id === prod.id ? { ...p, aiAnalysis: res.analysis } : p);
+      localStorage.setItem('am_custom_products', JSON.stringify(updated));
+
+      setModerationToast({
+        type: 'success',
+        message: `🤖 Re-analisa AI selesai untuk "${prod.name}" (Skor: ${res.analysis.score}%)!`
+      });
+    } catch (err: any) {
+      setModerationToast({ type: 'error', message: 'Gagal re-analisa AI: ' + err.message });
+    } finally {
+      setIsProcessingModeration(false);
+      setTimeout(() => setModerationToast(null), 8000);
+    }
+  };
+
+  // 🧪 FITUR SIMULASI PENGAJUAN PRODUK BARU & NOTIFIKASI REAL-TIME
+  const handleSimulateSellerSubmission = async () => {
+    const mockSamples = [
+      {
+        name: 'Kopi Susu Gula Aren Botol 250ml',
+        description: 'Espresso blend robusta-arabika lokal kalsel dengan susu murni & gula aren asli. Dibuat fresh setiap pagi oleh barista mahasiswa FEBI UIN Antasari.',
+        price: 15000,
+        stock: 20,
+        category: 'Minuman',
+        campus: 'banjarmasin' as const,
+        sellerId: 's_kopi_febi',
+        sellerName: 'Kopi Mahasiswa FEBI'
+      },
+      {
+        name: 'Keripik Pisang Lumer Coklat Keju Crunchy',
+        description: 'Camilan keripik pisang kepok renyah dengan lelehan saus dark chocolate tebal dan parutan keju cheddar. Cemilan favorit saat nugas di perpustakaan.',
+        price: 12000,
+        stock: 40,
+        category: 'Snack',
+        campus: 'banjarmasin' as const,
+        sellerId: 's_snack_berkah',
+        sellerName: 'Snack Corner Tarbiyah'
+      },
+      {
+        name: 'Flashdisk Sandisk 64GB Isi Template Skripsi & Software Kampus',
+        description: 'Flashdisk original USB 3.0 kapasitas 64GB bergaransi resmi, bonus kumpulan template dokumen skripsi, jurnal terindeks, dan e-book referensi UIN Antasari.',
+        price: 55000,
+        stock: 15,
+        category: 'Elektronik',
+        campus: 'banjarbaru' as const,
+        sellerId: 's_tech_fsh',
+        sellerName: 'Antasari Digital Tech'
+      }
+    ];
+
+    const pick = mockSamples[Math.floor(Math.random() * mockSamples.length)];
+    const newId = `pend-sim-${Date.now()}`;
+    const aiAnalysis = evaluateProductSuitabilityLocally(pick);
+
+    const newProduct: Product = {
+      id: newId,
+      ...pick,
+      image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&fit=crop',
+      rating: 5.0,
+      status: 'pending',
+      aiAnalysis,
+      createdAt: new Date().toISOString()
+    };
+
+    // Simpan ke storage
+    const currentPending: Product[] = JSON.parse(localStorage.getItem('am_pending_moderations') || '[]');
+    const updated = [newProduct, ...currentPending.filter(p => p.id !== newId)];
+    localStorage.setItem('am_pending_moderations', JSON.stringify(updated));
+
+    // Picu Notifikasi Banner & Chime Real-time ke Super Admin
+    window.dispatchEvent(new CustomEvent('am_trigger_notification', {
+      detail: {
+        id: `notif-sim-${Date.now()}`,
+        senderId: 'ai_moderation_queue',
+        senderName: '🛡️ Kurasi AI Antasari',
+        senderRole: 'super_admin',
+        senderAvatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=AntasariAI',
+        text: `📢 Produk baru "${newProduct.name}" (${newProduct.sellerName}) diajukan untuk kurasi! Skor AI: ${aiAnalysis.score}%.`,
+        time: 'Baru saja',
+        isAi: true
+      }
+    }));
+
+    // Update antrean
+    loadModerationQueue();
+
+    setModerationToast({
+      type: 'success',
+      message: `🔔 Notifikasi simulasi aktif! Produk "${newProduct.name}" masuk ke antrean kurasi AI.`
+    });
+    setTimeout(() => setModerationToast(null), 8000);
   };
 
   // Live Auto-Stream Timer 24/7 Simulation
@@ -489,7 +863,7 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
   <div class="page-container">
     <div class="header-box">
       <div>
-        <h1 class="brand-title">🏛️ UIN ANTASARI MART - PUSAT DATA</h1>
+        <h1 class="brand-title">🏛️ CAMPUS MART - PUSAT DATA</h1>
         <div class="brand-sub">Laporan Rekapitulasi Audit Log & Aktivitas Seluruh Pengguna (24 Jam)</div>
         <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Periode: <strong>${monthName}</strong> | Dicetak: <strong>${timeStr} WITA</strong></div>
       </div>
@@ -685,6 +1059,20 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
     });
   }, [activityLogs, logRoleFilter, logSearchQuery]);
 
+  // Filter Moderasi Produk AI
+  const filteredModerationProducts = useMemo(() => {
+    return moderationProducts.filter(p => {
+      const pStatus = p.status || 'approved';
+      const matchFilter = moderationFilter === 'all' || pStatus === moderationFilter;
+      const matchSearch = moderationSearch === '' ||
+        p.name.toLowerCase().includes(moderationSearch.toLowerCase()) ||
+        (p.sellerName && p.sellerName.toLowerCase().includes(moderationSearch.toLowerCase())) ||
+        p.category.toLowerCase().includes(moderationSearch.toLowerCase()) ||
+        p.campus.toLowerCase().includes(moderationSearch.toLowerCase());
+      return matchFilter && matchSearch;
+    });
+  }, [moderationProducts, moderationFilter, moderationSearch]);
+
   const totalEcosystemGMV = 38750000;
   const totalTransactions = 342;
 
@@ -745,7 +1133,7 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
                   Live 24 Jam
                 </span>
               </div>
-              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900 }}>Pusat Kontrol & Ekosistem Antasari Mart</h2>
+              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900 }}>Pusat Kontrol & Ekosistem Campus Mart</h2>
               <p style={{ margin: '3px 0 0', fontSize: 12.5, opacity: 0.85 }}>
                 Monitoring lalu lintas sistem, status IoT vending, hak akses pengguna, dan audit finansial otomatis.
               </p>
@@ -802,6 +1190,14 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
       }}>
         {[
           { key: 'realtime', label: '📊 Live Grafik & Uptime 24 Jam', icon: '⚡' },
+          { 
+            key: 'moderation', 
+            label: '🛡️ Moderasi & Kurasi Produk AI', 
+            icon: '🤖', 
+            badge: moderationProducts.filter(p => p.status === 'pending').length,
+            badgeColor: moderationProducts.some(p => p.status === 'pending') ? '#EF4444' : undefined
+          },
+          { key: 'verifications', label: '🎓 Verifikasi Mahasiswa (KTM)', icon: '🎓' },
           { key: 'users', label: '👥 Manajemen Pengguna & PRO', icon: '🛡️', badge: users.length },
           { key: 'vending', label: '🤖 Status Vending IoT 2 Kampus', icon: '🏪', badge: vendingMachines.length },
           { key: 'finance', label: '💳 Keuangan & Midtrans Settlement', icon: '💰' },
@@ -835,8 +1231,10 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
                 padding: '1px 6px',
                 borderRadius: 8,
                 fontSize: 10,
-                background: activeTab === tab.key ? 'rgba(255,255,255,0.25)' : 'var(--am-bg2)',
-                color: activeTab === tab.key ? 'white' : 'var(--am-text-muted)',
+                background: (tab as any).badgeColor 
+                  ? '#EF4444' 
+                  : (activeTab === tab.key ? 'rgba(255,255,255,0.25)' : 'var(--am-bg2)'),
+                color: (tab as any).badgeColor ? 'white' : (activeTab === tab.key ? 'white' : 'var(--am-text-muted)'),
                 fontWeight: 900
               }}>
                 {tab.badge}
@@ -845,6 +1243,485 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
           </button>
         ))}
       </div>
+
+      {/* 🎓 TAB: VERIFIKASI PENJUAL MAHASISWA & DOKUMEN KTM */}
+      {activeTab === 'verifications' && (
+        <AdminSellerVerificationPanel
+          adminEmail="miyya@gmail.com"
+          adminName="Nurmiyaty (Super Admin)"
+          adminRole="super_admin"
+        />
+      )}
+
+      {/* 🛡️ TAB: MODERASI & KURASI PRODUK AI (SUPER ADMIN) */}
+      {activeTab === 'moderation' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {/* Top Metrics Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+            <div className="am-card" style={{ padding: 18, borderRadius: 16, background: 'var(--am-surface)', border: '1px solid var(--am-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 12, color: 'var(--am-text-muted)', fontWeight: 700 }}>Menunggu Kurasi Admin</div>
+                <span style={{ fontSize: 20 }}>⏳</span>
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: moderationProducts.filter(p => p.status === 'pending').length > 0 ? '#F59E0B' : 'var(--am-text)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {moderationProducts.filter(p => p.status === 'pending').length}
+                {moderationProducts.filter(p => p.status === 'pending').length > 0 && (
+                  <span style={{ fontSize: 11, background: 'rgba(245,158,11,0.15)', color: '#D97706', padding: '2px 8px', borderRadius: 20, fontWeight: 800 }}>
+                    Perlu Ditinjau
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--am-text-muted)', marginTop: 4 }}>
+                Produk belum dipublikasikan ke katalog umum
+              </div>
+            </div>
+
+            <div className="am-card" style={{ padding: 18, borderRadius: 16, background: 'var(--am-surface)', border: '1px solid var(--am-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 12, color: 'var(--am-text-muted)', fontWeight: 700 }}>Produk Disetujui (Tayang)</div>
+                <span style={{ fontSize: 20 }}>✅</span>
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: '#10B981', marginTop: 4 }}>
+                {moderationProducts.filter(p => p.status === 'approved').length}
+              </div>
+              <div style={{ fontSize: 11, color: '#16A34A', fontWeight: 700, marginTop: 4 }}>
+                ● Aktif dapat dibeli mahasiswa
+              </div>
+            </div>
+
+            <div className="am-card" style={{ padding: 18, borderRadius: 16, background: 'var(--am-surface)', border: '1px solid var(--am-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 12, color: 'var(--am-text-muted)', fontWeight: 700 }}>Produk Ditolak</div>
+                <span style={{ fontSize: 20 }}>❌</span>
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: '#EF4444', marginTop: 4 }}>
+                {moderationProducts.filter(p => p.status === 'rejected').length}
+              </div>
+              <div style={{ fontSize: 11, color: '#EF4444', fontWeight: 700, marginTop: 4 }}>
+                ● Dikembalikan ke seller dengan catatan
+              </div>
+            </div>
+
+            <div className="am-card" style={{ padding: 18, borderRadius: 16, background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,78,59,0.15))', border: '1px solid rgba(16,185,129,0.3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 12, color: '#047857', fontWeight: 800 }}>⚡ Rekomendasi AI Siap Publikasi</div>
+                <span style={{ fontSize: 20 }}>🤖</span>
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: '#059669', marginTop: 4 }}>
+                {moderationProducts.filter(p => p.status === 'pending' && (p.aiAnalysis?.score || 0) >= 85).length}
+              </div>
+              <button
+                onClick={handleBatchAutoApprove}
+                disabled={moderationProducts.filter(p => p.status === 'pending' && (p.aiAnalysis?.score || 0) >= 85).length === 0 || isProcessingModeration}
+                style={{
+                  marginTop: 6,
+                  width: '100%',
+                  padding: '7px 12px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: moderationProducts.filter(p => p.status === 'pending' && (p.aiAnalysis?.score || 0) >= 85).length > 0 ? '#10B981' : 'var(--am-border)',
+                  color: moderationProducts.filter(p => p.status === 'pending' && (p.aiAnalysis?.score || 0) >= 85).length > 0 ? 'white' : 'var(--am-text-muted)',
+                  fontSize: 11.5,
+                  fontWeight: 800,
+                  cursor: moderationProducts.filter(p => p.status === 'pending' && (p.aiAnalysis?.score || 0) >= 85).length > 0 ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.15s'
+                }}
+              >
+                {isProcessingModeration ? 'Memproses...' : `⚡ Auto-Approve Rekomendasi AI`}
+              </button>
+            </div>
+          </div>
+
+          {/* Search & Filter Controls */}
+          <div className="am-card" style={{ padding: 16, borderRadius: 16, background: 'var(--am-surface)', border: '1px solid var(--am-border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flex: 1 }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Cari nama produk, penjual, kategori, kampus..."
+                  value={moderationSearch}
+                  onChange={e => setModerationSearch(e.target.value)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    border: '1px solid var(--am-border)',
+                    background: 'var(--am-bg2)',
+                    color: 'var(--am-text)',
+                    fontSize: 13,
+                    minWidth: 260
+                  }}
+                />
+
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'pending', label: `⏳ Menunggu Kurasi (${moderationProducts.filter(p => p.status === 'pending').length})` },
+                    { key: 'approved', label: `✅ Disetujui (${moderationProducts.filter(p => p.status === 'approved').length})` },
+                    { key: 'rejected', label: `❌ Ditolak (${moderationProducts.filter(p => p.status === 'rejected').length})` },
+                    { key: 'all', label: `📁 Semua (${moderationProducts.length})` }
+                  ].map(filter => (
+                    <button
+                      key={filter.key}
+                      onClick={() => setModerationFilter(filter.key as any)}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 10,
+                        border: moderationFilter === filter.key ? '1px solid var(--am-primary)' : '1px solid var(--am-border)',
+                        background: moderationFilter === filter.key ? 'rgba(16,185,129,0.12)' : 'var(--am-bg2)',
+                        color: moderationFilter === filter.key ? 'var(--am-primary)' : 'var(--am-text)',
+                        fontWeight: moderationFilter === filter.key ? 800 : 600,
+                        fontSize: 12,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={handleSimulateSellerSubmission}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    border: '1px solid #10B981',
+                    background: 'rgba(16,185,129,0.1)',
+                    color: '#047857',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  🧪 Uji Notifikasi Seller Baru
+                </button>
+
+                <button
+                  onClick={loadModerationQueue}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    border: '1px solid var(--am-border)',
+                    background: 'var(--am-bg2)',
+                    color: 'var(--am-text)',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  🔄 Segarkan Antrean
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Product Moderation Queue Cards */}
+          {moderationLoading ? (
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--am-text-muted)' }}>
+              <div style={{ fontSize: 28, animation: 'spin 1s linear infinite', display: 'inline-block' }}>🤖</div>
+              <div style={{ marginTop: 8, fontWeight: 700 }}>Memuat antrean moderasi produk AI...</div>
+            </div>
+          ) : filteredModerationProducts.length === 0 ? (
+            <div className="am-card" style={{ padding: 48, textAlign: 'center', borderRadius: 18, background: 'var(--am-surface)', border: '1px solid var(--am-border)' }}>
+              <div style={{ fontSize: 44, marginBottom: 12 }}>🛡️✨</div>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: 'var(--am-text)' }}>
+                Tidak Ada Produk dalam Antrean
+              </h3>
+              <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--am-text-muted)', maxWidth: 460, marginInline: 'auto' }}>
+                {moderationFilter === 'pending'
+                  ? 'Semua produk seller telah diperiksa dan dikurasi oleh Super Admin. Katalog kampus aman!'
+                  : 'Tidak ditemukan produk yang cocok dengan filter atau pencarian Anda.'}
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {filteredModerationProducts.map(prod => {
+                const ai = prod.aiAnalysis;
+                const score = ai?.score ?? 0;
+                const scoreColor = score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444';
+                const scoreBg = score >= 80 ? 'rgba(16,185,129,0.1)' : score >= 60 ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)';
+                const pStatus = prod.status || 'approved';
+
+                return (
+                  <div
+                    key={prod.id}
+                    className="am-card"
+                    style={{
+                      padding: 20,
+                      borderRadius: 18,
+                      background: 'var(--am-surface)',
+                      border: pStatus === 'pending' ? '1.5px solid #F59E0B' : '1px solid var(--am-border)',
+                      boxShadow: pStatus === 'pending' ? '0 4px 18px rgba(245,158,11,0.08)' : 'none',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
+                      <div style={{ display: 'flex', gap: 14, flex: 1, minWidth: 280 }}>
+                        <div style={{ position: 'relative', width: 78, height: 78, borderRadius: 14, overflow: 'hidden', flexShrink: 0, background: 'var(--am-bg2)', border: '1px solid var(--am-border)' }}>
+                          <img
+                            src={prod.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300'}
+                            alt={prod.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e: any) => { e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300'; }}
+                          />
+                        </div>
+
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                            <span style={{
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 800,
+                              background: pStatus === 'approved' ? 'rgba(16,185,129,0.15)' : pStatus === 'rejected' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
+                              color: pStatus === 'approved' ? '#10B981' : pStatus === 'rejected' ? '#EF4444' : '#D97706'
+                            }}>
+                              {pStatus === 'approved' ? '✅ Disetujui (Tayang)' : pStatus === 'rejected' ? '❌ Ditolak' : '⏳ Menunggu Kurasi Admin'}
+                            </span>
+                            <span style={{ fontSize: 11, background: 'var(--am-bg2)', color: 'var(--am-text-muted)', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+                              📁 {prod.category}
+                            </span>
+                            <span style={{ fontSize: 11, background: 'var(--am-bg2)', color: 'var(--am-text-muted)', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+                              📍 Kampus {prod.campus === 'banjarmasin' ? '1 Bjm' : '2 Bjb'}
+                            </span>
+                          </div>
+
+                          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: 'var(--am-text)' }}>
+                            {prod.name}
+                          </h3>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 15, fontWeight: 900, color: 'var(--am-primary)' }}>
+                              {formatRupiah(prod.price)}
+                            </span>
+                            <span style={{ fontSize: 12, color: 'var(--am-text-muted)' }}>
+                              👤 Penjual: <strong>{prod.sellerName || 'Tenant Kampus'}</strong>
+                            </span>
+                            {prod.stock !== undefined && (
+                              <span style={{ fontSize: 12, color: 'var(--am-text-muted)' }}>
+                                📦 Stok: <strong>{prod.stock} unit</strong>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* AI Score Badge Box */}
+                      {ai ? (
+                        <div style={{
+                          background: scoreBg,
+                          border: `1px solid ${scoreColor}40`,
+                          padding: '10px 14px',
+                          borderRadius: 14,
+                          textAlign: 'center',
+                          minWidth: 150
+                        }}>
+                          <div style={{ fontSize: 10.5, fontWeight: 800, color: scoreColor, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            Skor Kelayakan AI
+                          </div>
+                          <div style={{ fontSize: 24, fontWeight: 900, color: scoreColor, marginTop: 2 }}>
+                            {score}%
+                          </div>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: scoreColor, marginTop: 2 }}>
+                            {score >= 80 ? '🟢 Layak Dijual' : score >= 60 ? '🟡 Perlu Tinjau' : '🔴 Tidak Disarankan'}
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleReanalyzeWithAi(prod)}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: 10,
+                            border: '1px dashed var(--am-primary)',
+                            background: 'rgba(16,185,129,0.08)',
+                            color: 'var(--am-primary)',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          🤖 Pindai dengan AI
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Description snippet */}
+                    <div style={{ fontSize: 12.5, color: 'var(--am-text)', opacity: 0.85, marginBottom: 12, background: 'var(--am-bg2)', padding: '8px 12px', borderRadius: 10 }}>
+                      <strong style={{ color: 'var(--am-text)' }}>Deskripsi Produk:</strong> {prod.description || 'Tidak ada deskripsi detail.'}
+                    </div>
+
+                    {/* AI Policy Checks Breakdown */}
+                    {ai && (
+                      <div style={{
+                        background: 'var(--am-bg2)',
+                        borderRadius: 12,
+                        padding: 12,
+                        marginBottom: 14,
+                        border: '1px solid var(--am-border)'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <span style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--am-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>🤖 Hasil Verifikasi Kebijakan Otomatis (DeepSeek AI):</span>
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>
+                            {ai.analyzedAt ? new Date(ai.analyzedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} WITA
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginBottom: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
+                            <span>{(ai.checks?.noProhibitedGoods?.passed ?? true) ? '✅' : '❌'}</span>
+                            <span style={{ color: (ai.checks?.noProhibitedGoods?.passed ?? true) ? 'var(--am-text)' : '#EF4444', fontWeight: (ai.checks?.noProhibitedGoods?.passed ?? true) ? 600 : 800 }}>
+                              Bebas Barang Terlarang / Narkoba / Sajam
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
+                            <span>{(ai.checks?.islamicEthicsHalal?.passed ?? true) ? '✅' : '❌'}</span>
+                            <span style={{ color: (ai.checks?.islamicEthicsHalal?.passed ?? true) ? 'var(--am-text)' : '#EF4444', fontWeight: (ai.checks?.islamicEthicsHalal?.passed ?? true) ? 600 : 800 }}>
+                              Etika Kampus Islam & Kehalalan
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
+                            <span>{(ai.checks?.studentPriceFairness?.passed ?? true) ? '✅' : '⚠️'}</span>
+                            <span style={{ color: (ai.checks?.studentPriceFairness?.passed ?? true) ? 'var(--am-text)' : '#F59E0B', fontWeight: 600 }}>
+                              Kewajaran Harga Mahasiswa
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
+                            <span>{(ai.checks?.mediaAndDescriptionQuality?.passed ?? true) ? '✅' : '⚠️'}</span>
+                            <span style={{ color: (ai.checks?.mediaAndDescriptionQuality?.passed ?? true) ? 'var(--am-text)' : '#F59E0B', fontWeight: 600 }}>
+                              Kelengkapan Deskripsi & Foto
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: 12, color: 'var(--am-text-muted)', fontStyle: 'italic', borderTop: '1px dashed var(--am-border)', paddingTop: 8 }}>
+                          <strong>💡 Catatan AI:</strong> "{ai.explanation || 'Analisis kepatuhan kebijakan produk selesai.'}"
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rejection notice if rejected */}
+                    {pStatus === 'rejected' && prod.moderationReason && (
+                      <div style={{
+                        background: 'rgba(239,68,68,0.1)',
+                        border: '1px solid rgba(239,68,68,0.3)',
+                        padding: '10px 14px',
+                        borderRadius: 12,
+                        marginBottom: 14,
+                        fontSize: 12,
+                        color: '#B91C1C'
+                      }}>
+                        <strong>⚠️ Alasan Penolakan Super Admin:</strong> {prod.moderationReason}
+                      </div>
+                    )}
+
+                    {/* Action Buttons Toolbar */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderTop: '1px solid var(--am-border)', paddingTop: 14 }}>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => setInspectingProduct(prod)}
+                          style={{
+                            padding: '7px 14px',
+                            borderRadius: 10,
+                            border: '1px solid var(--am-border)',
+                            background: 'var(--am-bg2)',
+                            color: 'var(--am-text)',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6
+                          }}
+                        >
+                          🔍 Detail Analisis Lengkap
+                        </button>
+
+                        <button
+                          onClick={() => handleReanalyzeWithAi(prod)}
+                          disabled={isProcessingModeration}
+                          style={{
+                            padding: '7px 14px',
+                            borderRadius: 10,
+                            border: '1px solid var(--am-border)',
+                            background: 'var(--am-bg2)',
+                            color: 'var(--am-text)',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6
+                          }}
+                        >
+                          🔄 Scan Ulang AI
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {pStatus !== 'rejected' && (
+                          <button
+                            onClick={() => {
+                              setRejectingProduct(prod);
+                              setRejectReason('');
+                            }}
+                            disabled={isProcessingModeration}
+                            style={{
+                              padding: '8px 16px',
+                              borderRadius: 10,
+                              border: '1px solid #EF4444',
+                              background: 'rgba(239,68,68,0.08)',
+                              color: '#EF4444',
+                              fontSize: 12.5,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6
+                            }}
+                          >
+                            ❌ Tolak Produk
+                          </button>
+                        )}
+
+                        {pStatus !== 'approved' && (
+                          <button
+                            onClick={() => handleApproveProduct(prod.id, prod.name)}
+                            disabled={isProcessingModeration}
+                            style={{
+                              padding: '8px 18px',
+                              borderRadius: 10,
+                              border: 'none',
+                              background: 'var(--am-primary)',
+                              color: 'white',
+                              fontSize: 12.5,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              boxShadow: '0 4px 12px rgba(16,185,129,0.3)'
+                            }}
+                          >
+                            ✅ Setujui & Publikasikan
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 📊 TAB 1: REAL-TIME MONITORING & LIVE WAVEFORM CHARTS */}
       {activeTab === 'realtime' && (
@@ -1601,6 +2478,486 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* 🛡️ MODAL TOLAK PRODUK DENGAN ALASAN SUPER ADMIN */}
+      {rejectingProduct && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16
+        }}>
+          <div className="am-card" style={{
+            width: '100%',
+            maxWidth: 520,
+            padding: 24,
+            borderRadius: 20,
+            background: 'var(--am-surface)',
+            border: '1px solid var(--am-border)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.25)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(239,68,68,0.15)', color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                  ❌
+                </div>
+                <div>
+                  <h3 className="am-heading" style={{ margin: 0, fontSize: 17, color: 'var(--am-text)' }}>
+                    Tolak Publikasi Produk
+                  </h3>
+                  <div style={{ fontSize: 12, color: 'var(--am-text-muted)' }}>
+                    {rejectingProduct.name} • {rejectingProduct.sellerName || 'Tenant'}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setRejectingProduct(null)}
+                style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--am-text-muted)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ fontSize: 12.5, color: 'var(--am-text-muted)', marginBottom: 14 }}>
+              Berikan alasan penolakan agar penjual dapat memperbaiki deskripsi, foto, atau harga produk sebelum mengajukan kembali:
+            </div>
+
+            {/* Quick Reason Presets */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: 'block', fontSize: 11.5, fontWeight: 800, marginBottom: 6, color: 'var(--am-text)' }}>
+                Pilih Alasan Cepat (Template):
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {[
+                  'Deskripsi & foto produk kurang informatif',
+                  'Harga tidak wajar untuk standar mahasiswa UIN',
+                  'Melanggar norma etika kampus Islami UIN Antasari',
+                  'Foto terindikasi buram / melanggar hak cipta',
+                  'Barang tidak sesuai kategori / terlarang'
+                ].map((reasonText, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setRejectReason(reasonText)}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: 8,
+                      border: rejectReason === reasonText ? '1px solid #EF4444' : '1px solid var(--am-border)',
+                      background: rejectReason === reasonText ? 'rgba(239,68,68,0.1)' : 'var(--am-bg2)',
+                      color: rejectReason === reasonText ? '#EF4444' : 'var(--am-text)',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {reasonText}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Reason Textarea */}
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ display: 'block', fontSize: 11.5, fontWeight: 800, marginBottom: 6, color: 'var(--am-text)' }}>
+                Alasan / Catatan Evaluasi untuk Penjual:
+              </label>
+              <textarea
+                rows={3}
+                required
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                placeholder="Tuliskan catatan detail mengenai apa yang harus diperbaiki oleh seller..."
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  border: '1px solid var(--am-border)',
+                  background: 'var(--am-bg2)',
+                  color: 'var(--am-text)',
+                  fontSize: 12.5,
+                  boxSizing: 'border-box',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setRejectingProduct(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 10,
+                  border: '1px solid var(--am-border)',
+                  background: 'var(--am-bg2)',
+                  color: 'var(--am-text)',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReject}
+                disabled={!rejectReason.trim() || isProcessingModeration}
+                style={{
+                  padding: '8px 20px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#EF4444',
+                  color: 'white',
+                  fontWeight: 800,
+                  cursor: rejectReason.trim() && !isProcessingModeration ? 'pointer' : 'not-allowed',
+                  opacity: rejectReason.trim() && !isProcessingModeration ? 1 : 0.6
+                }}
+              >
+                {isProcessingModeration ? 'Memproses...' : 'Tolak & Kirim Catatan ❌'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🤖 MODAL DEEP INSPECTION AUDIT AI */}
+      {inspectingProduct && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.65)',
+          backdropFilter: 'blur(6px)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16
+        }}>
+          <div className="am-card" style={{
+            width: '100%',
+            maxWidth: 680,
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: 24,
+            borderRadius: 22,
+            background: 'var(--am-surface)',
+            border: '1px solid var(--am-border)',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #10B981, #059669)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+                  🤖
+                </div>
+                <div>
+                  <h3 className="am-heading" style={{ margin: 0, fontSize: 18, color: 'var(--am-text)' }}>
+                    Laporan Lengkap Audit AI DeepSeek
+                  </h3>
+                  <div style={{ fontSize: 12, color: 'var(--am-text-muted)' }}>
+                    Evaluasi Kepatuhan Produk Kampus UIN Antasari
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setInspectingProduct(null)}
+                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--am-text-muted)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Product Summary */}
+            <div style={{
+              display: 'flex',
+              gap: 14,
+              padding: 14,
+              borderRadius: 14,
+              background: 'var(--am-bg2)',
+              border: '1px solid var(--am-border)',
+              marginBottom: 16
+            }}>
+              <img
+                src={inspectingProduct.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300'}
+                alt={inspectingProduct.name}
+                style={{ width: 68, height: 68, borderRadius: 10, objectFit: 'cover' }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: 'var(--am-primary)', fontWeight: 800, textTransform: 'uppercase' }}>
+                  {inspectingProduct.category} • Kampus {inspectingProduct.campus === 'banjarmasin' ? '1 Bjm' : '2 Bjb'}
+                </div>
+                <h4 style={{ margin: '2px 0 4px', fontSize: 15, fontWeight: 900, color: 'var(--am-text)' }}>
+                  {inspectingProduct.name}
+                </h4>
+                <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--am-primary)' }}>
+                  {formatRupiah(inspectingProduct.price)}
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--am-text-muted)', marginTop: 2 }}>
+                  Penjual: <strong>{inspectingProduct.sellerName || 'Tenant'}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Score & Recommendation */}
+            {inspectingProduct.aiAnalysis ? (
+              <div>
+                <div style={{
+                  padding: 16,
+                  borderRadius: 14,
+                  background: (inspectingProduct.aiAnalysis.score >= 80)
+                    ? 'rgba(16,185,129,0.1)'
+                    : (inspectingProduct.aiAnalysis.score >= 60)
+                      ? 'rgba(245,158,11,0.1)'
+                      : 'rgba(239,68,68,0.1)',
+                  border: `1px solid ${(inspectingProduct.aiAnalysis.score >= 80) ? '#10B981' : (inspectingProduct.aiAnalysis.score >= 60) ? '#F59E0B' : '#EF4444'}40`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 16
+                }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--am-text-muted)' }}>
+                      Skor Kelayakan Produk
+                    </div>
+                    <div style={{ fontSize: 28, fontWeight: 900, color: (inspectingProduct.aiAnalysis.score >= 80) ? '#10B981' : (inspectingProduct.aiAnalysis.score >= 60) ? '#D97706' : '#EF4444' }}>
+                      {inspectingProduct.aiAnalysis.score} / 100%
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--am-text)' }}>
+                      Rekomendasi AI: {inspectingProduct.aiAnalysis.recommendation.toUpperCase()}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 11, color: 'var(--am-text-muted)' }}>Waktu Audit AI</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text)' }}>
+                      {new Date(inspectingProduct.aiAnalysis.analyzedAt).toLocaleString('id-ID')}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4 Pillars Details */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--am-text)' }}>
+                    📋 Rincian 4 Pilar Kebijakan UIN Antasari:
+                  </div>
+
+                  {/* Pillar 1 */}
+                  <div style={{ padding: 12, borderRadius: 12, background: 'var(--am-bg2)', border: '1px solid var(--am-border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--am-text)' }}>
+                        1. 🚫 Bebas Barang Terlarang / Narkoba / Sajam
+                      </span>
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        background: (inspectingProduct.aiAnalysis?.checks?.noProhibitedGoods?.passed ?? true) ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                        color: (inspectingProduct.aiAnalysis?.checks?.noProhibitedGoods?.passed ?? true) ? '#10B981' : '#EF4444'
+                      }}>
+                        {(inspectingProduct.aiAnalysis?.checks?.noProhibitedGoods?.passed ?? true) ? '✅ LOLOS' : '❌ PELANGGARAN'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--am-text-muted)', marginTop: 4 }}>
+                      {inspectingProduct.aiAnalysis?.checks?.noProhibitedGoods?.reason || 'Lolos verifikasi standar kampus.'}
+                    </div>
+                  </div>
+
+                  {/* Pillar 2 */}
+                  <div style={{ padding: 12, borderRadius: 12, background: 'var(--am-bg2)', border: '1px solid var(--am-border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--am-text)' }}>
+                        2. 🕌 Etika Kampus Islami & Standar Kehalalan
+                      </span>
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        background: (inspectingProduct.aiAnalysis?.checks?.islamicEthicsHalal?.passed ?? true) ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                        color: (inspectingProduct.aiAnalysis?.checks?.islamicEthicsHalal?.passed ?? true) ? '#10B981' : '#EF4444'
+                      }}>
+                        {(inspectingProduct.aiAnalysis?.checks?.islamicEthicsHalal?.passed ?? true) ? '✅ LOLOS' : '❌ MELANGGAR'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--am-text-muted)', marginTop: 4 }}>
+                      {inspectingProduct.aiAnalysis?.checks?.islamicEthicsHalal?.reason || 'Sesuai etika dan syariah kampus Islami.'}
+                    </div>
+                  </div>
+
+                  {/* Pillar 3 */}
+                  <div style={{ padding: 12, borderRadius: 12, background: 'var(--am-bg2)', border: '1px solid var(--am-border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--am-text)' }}>
+                        3. 💰 Kewajaran Harga Mahasiswa
+                      </span>
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        background: (inspectingProduct.aiAnalysis?.checks?.studentPriceFairness?.passed ?? true) ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                        color: (inspectingProduct.aiAnalysis?.checks?.studentPriceFairness?.passed ?? true) ? '#10B981' : '#D97706'
+                      }}>
+                        {(inspectingProduct.aiAnalysis?.checks?.studentPriceFairness?.passed ?? true) ? '✅ WAJAR' : '⚠️ PERLU TINJAU'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--am-text-muted)', marginTop: 4 }}>
+                      {inspectingProduct.aiAnalysis?.checks?.studentPriceFairness?.reason || 'Harga standar dan wajar untuk mahasiswa.'}
+                    </div>
+                  </div>
+
+                  {/* Pillar 4 */}
+                  <div style={{ padding: 12, borderRadius: 12, background: 'var(--am-bg2)', border: '1px solid var(--am-border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--am-text)' }}>
+                        4. 📸 Kelengkapan Deskripsi & Foto Produk
+                      </span>
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        background: (inspectingProduct.aiAnalysis?.checks?.mediaAndDescriptionQuality?.passed ?? true) ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                        color: (inspectingProduct.aiAnalysis?.checks?.mediaAndDescriptionQuality?.passed ?? true) ? '#10B981' : '#D97706'
+                      }}>
+                        {(inspectingProduct.aiAnalysis?.checks?.mediaAndDescriptionQuality?.passed ?? true) ? '✅ LENGKAP' : '⚠️ KURANG'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--am-text-muted)', marginTop: 4 }}>
+                      {inspectingProduct.aiAnalysis?.checks?.mediaAndDescriptionQuality?.reason || 'Foto dan deskripsi memenuhi ketentuan.'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Explanation text */}
+                <div style={{
+                  padding: 14,
+                  borderRadius: 14,
+                  background: 'var(--am-bg2)',
+                  border: '1px solid var(--am-border)',
+                  fontSize: 12.5,
+                  color: 'var(--am-text)',
+                  lineHeight: 1.5,
+                  marginBottom: 16
+                }}>
+                  <strong style={{ display: 'block', marginBottom: 4, color: 'var(--am-primary)' }}>
+                    💡 Ringkasan & Rekomendasi Sistem AI:
+                  </strong>
+                  "{inspectingProduct.aiAnalysis?.explanation || 'Analisis kepatuhan kebijakan produk selesai.'}"
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: 30, textAlign: 'center', color: 'var(--am-text-muted)' }}>
+                Belum ada data audit AI untuk produk ini.
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderTop: '1px solid var(--am-border)', paddingTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => setInspectingProduct(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 10,
+                  border: '1px solid var(--am-border)',
+                  background: 'var(--am-bg2)',
+                  color: 'var(--am-text)',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Tutup
+              </button>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                {inspectingProduct.status !== 'rejected' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRejectingProduct(inspectingProduct);
+                      setInspectingProduct(null);
+                      setRejectReason('');
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 10,
+                      border: '1px solid #EF4444',
+                      background: 'rgba(239,68,68,0.08)',
+                      color: '#EF4444',
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ❌ Tolak Produk
+                  </button>
+                )}
+
+                {inspectingProduct.status !== 'approved' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleApproveProduct(inspectingProduct.id, inspectingProduct.name);
+                      setInspectingProduct(null);
+                    }}
+                    style={{
+                      padding: '8px 20px',
+                      borderRadius: 10,
+                      border: 'none',
+                      background: 'var(--am-primary)',
+                      color: 'white',
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ✅ Setujui & Publikasikan
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔔 MODERATION TOAST ALERT */}
+      {moderationToast && (
+        <div style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          padding: '12px 20px',
+          borderRadius: 14,
+          background: moderationToast.type === 'success' ? '#064E3B' : '#7F1D1D',
+          color: 'white',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+          border: `1px solid ${moderationToast.type === 'success' ? '#10B981' : '#EF4444'}`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          zIndex: 10000,
+          fontSize: 13,
+          fontWeight: 700,
+          maxWidth: 420
+        }}>
+          <span>{moderationToast.type === 'success' ? '✅' : '⚠️'}</span>
+          <span style={{ flex: 1 }}>{moderationToast.message}</span>
+          <button
+            onClick={() => setModerationToast(null)}
+            style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: 16, padding: 0 }}
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>

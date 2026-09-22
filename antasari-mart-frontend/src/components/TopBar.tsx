@@ -1,5 +1,6 @@
 import type { AppTab, Campus, ThemeMode, UserRole, CartItem } from '../types'
 import { useRealtimeLocation } from '../lib/useRealtimeLocation'
+import { getUserAvatar } from '../lib/userAvatars'
 
 interface TopBarProps {
   theme: ThemeMode
@@ -25,7 +26,8 @@ interface TopBarProps {
 
 export default function TopBar({
   theme, campus, setCampus, activeTab: _activeTab, setActiveTab,
-  userName, userAvatar, isGuest, onRequireLogin,
+  role,
+  userName, userEmail, userAvatar, isGuest, onRequireLogin,
   cartItems, chatUnread,
   onOpenProfileModal, onToggleMobileSidebar, onToggleTheme
 }: TopBarProps) {
@@ -39,7 +41,7 @@ export default function TopBar({
   } = useRealtimeLocation(campus, setCampus);
 
   const storedAvatar = typeof window !== 'undefined' ? localStorage.getItem('am_user_avatar') : null;
-  const activeAvatar = storedAvatar || userAvatar || 'https://api.dicebear.com/7.x/adventurer/svg?seed=MayaSmile&backgroundColor=b6e3f4';
+  const activeAvatar = getUserAvatar(userEmail || userName, userName, role, storedAvatar || userAvatar);
 
   const handleProfileClick = () => {
     if (isGuest) {
@@ -66,7 +68,7 @@ export default function TopBar({
   }
 
   return (
-    <header style={{ background: 'var(--am-surface)', borderBottom: '1px solid var(--am-border)', position: 'sticky', top: 0, zIndex: 100 }}>
+    <header className="sticky top-0 z-50 pt-0 mt-0" style={{ background: 'var(--am-surface)', borderBottom: '1px solid var(--am-border)', position: 'sticky', top: 0, zIndex: 100, paddingTop: 0, marginTop: 0 }}>
       <style>{`
         @keyframes pulseGps {
           0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
@@ -122,11 +124,11 @@ export default function TopBar({
         }
       `}</style>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', gap: 6 }}>
+      <div className="w-full flex items-center justify-between px-4 sm:px-6 py-2.5 gap-3" style={{ paddingLeft: 'max(16px, env(safe-area-inset-left, 16px))', paddingRight: 'max(16px, env(safe-area-inset-right, 16px))' }}>
         
-        {/* Sisi Kiri: Tombol Hamburger Menu + Logo Antasari Mart */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* 📱 Tombol Hamburger Menu */}
+        {/* Sisi Kiri: Tombol Hamburger Menu + Logo Campus Mart */}
+        <div className="flex items-center gap-3 pl-0 sm:pl-1">
+          {/* 📱 Tombol Hamburger Menu (Hanya tampil di Mobile < 768px, karena di Desktop sudah ada Sidebar tetap) */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -134,7 +136,7 @@ export default function TopBar({
               if (onToggleMobileSidebar) onToggleMobileSidebar();
             }}
             aria-label="Buka Menu Sidebar"
-            className="topbar-icon-btn"
+            className="topbar-icon-btn md:hidden flex-shrink-0"
             title="Buka Sidebar Menu"
             style={{ width: 36, height: 36 }}
           >
@@ -145,19 +147,25 @@ export default function TopBar({
             </svg>
           </button>
 
-          {/* Logo Antasari Mart */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }} onClick={() => setActiveTab('home')}>
-            <div style={{
-              width: 34, height: 34, borderRadius: isAesthetic ? '50%' : 9,
-              background: 'linear-gradient(135deg, #5FA874 0%, #F4AEC2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, fontWeight: 800, color: 'white', flexShrink: 0,
-              boxShadow: '0 2px 8px rgba(95, 168, 116, 0.25)'
-            }}>A</div>
+          {/* Logo Campus Mart */}
+          <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setActiveTab('home')}>
+            <div
+              className="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shadow-sm"
+              style={{
+                background: 'linear-gradient(135deg, #5FA874 0%, #F4AEC2 100%)',
+                color: 'white',
+                fontWeight: 800,
+                fontSize: 18,
+                boxShadow: '0 2px 8px rgba(95, 168, 116, 0.25)'
+              }}
+            >
+              C
+            </div>
             <div style={{ whiteSpace: 'nowrap' }}>
-              <div className="am-heading" style={{ fontSize: isAesthetic ? 13.5 : 13, fontWeight: 800, color: 'var(--am-text)', lineHeight: 1.1 }}>
-                Antasari Mart
+              <div className="am-heading" style={{ fontSize: isAesthetic ? 14 : 13.5, fontWeight: 800, color: 'var(--am-text)', lineHeight: 1.15 }}>
+                Campus Mart
               </div>
-              <div style={{ fontSize: 9.5, color: 'var(--am-primary)', fontWeight: 600, lineHeight: 1.1, marginTop: 2 }}>
+              <div style={{ fontSize: 10, color: 'var(--am-primary)', fontWeight: 600, lineHeight: 1.15, marginTop: 2 }}>
                 Campus Hub
               </div>
             </div>
