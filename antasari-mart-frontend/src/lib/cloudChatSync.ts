@@ -750,17 +750,42 @@ export async function markCloudChatAsRead(identifier: string, roomId?: string) {
 /**
  * ❤️ Sinkronkan Reaksi Pesan Chat ke Redis Cloud & Broadcast Antar Tab/Perangkat
  */
-export async function syncCloudReaction(msgId: string | number, emoji: string, roomId?: string) {
+export async function syncCloudReaction(
+  msgId: string | number,
+  emoji: string,
+  roomId?: string,
+  userId?: string,
+  action: 'add' | 'remove' | 'toggle' = 'add'
+) {
   if (!msgId || !emoji || typeof window === 'undefined') return;
   const cleanRoomId = roomId ? String(roomId).toLowerCase().trim() : 'global';
+  const uId = String(userId || 'me').toLowerCase().trim();
 
-  // 1. Simpan reaksi ke LocalStorage untuk fallback offline
+  // 1. Simpan reaksi ke LocalStorage berbasis array user ID untuk mencegah duplikasi
   try {
     const raw = localStorage.getItem('am_chat_reactions') || '{}';
     const reactionStore = JSON.parse(raw);
     const key = `${cleanRoomId}_${msgId}`;
     if (!reactionStore[key]) reactionStore[key] = {};
-    reactionStore[key][emoji] = (reactionStore[key][emoji] || 0) + 1;
+
+    let userList: string[] = [];
+    if (Array.isArray(reactionStore[key][emoji])) {
+      userList = [...reactionStore[key][emoji]];
+    } else if (typeof reactionStore[key][emoji] === 'number') {
+      userList = reactionStore[key][emoji] > 0 ? ['legacy_user'] : [];
+    }
+
+    const idx = userList.findIndex(u => u.toLowerCase().trim() === uId);
+    if (action === 'remove') {
+      if (idx >= 0) userList.splice(idx, 1);
+    } else if (action === 'toggle') {
+      if (idx >= 0) userList.splice(idx, 1);
+      else userList.push(uId);
+    } else {
+      if (idx === -1) userList.push(uId);
+    }
+
+    reactionStore[key][emoji] = userList;
     localStorage.setItem('am_chat_reactions', JSON.stringify(reactionStore));
   } catch (_e) {}
 
@@ -768,7 +793,7 @@ export async function syncCloudReaction(msgId: string | number, emoji: string, r
   try {
     const redisKey = `am_reactions_${cleanRoomId}_${msgId}`;
     if (typeof (redis as any).hincrby === 'function') {
-      await (redis as any).hincrby(redisKey, emoji, 1);
+      await (redis as any).hincrby(redisKey, emoji, action === 'remove' ? -1 : 1);
     }
   } catch (_e) {}
 
@@ -777,14 +802,14 @@ export async function syncCloudReaction(msgId: string | number, emoji: string, r
     const bc = new BroadcastChannel('am_campus_chat_channel_v4');
     bc.postMessage({
       type: 'reaction',
-      data: { msgId: String(msgId), emoji, roomId: cleanRoomId }
+      data: { msgId: String(msgId), emoji, roomId: cleanRoomId, userId: uId, action }
     });
     bc.close();
   } catch (_e) {}
 
   // 4. Pancarkan Custom Event Window Lokal
   window.dispatchEvent(new CustomEvent('am_chat_reaction', {
-    detail: { msgId: String(msgId), emoji, roomId: cleanRoomId }
+    detail: { msgId: String(msgId), emoji, roomId: cleanRoomId, userId: uId, action }
   }));
 
   // 5. Siarkan ke Soketi / Pusher Room Channel Real-Time
@@ -796,7 +821,9 @@ export async function syncCloudReaction(msgId: string | number, emoji: string, r
       id: String(msgId),
       msgId: String(msgId),
       emoji,
-      roomId: cleanRoomId
+      roomId: cleanRoomId,
+      userId: uId,
+      action
     });
   } catch (_e) {}
 }

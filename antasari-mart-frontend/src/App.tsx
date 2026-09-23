@@ -203,9 +203,15 @@ function MainAppContent() {
       animation: checkAnim 0.4s ease-in-out 0.1s both;
     }
     .am-main-content-container {
-      padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+      padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    }
+    .am-main-content-container.chat-active {
+      padding-bottom: 0 !important;
     }
     @media (min-width: 768px) {
+      .am-main-content-container {
+        padding-bottom: 0 !important;
+      }
       .am-hide-on-desktop-chat {
         display: none !important;
       }
@@ -664,7 +670,7 @@ function MainAppContent() {
         />
       )}
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingTop: 0, marginTop: 0 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingTop: 0, marginTop: 0, height: activeTab === 'chat' ? '100vh' : undefined, maxHeight: activeTab === 'chat' ? '100vh' : undefined, overflow: activeTab === 'chat' ? 'hidden' : undefined }}>
         {activeTab !== 'chat' && (
           <TopBar
             theme={theme}
@@ -696,12 +702,13 @@ function MainAppContent() {
         )}
 
         <main
-          className={`am-main-content-container ${activeTab === 'chat' || isFullScreenChat ? '' : 'pb-24'}`}
+          className={`am-main-content-container ${activeTab === 'chat' || isFullScreenChat ? 'chat-active pb-0 md:pb-0' : 'pb-24 md:pb-0'}`}
           style={{
             flex: 1,
             paddingBottom: activeTab === 'chat' || isFullScreenChat ? 0 : undefined,
             minHeight: activeTab === 'chat' ? '100vh' : (isFullScreenChat ? '100vh' : 'calc(100vh - 60px)'),
             height: activeTab === 'chat' ? '100vh' : undefined,
+            maxHeight: activeTab === 'chat' ? '100vh' : undefined,
             overflow: activeTab === 'chat' ? 'hidden' : undefined,
             display: activeTab === 'chat' ? 'flex' : undefined,
             flexDirection: activeTab === 'chat' ? 'column' : undefined,
@@ -714,9 +721,11 @@ function MainAppContent() {
             style={{
               minHeight: activeTab === 'chat' ? '100%' : (isFullScreenChat ? '100vh' : 'calc(100vh - 140px)'),
               height: activeTab === 'chat' ? '100%' : undefined,
+              maxHeight: activeTab === 'chat' ? '100vh' : undefined,
               flex: activeTab === 'chat' ? 1 : undefined,
               display: activeTab === 'chat' ? 'flex' : 'block',
-              flexDirection: activeTab === 'chat' ? 'column' : undefined
+              flexDirection: activeTab === 'chat' ? 'column' : undefined,
+              overflow: activeTab === 'chat' ? 'hidden' : undefined
             }}
           >
             {activeTab === 'home' && (

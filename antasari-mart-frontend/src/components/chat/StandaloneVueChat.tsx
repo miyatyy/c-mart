@@ -73,8 +73,8 @@ export const StandaloneVueChat: React.FC<StandaloneVueChatProps> = ({
   return (
     <div
       ref={containerRef}
-      className="standalone-vue-chat-container w-full h-[calc(100vh-64px)] flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden"
-      style={{ minHeight: '520px' }}
+      className="standalone-vue-chat-container w-full h-screen max-h-screen flex-1 flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden pb-0 md:pb-0"
+      style={{ height: '100vh', maxHeight: '100vh' }}
     />
   );
 };

@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full h-[100dvh] max-h-[100dvh] flex flex-col md:flex-row bg-white dark:bg-gray-900 overflow-hidden font-sans">
+  <div class="w-full h-screen max-h-screen flex flex-col md:flex-row bg-white dark:bg-gray-900 overflow-hidden font-sans pb-0 md:pb-0">
     <!-- 📋 SATU SIDEBAR DAFTAR KONTAK (Mobile: Fullscreen saat selectedChat null; Desktop: Kolom Kiri Ramping) -->
     <div
       :class="[
@@ -135,8 +135,8 @@
     <!-- 💬 SATU RUANG PESAN AKTIF (Mobile: Tampil saat selectedChat; Desktop: Kolom Kanan Lega) -->
     <div
       :class="[
-        'flex-1 flex flex-col bg-gray-50 dark:bg-gray-950 h-full max-h-[100dvh] overflow-hidden min-w-0 transition-all duration-200',
-        selectedChat ? 'flex w-full h-[100dvh] md:h-full' : 'hidden md:flex'
+        'flex-1 flex flex-col bg-gray-50 dark:bg-gray-950 h-full max-h-screen overflow-hidden min-w-0 transition-all duration-200',
+        selectedChat ? 'flex w-full h-screen md:h-full' : 'hidden md:flex'
       ]"
     >
       <!-- Header Room -->
@@ -205,7 +205,10 @@
       </div>
 
       <!-- 📜 DAFTAR BUBBLE PESAN CHAT -->
-      <div ref="messagesContainerRef" class="flex-1 min-h-0 p-3 sm:p-4 overflow-y-auto space-y-2 bg-[#efeae2]/50 dark:bg-gray-950">
+      <div ref="messagesContainerRef" class="flex-1 overflow-y-auto p-4 pb-16 min-h-0 space-y-2 bg-[#efeae2]/50 dark:bg-gray-950 relative">
+        <!-- Backdrop transparan untuk menutup menu dropdown titik tiga saat klik di luar -->
+        <div v-if="activeMenuMsgId !== null" @click="closeMessageMenu" class="fixed inset-0 z-30 bg-transparent"></div>
+
         <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400 py-12">
           <span class="text-4xl mb-2">💬</span>
           <p class="font-bold text-sm text-gray-700 dark:text-gray-300">Belum ada percakapan</p>
@@ -213,7 +216,7 @@
         </div>
 
       <!-- 💬 BUBBLE CHAT DENGAN ATURAN POSISI PASTI -->
-        <template v-for="(msg, idx) in messages" :key="msg.id || idx">
+        <template v-for="(msg, idx) in messages" :key="getMsgKey(msg, idx)">
           <div 
             :class="['flex w-full my-1.5 px-2 sm:px-3', isMyMessage(msg) ? 'justify-end' : 'justify-start']"
           >
@@ -225,14 +228,116 @@
             <!-- Bubble Box -->
             <div 
               :class="[
-                'max-w-[78%] sm:max-w-[70%] p-3 rounded-2xl text-sm shadow-xs break-words relative group',
+                'max-w-[85%] sm:max-w-[72%] p-3 pr-8 rounded-2xl text-sm shadow-xs break-words relative group',
                 isMyMessage(msg) 
                   ? 'bg-emerald-600 text-white rounded-br-xs' 
-                  : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-xs border border-gray-100 dark:border-gray-700'
+                  : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-xs border border-gray-100 dark:border-gray-700',
+                isMenuOpen(msg, idx) ? 'z-40' : 'z-10'
               ]"
             >
+              <!-- ⋮ TOMBOL MENU AKSI PESAN (Tampil di kedua sisi: kanan/hijau & kiri/putih) -->
+              <div v-if="!(msg.is_deleted || msg.isDeleted)" class="absolute top-1.5 right-1.5 z-40">
+                <button
+                  type="button"
+                  @click.stop="toggleMessageMenu(msg, idx)"
+                  :class="[
+                    'w-6 h-6 rounded-full flex items-center justify-center transition cursor-pointer select-none',
+                    isMenuOpen(msg, idx)
+                      ? (isMyMessage(msg) ? 'bg-emerald-700 text-white shadow-xs opacity-100' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-xs opacity-100')
+                      : (isMyMessage(msg) 
+                          ? 'text-white/80 hover:text-white hover:bg-emerald-700/60 opacity-80 hover:opacity-100' 
+                          : 'text-gray-400 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 opacity-80 hover:opacity-100')
+                  ]"
+                  title="Menu opsi pesan"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="5" r="2.2"/>
+                    <circle cx="12" cy="12" r="2.2"/>
+                    <circle cx="12" cy="19" r="2.2"/>
+                  </svg>
+                </button>
+
+                <!-- POPOVER / DROPDOWN MENU -->
+                <div
+                  v-if="isMenuOpen(msg, idx)"
+                  @click.stop
+                  :class="[
+                    'absolute right-0 z-[60] min-w-[180px] w-48 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-1.5 transition-all select-none text-gray-800 dark:text-gray-100',
+                    idx >= Math.max(1, messages.length - 2) ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-1 origin-top-right'
+                  ]"
+                >
+                  <!-- 🟢 MENU JIKA PESAN MILIK SENDIRI (KANAN/HIJAU): BALAS, EDIT, HAPUS -->
+                  <div v-if="isMyMessage(msg)" class="py-0.5">
+                    <!-- ↩️ Balas (Reply) -->
+                    <button
+                      type="button"
+                      @click="startReplyMessage(msg); closeMessageMenu()"
+                      class="w-full text-left px-3 py-2 text-xs font-semibold flex items-center gap-2.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-gray-700 dark:text-gray-200 hover:text-emerald-700 dark:hover:text-emerald-400 transition cursor-pointer"
+                    >
+                      <span class="text-sm">↩️</span>
+                      <span>Balas</span>
+                    </button>
+
+                    <!-- ✏️ Edit Pesan (Memicu inline editor / input edit teks) -->
+                    <button
+                      type="button"
+                      @click="startEditMessage(msg); closeMessageMenu()"
+                      class="w-full text-left px-3 py-2 text-xs font-semibold flex items-center gap-2.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-gray-700 dark:text-gray-200 hover:text-emerald-700 dark:hover:text-emerald-400 transition cursor-pointer"
+                    >
+                      <span class="text-sm">✏️</span>
+                      <span>Edit Pesan</span>
+                    </button>
+
+                    <!-- 🗑️ Hapus Pesan (Memicu event deleteMessage / tandai is_deleted) -->
+                    <button
+                      type="button"
+                      @click="handleDeleteMessage(msg.id != null ? msg.id : msg.client_id); closeMessageMenu()"
+                      class="w-full text-left px-3 py-2 text-xs font-semibold flex items-center gap-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                    >
+                      <span class="text-sm">🗑️</span>
+                      <span>Hapus Pesan</span>
+                    </button>
+                  </div>
+
+                  <!-- ⚪ MENU JIKA PESAN LAWAN BICARA (KIRI/PUTIH): CUKUP BALAS & TAMBAH REAKSI -->
+                  <div v-else class="py-0.5">
+                    <!-- Baris Reaksi Emoji Cepat -->
+                    <div class="px-2.5 py-1.5 border-b border-gray-100 dark:border-gray-700/80">
+                      <p class="text-[10px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <span>😀</span> Tambah Reaksi Emoji
+                      </p>
+                      <div class="flex items-center justify-between gap-1">
+                        <button
+                          v-for="emo in ['❤️', '👍', '😂', '😮', '😢', '🙏']"
+                          :key="emo"
+                          type="button"
+                          @click="handleReactToMessage(msg.id != null ? msg.id : msg.client_id, emo); closeMessageMenu()"
+                          :class="[
+                            'text-base p-1 rounded-lg transition-transform hover:scale-130 active:scale-95 cursor-pointer leading-none',
+                            hasUserReacted(msg.reactions, emo) ? 'bg-emerald-100 dark:bg-emerald-950/70 ring-1 ring-emerald-500' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                          ]"
+                          :title="'Beri reaksi ' + emo"
+                        >
+                          {{ emo }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- ↩️ Balas (Reply) -->
+                    <button
+                      type="button"
+                      @click="startReplyMessage(msg); closeMessageMenu()"
+                      class="w-full text-left px-3 py-2 text-xs font-semibold flex items-center gap-2.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-gray-700 dark:text-gray-200 hover:text-emerald-700 dark:hover:text-emerald-400 transition cursor-pointer"
+                    >
+                      <span class="text-sm">↩️</span>
+                      <span>Balas</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <!-- Nama Pengirim (Hanya untuk KIRI / Lawan Bicara) -->
-              <div v-if="!isMyMessage(msg)" class="flex items-center gap-1.5 mb-1 pb-1 border-b border-gray-100 dark:border-gray-700/60">
+              <div v-if="!isMyMessage(msg)" class="flex items-center gap-1.5 mb-1 pb-1 border-b border-gray-100 dark:border-gray-700/60 pr-5">
                 <!-- Avatar AI berbeda -->
                 <span v-if="isAiMessage(msg)" class="text-sm">🤖</span>
                 <span class="font-bold text-xs" :class="isAiMessage(msg) ? 'text-violet-700 dark:text-violet-400' : 'text-gray-900 dark:text-gray-100'">
@@ -243,22 +348,30 @@
                 </span>
               </div>
 
-              <!-- ↩️ QUOTE PREVIEW PESAN YANG DIBALAS (Tampil identik di kedua layar: Pengirim & Penerima) -->
+              <!-- ↩️ QUOTE PREVIEW PESAN YANG DIBALAS (Render sempurna di HP & Desktop) -->
               <div
                 v-if="!(msg.is_deleted || msg.isDeleted) && (msg.replyTo || msg.reply_to)"
                 :class="[
-                  'mb-1.5 p-2 rounded-lg text-xs border-l-4 transition flex flex-col gap-0.5 select-none shadow-2xs',
+                  'mb-1.5 p-2 rounded-lg text-xs border-l-[3.5px] transition flex flex-col gap-0.5 select-none shadow-xs',
                   isMyMessage(msg)
-                    ? 'bg-black/15 text-emerald-100 border-emerald-300'
-                    : 'bg-gray-100 dark:bg-gray-700/60 text-gray-800 dark:text-gray-200 border-emerald-500'
+                    ? 'bg-emerald-800/60 text-white border-emerald-300 shadow-inner'
+                    : 'bg-emerald-50/90 dark:bg-gray-700/80 text-gray-800 dark:text-gray-100 border-emerald-600 dark:border-emerald-400'
                 ]"
               >
-                <span class="font-bold text-[10.5px] opacity-90">
-                  {{ (msg.replyTo?.senderName || msg.replyTo?.sender_name || msg.reply_to?.senderName || msg.reply_to?.sender_name) || 'Pesan' }}
-                </span>
-                <span class="truncate text-[11px] opacity-85 italic">
-                  {{ (msg.replyTo?.text || msg.replyTo?.content || msg.reply_to?.text || msg.reply_to?.content) || '...' }}
-                </span>
+                <div class="flex items-center gap-1 font-bold text-[11px]">
+                  <span :class="isMyMessage(msg) ? 'text-emerald-200' : 'text-emerald-700 dark:text-emerald-400'">↩️</span>
+                  <span :class="isMyMessage(msg) ? 'text-emerald-200' : 'text-emerald-700 dark:text-emerald-400'">
+                    {{ msg.replyTo?.senderName || msg.replyTo?.sender_name || msg.reply_to?.senderName || msg.reply_to?.sender_name || 'Pengguna' }}
+                  </span>
+                </div>
+                <p 
+                  :class="[
+                    'text-[11.5px] italic line-clamp-2 break-words',
+                    isMyMessage(msg) ? 'text-emerald-100/90' : 'text-gray-600 dark:text-gray-300'
+                  ]"
+                >
+                  {{ msg.replyTo?.text || msg.replyTo?.content || msg.reply_to?.text || msg.reply_to?.content || '...' }}
+                </p>
               </div>
 
               <!-- ISI PESAN (NORMAL ATAU DIHAPUS) -->
@@ -272,7 +385,7 @@
                 <span>🚫</span>
                 <span>Pesan ini telah dihapus untuk semua orang</span>
               </p>
-              <div v-else-if="editingMessageId === msg.id" class="mt-1 flex flex-col gap-1.5 min-w-[200px]">
+              <div v-else-if="editingMessageId != null && (editingMessageId === msg.id || String(editingMessageId) === String(msg.id != null ? msg.id : (msg.client_id || msg._id)))" class="mt-1 flex flex-col gap-1.5 min-w-[200px]">
                 <input
                   v-model="editingText"
                   @keydown.enter.prevent="submitEditMessage"
@@ -288,88 +401,35 @@
               </div>
               <p v-else class="leading-relaxed whitespace-pre-wrap">{{ msg.text || msg.content || msg.message }}</p>
 
-              <!-- ❤️ 👍 😂 😮 😢 🙏 TAMPILAN REAKSI EMOJI AKTIF -->
-              <div v-if="msg.reactions && Object.keys(msg.reactions).length > 0" class="flex flex-wrap gap-1 mt-1.5">
+              <!-- ❤️ 👍 TAMPILAN REAKSI EMOJI AKTIF (HANYA MUNCUL JIKA ADA PENGGUNA YANG MEMBERI REAKSI) -->
+              <div v-if="getActiveReactions(msg.reactions).length > 0" class="flex flex-wrap gap-1 mt-1.5">
                 <button
-                  v-for="(count, emoji) in msg.reactions"
-                  :key="emoji"
-                  v-show="Number(count) > 0"
+                  v-for="item in getActiveReactions(msg.reactions)"
+                  :key="item.emoji"
                   type="button"
-                  @click="handleReactToMessage(msg.id, String(emoji))"
+                  @click="handleReactToMessage(msg.id, item.emoji)"
                   :class="[
-                    'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold transition cursor-pointer',
-                    isMyMessage(msg)
-                      ? 'bg-emerald-700/70 text-emerald-100 border border-emerald-500/40 hover:bg-emerald-700'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold transition cursor-pointer',
+                    item.hasReacted
+                      ? (isMyMessage(msg)
+                          ? 'bg-emerald-800 text-white ring-1 ring-emerald-300 shadow-xs'
+                          : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 ring-1 ring-emerald-400 shadow-xs')
+                      : (isMyMessage(msg)
+                          ? 'bg-black/20 text-emerald-100 hover:bg-black/30'
+                          : 'bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600')
                   ]"
-                  :title="'Reaksi ' + emoji + ': ' + count"
+                  :title="'Reaksi ' + item.emoji + ': ' + item.count + (item.hasReacted ? ' (Klik untuk membatalkan)' : '')"
                 >
-                  <span>{{ emoji }}</span>
-                  <span class="text-[10px]">{{ count }}</span>
+                  <span>{{ item.emoji }}</span>
+                  <span class="text-[10px] font-bold">{{ item.count }}</span>
                 </button>
               </div>
 
-              <!-- FOOTER BUBBLE: TOMBOL REAKSI CEPAT, BALAS, AKSI EDIT/HAPUS & JAM -->
-              <div class="flex items-center justify-between mt-1 pt-0.5 gap-2">
-                <!-- Tombol Beri Reaksi Cepat (6 Emoji Populer) -->
-                <div v-if="!(msg.is_deleted || msg.isDeleted)" class="flex items-center gap-1 opacity-75 hover:opacity-100 transition">
-                  <button
-                    v-for="emo in ['❤️', '👍', '😂', '😮', '😢', '🙏']"
-                    :key="emo"
-                    type="button"
-                    @click="handleReactToMessage(msg.id, emo)"
-                    class="text-xs hover:scale-130 active:scale-95 transition-transform p-0.5 cursor-pointer leading-none"
-                    :title="'Beri reaksi ' + emo"
-                  >
-                    {{ emo }}
-                  </button>
-                </div>
-                <div v-else></div>
-
-                <!-- AKSI BALAS, EDIT & HAPUS -->
-                <div class="flex items-center gap-1.5">
-                  <!-- Tombol Balas (↩️) untuk semua pesan yang aktif -->
-                  <button
-                    v-if="!(msg.is_deleted || msg.isDeleted)"
-                    type="button"
-                    @click="startReplyMessage(msg)"
-                    :class="[
-                      'text-xs px-1 py-0.5 rounded transition cursor-pointer',
-                      isMyMessage(msg)
-                        ? 'hover:bg-emerald-700/60 text-emerald-100'
-                        : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
-                    ]"
-                    title="Balas pesan ini"
-                  >
-                    ↩️
-                  </button>
-
-                  <!-- Aksi Edit & Hapus (Khusus pesan pengirim sendiri) -->
-                  <div v-if="isMyMessage(msg) && !(msg.is_deleted || msg.isDeleted)" class="flex items-center gap-1 opacity-60 hover:opacity-100 transition">
-                    <button
-                      type="button"
-                      @click="startEditMessage(msg)"
-                      class="text-[10px] px-1 py-0.5 rounded hover:bg-emerald-700/60 text-emerald-100 cursor-pointer transition"
-                      title="Edit pesan"
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      type="button"
-                      @click="handleDeleteMessage(msg.id)"
-                      class="text-[10px] px-1 py-0.5 rounded hover:bg-emerald-700/60 text-emerald-100 cursor-pointer transition"
-                      title="Hapus pesan untuk semua orang"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-
-                  <div :class="['text-[10px] flex items-center justify-end gap-1 shrink-0', isMyMessage(msg) ? 'text-emerald-100' : 'text-gray-400']">
-                    <span v-if="msg.is_edited || msg.isEdited" class="text-[9px] opacity-80 italic">(diedit)</span>
-                    <span>{{ formatTime(msg.created_at || msg.createdAt || msg.time) }}</span>
-                    <span v-if="isMyMessage(msg)">✓✓</span>
-                  </div>
-                </div>
+              <!-- FOOTER BUBBLE: STATUS DIEDIT, JAM & TANDA TERKIRIM (BERSIH DARI JEJERAN TOMBOL AKSI) -->
+              <div :class="['text-[10px] flex items-center justify-end gap-1 shrink-0 mt-1 pt-0.5', isMyMessage(msg) ? 'text-emerald-100' : 'text-gray-400']">
+                <span v-if="msg.is_edited || msg.isEdited" class="text-[9px] opacity-80 italic">(diedit)</span>
+                <span>{{ formatTime(msg.created_at || msg.createdAt || msg.time) }}</span>
+                <span v-if="isMyMessage(msg)" class="font-bold">✓✓</span>
               </div>
             </div>
           </div>
@@ -408,7 +468,7 @@
         @touchstart.stop
         @touchend.stop
         @pointerdown.stop
-        class="p-2 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 shrink-0 relative z-[9999] pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+        class="p-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 w-full shrink-0 relative z-20"
         style="isolation: isolate;"
       >
         <!-- 🪄 BARIS TOMBOL AI TOOLS & QUICK REPLY CHIPS (KHUSUS PENJUAL) -->
@@ -498,7 +558,7 @@
         </div>
 
         <!-- FORM SUBMIT EKSPLISIT SESUAI PERMINTAAN USER -->
-        <form @submit.prevent="handleKirimPesan" class="flex items-center gap-2">
+        <form @submit.prevent="handleKirimPesan" class="flex items-center gap-2 m-0 p-0">
           <input
             id="chat_vue_input"
             ref="inputFieldRef"
@@ -635,7 +695,7 @@ export interface ChatMessage {
   isEdited?: boolean;
   is_deleted?: boolean;
   isDeleted?: boolean;
-  reactions?: Record<string, number>;
+  reactions?: Record<string, string[] | number>;
   client_instance_id?: string;
   reply_to?: { id?: string | number; text?: string; content?: string; sender_name?: string; senderName?: string } | null;
   replyTo?: { id?: string | number; text?: string; content?: string; sender_name?: string; senderName?: string } | null;
@@ -959,6 +1019,31 @@ const typingContacts = ref<Record<string, boolean>>({});
 const isContactTyping = (contactId: string | number) => Boolean(typingContacts.value[String(contactId)]);
 let typingTimeout: ReturnType<typeof setTimeout> | null = null;
 let partnerTypingTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// 💬 State Menu Aksi Pesan Titik Tiga (⋮)
+const activeMenuMsgId = ref<string | null>(null);
+const getMsgKey = (msg: any, idx?: number): string => {
+  if (msg?.id != null && String(msg.id).trim() !== '') return String(msg.id);
+  if (msg?.client_id != null) return String(msg.client_id);
+  if (msg?._id != null) return String(msg._id);
+  if (msg?.time != null) return String(msg.time);
+  return `msg_${idx ?? 0}`;
+};
+const isMenuOpen = (msg: any, idx?: number): boolean => {
+  if (!activeMenuMsgId.value) return false;
+  return activeMenuMsgId.value === getMsgKey(msg, idx);
+};
+const toggleMessageMenu = (msg: any, idx?: number) => {
+  const key = getMsgKey(msg, idx);
+  if (activeMenuMsgId.value === key) {
+    activeMenuMsgId.value = null;
+  } else {
+    activeMenuMsgId.value = key;
+  }
+};
+const closeMessageMenu = () => {
+  activeMenuMsgId.value = null;
+};
 
 // State Edit Pesan
 const editingMessageId = ref<string | number | null>(null);
@@ -1431,32 +1516,56 @@ const activePartnerRole = computed(() => {
 // ==========================================
 const isMyMessage = (msg: any): boolean => {
   if (!msg) return false;
-  // Jika pesan baru dikirim dari perangkat ini
-  if (msg.is_self === true || msg.isSelf === true) return true;
-
-  const currentUserId = String(currentUser.value?.id || '');
-  const msgSenderId = String(msg.senderId || msg.sender_id || msg.sender || (msg as any).fromId || '');
-
-  if (!msgSenderId || !currentUserId) return false;
-
-  // 1. Cocokkan ID persis
-  if (msgSenderId === currentUserId) return true;
-
-  // 2. Cek normalisasi ID (menghubungkan '101', 'raisa14@gmail.com', 'usr_raisa_buyer', dll)
-  const myNorm = normalizeUserId(currentUserId);
-  const senderNorm = normalizeUserId(msgSenderId);
-  if (myNorm && senderNorm && myNorm === senderNorm) return true;
-
-  // 3. Substring match jika format ID mengandung yang lain
-  if (msgSenderId.includes(currentUserId) || currentUserId.includes(msgSenderId)) {
+  // 1. Jika pesan baru dikirim dari perangkat ini (flag eksplisit boolean maupun string)
+  if (msg.is_self === true || msg.isSelf === true || String(msg.is_self) === 'true' || String(msg.isSelf) === 'true') {
     return true;
   }
 
-  // 4. Periksa kecocokan nama pengirim jika ID belum match
-  const myName = String(currentUser.value?.name || '').toLowerCase().trim();
-  const senderName = String(msg.senderName || msg.sender_name || '').toLowerCase().trim();
+  const currentUserId = String(currentUser.value?.id || '');
+  const currentUserEmail = String(currentUser.value?.email || '');
+  const propUserId = String(props.currentUserId || '');
+  const msgSenderId = String(msg.senderId || msg.sender_id || msg.sender || (msg as any).fromId || '');
+
+  if (msgSenderId) {
+    // 2. Cocokkan ID persis
+    if (msgSenderId === currentUserId || (currentUserEmail && msgSenderId === currentUserEmail) || (propUserId && msgSenderId === propUserId)) {
+      return true;
+    }
+
+    // 3. Cek normalisasi ID (menghubungkan '101', 'raisa14@gmail.com', 'usr_raisa_buyer', dll)
+    const myNorm = normalizeUserId(currentUserId);
+    const myEmailNorm = normalizeUserId(currentUserEmail);
+    const propNorm = normalizeUserId(propUserId);
+    const senderNorm = normalizeUserId(msgSenderId);
+
+    if (senderNorm && (senderNorm === myNorm || senderNorm === myEmailNorm || (propNorm && senderNorm === propNorm))) {
+      return true;
+    }
+
+    // 4. Substring match jika format ID mengandung yang lain
+    if (currentUserId && (msgSenderId.includes(currentUserId) || currentUserId.includes(msgSenderId))) return true;
+    if (currentUserEmail && (msgSenderId.includes(currentUserEmail) || currentUserEmail.includes(msgSenderId))) return true;
+    if (propUserId && (msgSenderId.includes(propUserId) || propUserId.includes(msgSenderId))) return true;
+  }
+
+  // 5. Periksa kecocokan nama pengirim jika ID belum match
+  const myName = String(currentUser.value?.name || props.currentUserName || '').toLowerCase().trim();
+  const senderName = String(msg.senderName || msg.sender_name || (msg as any).fromName || '').toLowerCase().trim();
   if (myName && senderName && myName === senderName) {
     return true;
+  }
+
+  // 6. Cek relasi partner: jika pesan dikirim ke partner (receiverId === partnerId), maka pengirimnya adalah kita
+  const partnerId = (activeRoom.value as any)?.otherId || (selectedChat.value as any)?.partner_email || selectedChat.value?.partner_id || selectedChat.value?.id;
+  if (partnerId) {
+    const partnerNorm = normalizeUserId(String(partnerId));
+    const msgReceiverId = String(msg.receiverId || msg.receiver_id || msg.toId || '');
+    const receiverNorm = normalizeUserId(msgReceiverId);
+    const senderNorm = normalizeUserId(msgSenderId);
+
+    if (receiverNorm && partnerNorm && receiverNorm === partnerNorm && senderNorm !== partnerNorm) {
+      return true;
+    }
   }
 
   return false;
@@ -1514,6 +1623,69 @@ function scrollToBottom() {
   });
 }
 
+// ==========================================
+// ❤️ HELPER STRUKTUR DATA REAKSI BERBASIS USER ID (DEDUP ANTI-LONJAKAN 4X)
+// ==========================================
+const getReactionUserList = (reactions: any, emoji: string): string[] => {
+  if (!reactions || !reactions[emoji]) return [];
+  const val = reactions[emoji];
+  if (Array.isArray(val)) return val.map(String);
+  if (typeof val === 'number' && val > 0) return ['legacy_user'];
+  return [];
+};
+
+const hasUserReacted = (reactions: any, emoji: string): boolean => {
+  if (!reactions || !reactions[emoji]) return false;
+  const val = reactions[emoji];
+  const myId = String(currentUser.value?.email || currentUser.value?.id || 'me').toLowerCase().trim();
+  if (Array.isArray(val)) {
+    return val.some(u => String(u).toLowerCase().trim() === myId);
+  }
+  return false;
+};
+
+const getActiveReactions = (reactions: any): { emoji: string; count: number; hasReacted: boolean }[] => {
+  if (!reactions || typeof reactions !== 'object') return [];
+  const list: { emoji: string; count: number; hasReacted: boolean }[] = [];
+  const myId = String(currentUser.value?.email || currentUser.value?.id || 'me').toLowerCase().trim();
+
+  for (const [emoji, val] of Object.entries(reactions)) {
+    let count = 0;
+    let userIds: string[] = [];
+    if (Array.isArray(val)) {
+      userIds = val.map(String);
+      count = userIds.length;
+    } else if (typeof val === 'number') {
+      count = Math.max(0, val);
+    }
+    if (count > 0) {
+      const reacted = userIds.some(u => u.toLowerCase().trim() === myId);
+      list.push({ emoji, count, hasReacted: reacted });
+    }
+  }
+  return list;
+};
+
+const mergeReactions = (existing: any, incoming: any): Record<string, string[] | number> => {
+  const result: Record<string, any> = { ...(existing || {}) };
+  if (!incoming || typeof incoming !== 'object') return result;
+
+  for (const [emoji, val] of Object.entries(incoming)) {
+    if (Array.isArray(val)) {
+      const currentList: string[] = Array.isArray(result[emoji])
+        ? result[emoji]
+        : (typeof result[emoji] === 'number' && result[emoji] > 0 ? ['legacy_user'] : []);
+      const merged = Array.from(new Set([...currentList, ...val.map(String)]));
+      result[emoji] = merged;
+    } else if (typeof val === 'number') {
+      if (!result[emoji]) {
+        result[emoji] = val;
+      }
+    }
+  }
+  return result;
+};
+
 // 🛡️ DEDUPLIKASI KETAT DENGAN SINGLETON MAP (MENCEGAH DOUBLING DI HP & DESKTOP)
 const appendMessageSafe = (newMsg: any): boolean => {
   if (!newMsg) return false;
@@ -1533,7 +1705,7 @@ const appendMessageSafe = (newMsg: any): boolean => {
     // 1. Cek ID persis
     if (newMsg.id != null && m.id != null && String(m.id) === String(newMsg.id)) {
       if (newMsg.reactions && Object.keys(newMsg.reactions).length > 0) {
-        m.reactions = { ...(m.reactions || {}), ...newMsg.reactions };
+        m.reactions = mergeReactions(m.reactions, newMsg.reactions);
       }
       // ✏️ Jika pesan ber-ID sama membawa teks hasil edit yang lebih baru, perbarui teks seketika
       const isNewEdited = Boolean(newMsg.is_edited || newMsg.isEdited);
@@ -1703,14 +1875,61 @@ const addMessageUnique = appendMessageSafe;
 // ==========================================
 // ❤️ SINKRONISASI REAKSI EMOJI (❤️, 👍, 😂) REAL-TIME
 // ==========================================
-const applyLocalReaction = (msgId: string | number, emoji: string) => {
+const applyLocalReaction = (
+  msgId: string | number,
+  emoji: string,
+  userId?: string,
+  mode: 'toggle' | 'add' | 'remove' = 'add'
+) => {
   const sMsgId = String(msgId);
   const target = Array.from(rawMessagesMap.values()).find(m => String(m.id) === sMsgId);
-  if (target) {
-    if (!target.reactions) target.reactions = {};
-    target.reactions[emoji] = (target.reactions[emoji] || 0) + 1;
-    syncMessagesFromMap();
+  if (!target) return;
+
+  if (!target.reactions) {
+    target.reactions = {};
   }
+
+  const uId = String(userId || currentUser.value?.email || currentUser.value?.id || 'me').toLowerCase().trim();
+  
+  let userList: string[] = [];
+  if (Array.isArray(target.reactions[emoji])) {
+    userList = [...target.reactions[emoji]];
+  } else if (typeof target.reactions[emoji] === 'number') {
+    const legacyCount = target.reactions[emoji] as number;
+    userList = legacyCount > 0 ? ['legacy_user'] : [];
+  }
+
+  const existingIndex = userList.findIndex(u => u.toLowerCase().trim() === uId);
+
+  if (mode === 'toggle') {
+    if (existingIndex >= 0) {
+      userList.splice(existingIndex, 1);
+    } else {
+      userList.push(uId);
+    }
+  } else if (mode === 'add') {
+    if (existingIndex === -1) {
+      userList.push(uId);
+    }
+  } else if (mode === 'remove') {
+    if (existingIndex >= 0) {
+      userList.splice(existingIndex, 1);
+    }
+  }
+
+  target.reactions[emoji] = userList;
+  syncMessagesFromMap();
+
+  // Simpan ke localStorage am_chat_reactions
+  try {
+    const raw = localStorage.getItem('am_chat_reactions') || '{}';
+    const store = JSON.parse(raw);
+    const currentRoomId = String(activeRoom.value?.id || props.roomId || 'global').toLowerCase().trim();
+    const key = `${currentRoomId}_${sMsgId}`;
+    if (!store[key]) store[key] = {};
+    store[key][emoji] = userList;
+    localStorage.setItem('am_chat_reactions', JSON.stringify(store));
+  } catch (_e) {}
 };
 
 const handleReactToMessage = async (msgId: any, emoji: string) => {
@@ -1718,13 +1937,25 @@ const handleReactToMessage = async (msgId: any, emoji: string) => {
   const sMsgId = String(msgId);
   const currentRoomId = activeRoom.value?.id || props.roomId || selectedChat.value?.id || 'global';
   const partnerId = (activeRoom.value as any)?.otherId || (selectedChat.value as any)?.partner_email || selectedChat.value?.partner_id || selectedChat.value?.id || (currentUser.value?.role === 'seller' ? 'raisa14@gmail.com' : 'udin14@gmail.com');
+  const myId = String(currentUser.value?.email || currentUser.value?.id || 'me').toLowerCase().trim();
 
-  // 1. Update status reaksi lokal seketika
-  applyLocalReaction(sMsgId, emoji);
+  // 1. Tentukan apakah aksi ini toggle add atau toggle remove
+  const target = Array.from(rawMessagesMap.values()).find(m => String(m.id) === sMsgId);
+  let isCurrentlyReacted = false;
+  if (target?.reactions && target.reactions[emoji]) {
+    const val = target.reactions[emoji];
+    if (Array.isArray(val)) {
+      isCurrentlyReacted = val.some(u => String(u).toLowerCase().trim() === myId);
+    }
+  }
+  const mode: 'add' | 'remove' = isCurrentlyReacted ? 'remove' : 'add';
+
+  // 1. Update status reaksi lokal seketika (toggle on/off)
+  applyLocalReaction(sMsgId, emoji, myId, mode);
 
   // 2. Siarkan ke Upstash Redis Cloud Sync & BroadcastChannel
   try {
-    await syncCloudReaction(sMsgId, emoji, String(currentRoomId));
+    await syncCloudReaction(sMsgId, emoji, String(currentRoomId), myId, mode);
   } catch (_e) {}
 
   // 3. Siarkan ke Soketi Room Channel Real-Time
@@ -1733,7 +1964,8 @@ const handleReactToMessage = async (msgId: any, emoji: string) => {
       id: sMsgId,
       msgId: sMsgId,
       emoji,
-      userId: currentUser.value.id,
+      userId: myId,
+      action: mode,
       roomId: String(currentRoomId)
     });
   } catch (_e) {}
@@ -1746,7 +1978,8 @@ const handleReactToMessage = async (msgId: any, emoji: string) => {
         msgId: sMsgId,
         emoji,
         roomId: String(currentRoomId),
-        userId: currentUser.value.id
+        userId: myId,
+        action: mode
       });
     }
   } catch (_e) {}
@@ -1755,8 +1988,8 @@ const handleReactToMessage = async (msgId: any, emoji: string) => {
 // ==========================================
 // ✏️🗑️ MANAJEMEN AKSI PESAN (EDIT & HAPUS REAL-TIME)
 // ==========================================
-const startEditMessage = (msg: ChatMessage) => {
-  editingMessageId.value = msg.id != null ? msg.id : null;
+const startEditMessage = (msg: any) => {
+  editingMessageId.value = msg.id != null ? msg.id : (msg.client_id || msg._id || null);
   editingText.value = msg.text || msg.content || '';
 };
 
@@ -2034,10 +2267,11 @@ const handleIncomingMessageDeleted = (data: { id: string | number; client_id?: s
   saveToLocalCache(String(currentRoomId), messages.value);
 };
 
-const handleIncomingReactionAdded = (data: { id?: string | number; msgId?: string | number; emoji: string }) => {
+const handleIncomingReactionAdded = (data: { id?: string | number; msgId?: string | number; emoji: string; userId?: string; action?: 'add' | 'remove' | 'toggle' }) => {
   const mId = data.msgId != null ? data.msgId : data.id;
   if (mId != null && data.emoji) {
-    applyLocalReaction(mId, data.emoji);
+    const mode = data.action === 'remove' ? 'remove' : 'add';
+    applyLocalReaction(mId, data.emoji, data.userId, mode);
   }
 };
 
@@ -2757,7 +2991,9 @@ onMounted(() => {
   const onIncomingReaction = (e: Event) => {
     const detail = (e as CustomEvent).detail;
     if (!detail || !detail.msgId || !detail.emoji) return;
-    applyLocalReaction(detail.msgId, detail.emoji);
+    const uId = detail.userId || (detail as any).senderId || (detail as any).user_id;
+    const mode = detail.action === 'remove' ? 'remove' : 'add';
+    applyLocalReaction(detail.msgId, detail.emoji, uId, mode);
   };
   window.addEventListener('am_chat_reaction', onIncomingReaction);
   activeIncomingReactionHandler = onIncomingReaction;
@@ -2768,9 +3004,10 @@ onMounted(() => {
     reactionBc = new BroadcastChannel('am_campus_chat_channel_v4');
     reactionBc.onmessage = (event) => {
       if (event.data?.type === 'reaction' && event.data?.data) {
-        const { msgId, emoji } = event.data.data;
+        const { msgId, emoji, userId, action } = event.data.data;
         if (msgId && emoji) {
-          applyLocalReaction(msgId, emoji);
+          const mode = action === 'remove' ? 'remove' : 'add';
+          applyLocalReaction(msgId, emoji, userId, mode);
         }
       }
     };
@@ -2787,7 +3024,7 @@ onMounted(() => {
         if (m.id != null) {
           const key = `${cleanRoom}_${m.id}`;
           if (reactionStore[key]) {
-            m.reactions = { ...(m.reactions || {}), ...reactionStore[key] };
+            m.reactions = mergeReactions(m.reactions, reactionStore[key]);
           }
         }
       });
