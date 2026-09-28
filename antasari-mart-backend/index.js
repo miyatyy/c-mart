@@ -240,8 +240,11 @@ const Product = sequelize.define('Product', {
 const Order = sequelize.define('Order', {
   orderId: { type: DataTypes.STRING, allowNull: false, unique: true },
   sellerId: { type: DataTypes.STRING, allowNull: false },
+  buyerId: { type: DataTypes.STRING, allowNull: true },
   buyerName: { type: DataTypes.STRING, allowNull: false },
   buyerEmail: { type: DataTypes.STRING, allowNull: true },
+  driverId: { type: DataTypes.STRING, allowNull: true },
+  driverName: { type: DataTypes.STRING, allowNull: true },
   totalAmount: { type: DataTypes.INTEGER, allowNull: false },
   status: { type: DataTypes.STRING, defaultValue: 'pending' },
   courier: { type: DataTypes.STRING, allowNull: true },
@@ -255,8 +258,25 @@ const OrderItem = sequelize.define('OrderItem', {
   price: { type: DataTypes.INTEGER, allowNull: false }
 });
 
+const OrderLog = sequelize.define('OrderLog', {
+  orderId: { type: DataTypes.STRING, allowNull: false, index: true },
+  previousStatus: { type: DataTypes.STRING, allowNull: true },
+  newStatus: { type: DataTypes.STRING, allowNull: false },
+  changedBy: { type: DataTypes.STRING, allowNull: true },
+  role: { type: DataTypes.STRING, allowNull: true },
+  notes: { type: DataTypes.TEXT, allowNull: true }
+}, {
+  tableName: 'order_logs',
+  timestamps: true
+});
+
 Order.hasMany(OrderItem, { as: 'items', onDelete: 'CASCADE' });
 OrderItem.belongsTo(Order);
+
+Order.hasMany(OrderLog, { as: 'logs', foreignKey: 'orderId', sourceKey: 'orderId' });
+OrderLog.belongsTo(Order, { foreignKey: 'orderId', targetKey: 'orderId' });
+
+OrderLog.sync({ alter: true }).catch(err => console.warn('⚠️ OrderLog sync error:', err.message));
 
 const Voucher = sequelize.define('Voucher', {
   sellerId: { type: DataTypes.STRING, allowNull: false },
@@ -304,6 +324,15 @@ BugReport.sync({ alter: true }).catch(err => console.warn('⚠️ BugReport sync
 
 function buildRoomId(emailA, emailB) {
   return [String(emailA).toLowerCase(), String(emailB).toLowerCase()].sort().join('__');
+}
+
+/**
+ * 🎯 Standar Deterministic Room ID Generator (Sesuai Spesifikasi Sistem)
+ * orderId ? `order_${orderId}_${sorted[0]}_${sorted[1]}` : `chat_${sorted[0]}_${sorted[1]}`
+ */
+function getRoomId(userA, userB, orderId) {
+  const sorted = [String(userA || '').toLowerCase().trim(), String(userB || '').toLowerCase().trim()].sort();
+  return orderId ? `order_${orderId}_${sorted[0]}_${sorted[1]}` : `chat_${sorted[0]}_${sorted[1]}`;
 }
 
 // ==========================================
@@ -2656,6 +2685,264 @@ app.get('/api/orders/user/:email', async (req, res) => {
     res.json({ success: true, orders });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ==========================================
+// 🔄 STATE MACHINE ORDER STATUS & ALUR PESANAN REALTIME (CAMPUS MART)
+// Urutan Status: 'pending' -> 'confirmed' -> 'processing' -> 'driver_assigned' -> 'picked_up' -> 'delivered' -> 'completed'
+// ==========================================
+const ORDER_STATUS_FLOW = [
+  'pending',
+  'confirmed',
+  'processing',
+  'driver_assigned',
+  'picked_up',
+  'delivered',
+  'completed'
+];
+
+const ORDER_SYSTEM_MESSAGE_TEMPLATES = {
+  confirmed: (order, driverName) => `Pesanan #${order.orderId} telah dikonfirmasi oleh penjual. Toko sedang menyiapkan barang pesanan Anda.`,
+  processing: (order, driverName) => `Pesanan #${order.orderId} sedang diproses dan disiapkan oleh toko.`,
+  driver_assigned: (order, driverName) => `Driver ${driverName || order.driverName || 'Pak Budi'} telah ditugaskan untuk mengantar pesanan #${order.orderId}.`,
+  picked_up: (order, driverName) => `Driver ${driverName || order.driverName || 'Pak Budi'} sedang mengambil pesanan di toko dan siap meluncur ke lokasi Anda. 🛵`,
+  delivered: (order, driverName) => `Driver ${driverName || order.driverName || 'Pak Budi'} telah tiba dan menyerahkan pesanan #${order.orderId} di lokasi tujuan.`,
+  completed: (order, driverName) => `Pesanan #${order.orderId} telah selesai dan diterima dengan baik oleh pembeli. Terima kasih telah berbelanja di Campus Mart! 🎉`,
+  cancelled: (order, driverName) => `Pesanan #${order.orderId} telah dibatalkan.`
+};
+
+/**
+ * Eksekusi Transisi Status Pesanan Sesuai State Machine
+ */
+async function transitionOrderStatus(order, nextStatus, { changedBy, role, driverId, driverName, notes } = {}) {
+  const previousStatus = order.status;
+  const updatePayload = { status: nextStatus };
+  if (driverId) updatePayload.driverId = driverId;
+  if (driverName) updatePayload.driverName = driverName;
+
+  await order.update(updatePayload);
+
+  // a. Simpan riwayat perubahan status (order_logs)
+  let logRecord = null;
+  try {
+    logRecord = await OrderLog.create({
+      orderId: order.orderId,
+      previousStatus: previousStatus || 'pending',
+      newStatus: nextStatus,
+      changedBy: changedBy || 'system',
+      role: role || 'system',
+      notes: notes || ''
+    });
+  } catch (logErr) {
+    console.warn('⚠️ [OrderStateMachine] Gagal menyimpan ke order_logs:', logErr.message);
+  }
+
+  // Siapkan teks pesan otomatis (system message)
+  const templateFn = ORDER_SYSTEM_MESSAGE_TEMPLATES[nextStatus];
+  const systemMessage = templateFn
+    ? templateFn(order, driverName || order.driverName)
+    : `Status pesanan #${order.orderId} diperbarui menjadi "${nextStatus}".`;
+
+  // b. Memicu WebSocket event order-status-updated ke channel order.${orderId}
+  const statusEventData = {
+    orderId: order.orderId,
+    previousStatus: previousStatus || 'pending',
+    newStatus: nextStatus,
+    status: nextStatus,
+    changedBy: changedBy || 'system',
+    role: role || 'system',
+    driverId: order.driverId || driverId || null,
+    driverName: order.driverName || driverName || null,
+    systemMessage,
+    notes: notes || '',
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    // 1. Socket.IO (ke channel order.${orderId} dan global)
+    io.to(`order.${order.orderId}`).emit('order-status-updated', statusEventData);
+    io.to(`order_${order.orderId}`).emit('order-status-updated', statusEventData);
+    io.emit('order-status-updated', statusEventData);
+
+    // 2. Soketi Bridge / Pusher Protocol v7
+    broadcastToSoketiServer(`order.${order.orderId}`, 'order-status-updated', statusEventData);
+    broadcastToSoketiServer(`order_${order.orderId}`, 'order-status-updated', statusEventData);
+    broadcastToSoketiServer('campusmart-orders', 'order-status-updated', statusEventData);
+  } catch (wsErr) {
+    console.warn('⚠️ [OrderStateMachine] WebSocket broadcast error:', wsErr.message);
+  }
+
+  // c. Mengirim pesan otomatis (system message) ke ruang chat terkait
+  try {
+    const buyerId = order.buyerEmail || order.buyerName || 'buyer';
+    const sellerId = order.sellerId || 'seller_1';
+    const currentDriver = order.driverId || driverId;
+
+    const chatTargetRooms = new Set();
+    // 1. Ruang chat spesifik pesanan Buyer <-> Seller (Deterministic formula getRoomId)
+    chatTargetRooms.add(getRoomId(buyerId, sellerId, order.orderId));
+    chatTargetRooms.add(getRoomId(buyerId, sellerId)); // Ruang chat umum
+
+    // 2. Ruang chat Driver jika sudah ditugaskan
+    if (currentDriver) {
+      chatTargetRooms.add(getRoomId(buyerId, currentDriver, order.orderId));
+      chatTargetRooms.add(getRoomId(sellerId, currentDriver, order.orderId));
+    }
+    chatTargetRooms.add(`order_${order.orderId}`);
+
+    const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    for (const rId of chatTargetRooms) {
+      const sysMsgPayload = {
+        roomId: rId,
+        senderId: 'system',
+        senderName: 'Sistem Campus Mart',
+        senderRole: 'system',
+        receiverId: buyerId,
+        receiverName: order.buyerName || 'Pembeli',
+        receiverRole: 'buyer',
+        text: systemMessage,
+        time: timeNow,
+        status: 'sent',
+        isRead: false,
+        createdAt: new Date()
+      };
+
+      try {
+        await Chat.create(sysMsgPayload);
+      } catch (_chatErr) {}
+
+      if (isMongoConnected) {
+        try {
+          await MongoChat.create(sysMsgPayload);
+        } catch (_mErr) {}
+      }
+
+      // Siarkan pesan sistem via Socket.IO
+      io.to(rId).emit('receive_message', sysMsgPayload);
+      io.to(rId).emit('new_message', sysMsgPayload);
+
+      // Siarkan via Soketi / Echo
+      broadcastToSoketiServer(rId, 'NewMessage', sysMsgPayload);
+      broadcastToSoketiServer(`chat-room-${rId}`, 'NewMessage', sysMsgPayload);
+      broadcastToSoketiServer(`order.${order.orderId}`, 'NewMessage', sysMsgPayload);
+    }
+    io.emit('new_chat_notification', {
+      orderId: order.orderId,
+      text: systemMessage,
+      senderRole: 'system',
+      timestamp: new Date().toISOString()
+    });
+  } catch (sysErr) {
+    console.warn('⚠️ [OrderStateMachine] Error sending automatic chat system message:', sysErr.message);
+  }
+
+  return { order, log: logRecord, systemMessage };
+}
+
+// 📦 API UPDATE STATUS PESANAN (STATE MACHINE)
+app.post('/api/orders/:orderId/status', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, changedBy, role, driverId, driverName, notes } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ success: false, message: 'Status tujuan harus disertakan.' });
+    }
+
+    const order = await Order.findOne({ where: { orderId } });
+    if (!order) {
+      return res.status(404).json({ success: false, message: `Pesanan #${orderId} tidak ditemukan.` });
+    }
+
+    const targetStatus = String(status).toLowerCase().trim();
+    const result = await transitionOrderStatus(order, targetStatus, {
+      changedBy,
+      role,
+      driverId,
+      driverName,
+      notes
+    });
+
+    res.json({
+      success: true,
+      message: `Status pesanan #${orderId} berhasil diubah menjadi "${targetStatus}".`,
+      order: result.order,
+      log: result.log,
+      systemMessage: result.systemMessage
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.patch('/api/orders/:orderId/status', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, changedBy, role, driverId, driverName, notes } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ success: false, message: 'Status tujuan harus disertakan.' });
+    }
+
+    const order = await Order.findOne({ where: { orderId } });
+    if (!order) {
+      return res.status(404).json({ success: false, message: `Pesanan #${orderId} tidak ditemukan.` });
+    }
+
+    const targetStatus = String(status).toLowerCase().trim();
+    const result = await transitionOrderStatus(order, targetStatus, {
+      changedBy,
+      role,
+      driverId,
+      driverName,
+      notes
+    });
+
+    res.json({
+      success: true,
+      message: `Status pesanan #${orderId} berhasil diubah menjadi "${targetStatus}".`,
+      order: result.order,
+      log: result.log,
+      systemMessage: result.systemMessage
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 📜 API AMBIL RIWAYAT PERUBAHAN STATUS PESANAN (order_logs)
+app.get('/api/orders/:orderId/logs', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const logs = await OrderLog.findAll({
+      where: { orderId },
+      order: [['createdAt', 'ASC']]
+    });
+    res.json({ success: true, orderId, logs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 🔍 API DETAIL PESANAN LENGKAP
+app.get('/api/orders/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const order = await Order.findOne({
+      where: { orderId },
+      include: [
+        { model: OrderItem, as: 'items' },
+        { model: OrderLog, as: 'logs' }
+      ]
+    });
+    if (!order) {
+      return res.status(404).json({ success: false, message: `Pesanan #${orderId} tidak ditemukan.` });
+    }
+    res.json({ success: true, order });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 

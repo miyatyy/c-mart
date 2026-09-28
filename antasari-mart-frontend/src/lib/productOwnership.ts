@@ -54,21 +54,17 @@ export function isUserProductOwner(
     }
   }
 
-  // 3. Deteksi Khusus Toko Myammiy Craft (seller_1 / Udin)
+  // 3. Deteksi Khusus Toko Myammiy Craft (seller_1)
   const isMyammiyProduct =
     pSellerId === 'seller_1' ||
-    pSellerName.includes('myammiy') ||
-    pSellerName.includes('udin');
+    pSellerName.includes('myammiy');
 
-  const isUdinOrMyammiyUser =
-    myEmail.includes('udin') ||
+  const isMyammiyUser =
     myEmail.includes('myammiy') ||
     myId === 'seller_1' ||
-    myId === 'udin14@gmail.com' ||
-    myName.includes('myammiy') ||
-    myName.includes('udin');
+    myName.includes('myammiy');
 
-  if (isMyammiyProduct && isUdinOrMyammiyUser) {
+  if (isMyammiyProduct && isMyammiyUser) {
     return true;
   }
 

@@ -104,14 +104,20 @@ export default function Sidebar({
   onOpenDebug
 }: SidebarProps) {
   // Sinkronkan state buka/tutup desktop dengan tombol burger di TopBar (isOpenExternal)
-  const [isOpen, setIsOpen] = useState(true)
+  // Default tertutup (false) saat berada di halaman checkout / pembayaran agar tidak menutupi layar
+  const [isOpen, setIsOpen] = useState(() => activeTab !== 'checkout')
 
   // Setiap kali tombol garis 3 di TopBar diklik (isOpenExternal berubah), sinkronkan status sidebar desktop
   useEffect(() => {
+    if (activeTab === 'checkout') {
+      setIsOpen(false);
+      if (onCloseExternal) onCloseExternal();
+      return;
+    }
     if (typeof window !== 'undefined' && window.innerWidth > 768) {
       setIsOpen(isOpenExternal);
     }
-  }, [isOpenExternal]);
+  }, [isOpenExternal, activeTab]);
 
   // Set variabel CSS global --am-sidebar-width agar BottomNavBar dan konten selalu sinkron
   useEffect(() => {

@@ -32,15 +32,10 @@ export const MYAMMIY_STORE_AVATAR = 'https://api.dicebear.com/7.x/adventurer/svg
 
 // 🎯 Mapping Profil Default & Akun Utama Antasari Mart
 export const KNOWN_USER_AVATARS: Record<string, string> = {
-  // Udin (Penjual / Multi-Role) -> Ken Pro Stylish (Blonde boy with glasses)
-  'udin': 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585',
-  'udin14@gmail.com': 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585',
-  'udin@gmail.com': 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585',
-
-  // Raisa (Pembeli / Pelanggan) -> Alya Kreatif Ceria
-  'raisa': 'https://api.dicebear.com/7.x/adventurer/svg?seed=AlyaCheer&backgroundColor=ffcdec',
-  'raisa14@gmail.com': 'https://api.dicebear.com/7.x/adventurer/svg?seed=AlyaCheer&backgroundColor=ffcdec',
-  'raisa@gmail.com': 'https://api.dicebear.com/7.x/adventurer/svg?seed=AlyaCheer&backgroundColor=ffcdec',
+  // Super Admin & Admin Koperasi (Fixed Support System)
+  'admin_nurmiyaty': SUPER_ADMIN_AVATAR,
+  'coop_koperasi': KOPERASI_ADMIN_AVATAR,
+  's1': KOPERASI_ADMIN_AVATAR,
 
   // Super Admin
   'miyya@gmail.com': SUPER_ADMIN_AVATAR,
@@ -159,13 +154,7 @@ export function getUserAvatar(
     if (KNOWN_USER_AVATARS[uname]) return KNOWN_USER_AVATARS[uname];
   }
 
-  // Cek kata kunci nama/id
-  if (cleanId.includes('udin') || cleanName.includes('udin')) {
-    return 'https://api.dicebear.com/7.x/adventurer/svg?seed=KenPro&backgroundColor=f72585';
-  }
-  if (cleanId.includes('raisa') || cleanName.includes('raisa')) {
-    return 'https://api.dicebear.com/7.x/adventurer/svg?seed=AlyaCheer&backgroundColor=ffcdec';
-  }
+  // Cek kata kunci nama/id toko resmi
   if (cleanId === 'seller_1' || cleanId.includes('myammiy') || cleanName.includes('myammiy')) {
     return MYAMMIY_STORE_AVATAR;
   }

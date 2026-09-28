@@ -8,6 +8,7 @@ import {
   evaluateProductSuitabilityLocally
 } from '../lib/api';
 import AdminSellerVerificationPanel from './AdminSellerVerificationPanel';
+import { subscribeToAdminEvents } from '../lib/echo';
 
 interface SuperAdminProps {
   theme: ThemeMode;
@@ -308,6 +309,15 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
   const [inspectingProduct, setInspectingProduct] = useState<Product | null>(null);
   const [isProcessingModeration, setIsProcessingModeration] = useState<boolean>(false);
   const [moderationToast, setModerationToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [productSubmissionToast, setProductSubmissionToast] = useState<{
+    id: string;
+    title: string;
+    sellerName: string;
+    price: number;
+    timestamp: string;
+    aiScore?: number;
+    rawProduct?: any;
+  } | null>(null);
 
   const [liveTrafficPoints, setLiveTrafficPoints] = useState<number[]>([42, 48, 55, 60, 58, 64, 72, 80, 75, 88, 94, 91, 98, 104, 110, 115, 108, 122]);
   const [livePingMs, setLivePingMs] = useState<number>(24);
@@ -383,9 +393,52 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
     const handleMod = () => loadModerationQueue();
     window.addEventListener('am_product_submitted', handleSub);
     window.addEventListener('am_product_moderated', handleMod);
+
+    // 📡 Dengarkan Event Pengajuan Produk Real-Time via Soketi / WebSocket & CustomEvent
+    const unsubAdmin = subscribeToAdminEvents({
+      onProductSubmitted: (payload) => {
+        loadModerationQueue();
+        if (payload) {
+          const prodTitle = payload.title || payload.name || 'Produk Baru';
+          const seller = payload.sellerName || 'Penjual Lapak';
+          const price = payload.price || 0;
+          setProductSubmissionToast({
+            id: payload.id || `sub_${Date.now()}`,
+            title: prodTitle,
+            sellerName: seller,
+            price: price,
+            timestamp: payload.timestamp ? new Date(payload.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Baru saja',
+            aiScore: payload.aiScore,
+            rawProduct: payload
+          });
+
+          // 🔔 Mainkan chime lonceng notifikasi audio Web Audio API
+          try {
+            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioCtx) {
+              const ctx = new AudioCtx();
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+              osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+              gain.gain.setValueAtTime(0.25, ctx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.start(ctx.currentTime);
+              osc.stop(ctx.currentTime + 0.45);
+              setTimeout(() => { try { ctx.close(); } catch (_) {} }, 500);
+            }
+          } catch (_) {}
+        }
+      }
+    });
+
     return () => {
       window.removeEventListener('am_product_submitted', handleSub);
       window.removeEventListener('am_product_moderated', handleMod);
+      if (unsubAdmin) unsubAdmin();
     };
   }, []);
 
@@ -1141,6 +1194,52 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            {/* 🔔 Ikon Lonceng Notifikasi Pengajuan Produk Baru */}
+            <button
+              onClick={() => setActiveTab('moderation')}
+              title={`${moderationProducts.filter(p => p.status === 'pending').length} Produk Baru Menunggu Kurasi`}
+              style={{
+                position: 'relative',
+                background: 'rgba(255,255,255,0.12)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 12,
+                width: 44,
+                height: 44,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: 'white',
+                fontSize: 20,
+                transition: 'all 0.2s',
+                boxShadow: moderationProducts.some(p => p.status === 'pending') ? '0 0 16px rgba(239, 68, 68, 0.45)' : 'none'
+              }}
+            >
+              <span>🔔</span>
+              {moderationProducts.filter(p => p.status === 'pending').length > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: -5,
+                  right: -5,
+                  background: '#EF4444',
+                  color: 'white',
+                  borderRadius: '50%',
+                  minWidth: 20,
+                  height: 20,
+                  fontSize: 10.5,
+                  fontWeight: 900,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 4px',
+                  boxShadow: '0 2px 8px rgba(239,68,68,0.7)',
+                  border: '2px solid #0F172A'
+                }}>
+                  {moderationProducts.filter(p => p.status === 'pending').length > 99 ? '99+' : moderationProducts.filter(p => p.status === 'pending').length}
+                </span>
+              )}
+            </button>
+
             <div style={{ background: 'rgba(0,0,0,0.25)', padding: '8px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', textAlign: 'right' }}>
               <div style={{ fontSize: 10.5, opacity: 0.75, textTransform: 'uppercase' }}>Latensi Server API</div>
               <div style={{ fontSize: 15, fontWeight: 900, color: '#10B981', display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
@@ -2926,6 +3025,110 @@ export default function SuperAdminPanel({ theme: _theme }: SuperAdminProps) {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔔 FLOATING REAL-TIME PRODUCT SUBMISSION TOAST FOR SUPER ADMIN */}
+      {productSubmissionToast && (
+        <div style={{
+          position: 'fixed',
+          top: 24,
+          right: 24,
+          zIndex: 10001,
+          maxWidth: 420,
+          width: '92%',
+          background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+          border: '1.5px solid #10B981',
+          borderRadius: 16,
+          padding: '16px 18px',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(16,185,129,0.25)',
+          color: '#F8FAFC',
+          animation: 'fadeIn 0.25s ease-out'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 22 }}>🔔</span>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 900, color: '#34D399' }}>Pengajuan Produk Baru!</div>
+                <div style={{ fontSize: 10.5, color: '#94A3B8' }}>{productSubmissionToast.timestamp || 'Baru saja'} • Perlu Kurasi Admin</div>
+              </div>
+            </div>
+            <button
+              onClick={() => setProductSubmissionToast(null)}
+              style={{ background: 'transparent', border: 'none', color: '#94A3B8', fontSize: 16, cursor: 'pointer' }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
+            <div style={{ fontWeight: 800, fontSize: 13.5, color: '#FFFFFF', marginBottom: 2 }}>
+              {productSubmissionToast.title}
+            </div>
+            <div style={{ fontSize: 12, color: '#CBD5E1' }}>
+              Penjual: <strong>{productSubmissionToast.sellerName}</strong>
+            </div>
+            <div style={{ fontSize: 12, color: '#34D399', fontWeight: 800, marginTop: 4 }}>
+              {formatRupiah(productSubmissionToast.price)}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => {
+                setActiveTab('moderation');
+                setProductSubmissionToast(null);
+              }}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: 8,
+                background: '#10B981',
+                color: 'white',
+                fontWeight: 800,
+                fontSize: 12,
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              Tinjau Produk ↗
+            </button>
+            <button
+              onClick={() => {
+                handleApproveProduct(productSubmissionToast.rawProduct || productSubmissionToast.id);
+                setProductSubmissionToast(null);
+              }}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                background: 'rgba(16,185,129,0.15)',
+                color: '#34D399',
+                fontWeight: 800,
+                fontSize: 12,
+                border: '1px solid rgba(16,185,129,0.3)',
+                cursor: 'pointer'
+              }}
+            >
+              Setujui
+            </button>
+            <button
+              onClick={() => {
+                setRejectingProduct(productSubmissionToast.rawProduct || { id: productSubmissionToast.id, name: productSubmissionToast.title } as any);
+                setRejectReason('');
+                setProductSubmissionToast(null);
+              }}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                background: 'rgba(239,68,68,0.15)',
+                color: '#F87171',
+                fontWeight: 800,
+                fontSize: 12,
+                border: '1px solid rgba(239,68,68,0.3)',
+                cursor: 'pointer'
+              }}
+            >
+              Tolak
+            </button>
           </div>
         </div>
       )}

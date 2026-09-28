@@ -21,7 +21,7 @@ export interface InAppNotificationData {
 interface InAppNotificationProps {
   notification: InAppNotificationData | null;
   onDismiss: () => void;
-  onOpenChat: (roomId?: string, senderId?: string) => void;
+  onOpenChat: (roomId?: string, senderId?: string, notification?: InAppNotificationData) => void;
   onOpenSellerDashboard?: () => void;
   currentUserId: string;
   currentUserName: string;
@@ -565,7 +565,7 @@ export default function InAppNotification({
               {/* Action Buttons */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                 <button
-                  onClick={() => onOpenChat(notification.roomId, notification.senderId)}
+                  onClick={() => onOpenChat(notification.roomId, notification.senderId, notification)}
                   title="Buka Chat Penuh"
                   style={{
                     background: 'rgba(16, 185, 129, 0.12)',

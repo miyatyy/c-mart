@@ -27,6 +27,8 @@ import {
 import { cleanupSnapOverlays } from '../lib/snapCleanup';
 import { requestBrowserNotificationPermission } from '../lib/webNotification';
 import VueChatWrapper from './chat/VueChatWrapper';
+import { getRoomId } from '../utils/chatUtils';
+import { canChat, UserRoleEnum } from '../types/auth';
 
 interface ChatPageProps {
   theme: ThemeMode;
@@ -2945,12 +2947,14 @@ export default function ChatPage({ theme: _theme, campus: _campus, onBack, onRoo
       {/* 📋 CHAT ENGINE SWITCH: JIKA MODE VUE (FRANKEN), RENDER STANDALONE VUE DENGAN 1 SIDEBAR & 1 CHAT PANE */}
       {chatEngine === 'vue_franken' ? (
         <VueChatWrapper
-          roomId={activeRoom?.roomId || getDeterministicRoomId(currentUser?.email || 'raisa14@gmail.com', 'udin14@gmail.com')}
+          roomId={activeRoom?.roomId || getRoomId(currentUser?.email || 'raisa14@gmail.com', 'udin14@gmail.com')}
           currentUserId={normalizeUserId(currentUser?.email || 'raisa14@gmail.com')}
           currentUserName={currentUser?.nama || currentUser?.name || 'Raisa'}
           activeRoomName={activeRoom?.otherName}
           activeRoomAvatar={activeRoom ? getUserAvatar(activeRoom.otherId, activeRoom.otherName, activeRoom.otherRole, activeRoom.otherAvatar) : undefined}
           activeRoomRole={activeRoom?.otherRole}
+          orderId={(activeRoom as any)?.orderId}
+          orderStatus={(activeRoom as any)?.orderStatus}
           messages={displayedMessages}
           isPeerTyping={isOtherTyping}
           peerTypingText={isOtherTyping ? 'sedang mengetik...' : undefined}

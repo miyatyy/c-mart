@@ -463,7 +463,7 @@ const ProductList = memo(function ProductList({
   });
 
   return (
-    <div className="w-full max-w-4xl lg:max-w-5xl mx-auto px-3 sm:px-4 py-4 pb-24 md:pb-8" style={{ fontFamily: 'var(--am-font-body)' }}>
+    <div className="w-full max-w-4xl lg:max-w-5xl mx-auto px-3 sm:px-4 py-4 pb-28 md:pb-28" style={{ fontFamily: 'var(--am-font-body)' }}>
       <style>{successModalStyles}</style>
 
       {/* 🌟 5 Landscape Promotional Brosur Carousel (Auto & Manual Slide) */}

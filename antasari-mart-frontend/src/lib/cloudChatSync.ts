@@ -6,7 +6,7 @@
 import type { BackendChatMessage } from './api';
 import { getUserAvatar, saveUserAvatarToGlobalMap, MYAMMIY_STORE_AVATAR, KOPERASI_ADMIN_AVATAR } from './userAvatars';
 import { redis, getRedisConfig } from './redisClient';
-import { broadcastSoketiAction } from './echo';
+import { broadcastSoketiAction, broadcastChatHttp } from './echo';
 
 const BROADCAST_CHANNEL_NAME = 'am_campus_chat_channel_v4';
 export const CLIENT_INSTANCE_ID = 'cli_' + Math.random().toString(36).substring(2, 9);
@@ -155,7 +155,7 @@ class SafeChatSyncHub {
     this.isSyncing = true;
     try {
       const myNorm = normalizeUserId(identifier);
-      const defaultPartners = ['raisa14@gmail.com', 'udin14@gmail.com', 'seller_1', 's1', 'driver_1', 'miyya@gmail.com'];
+      const defaultPartners = ['admin_nurmiyaty', 'coop_koperasi'];
       let dynamicPartners: string[] = [];
       try {
         const raw = localStorage.getItem('am_registered_users');
@@ -293,32 +293,56 @@ function getHubInstance(): SafeChatSyncHub {
 }
 
 /**
- * 🎯 Normalisasi ID/Email Pengguna agar 'udin' dan 'udin14@gmail.com' selalu sinkron
+ * 🎯 Normalisasi ID/Email Pengguna: 'superadmin' dan 'udin' selalu konsisten
  */
 export function normalizeUserId(rawId?: string): string {
   const clean = String(rawId || '').toLowerCase().trim();
   if (!clean) return '';
-  if (clean === 'udin' || clean === 'udin@gmail.com' || clean === 'udin14@gmail.com' || clean.includes('udin') || clean === 'usr_udin_seller' || clean === 'ai_udin_agent' || clean === '102') return 'udin14@gmail.com';
-  if (clean === 'raisa' || clean === 'raisa@gmail.com' || clean === 'raisa14@gmail.com' || clean.includes('raisa') || clean === 'usr_raisa_buyer' || clean === '101') return 'raisa14@gmail.com';
-  if (clean === 'miyya@gmail.com' || clean === 'mnurmiyaty2@gmail.com' || clean === 'nurmiyaty' || clean === 'super_admin' || clean.includes('miyya') || clean === '105' || clean === 'usr_nurmiyaty_superadmin') return 'miyya@gmail.com';
-  if (clean === 'seller_1' || clean === 'myammiy' || clean.includes('myammiy')) return 'seller_1';
-  if (clean === 's1' || clean.includes('koperasi') || clean === '104' || clean === 'usr_koperasi_admin') return 's1';
-  if (clean === 'driver' || clean === 'driver_1' || clean.includes('driver') || clean.includes('kurir') || clean === '103' || clean === 'usr_budi_courier') return 'driver_1';
+
+  // 1. Admin Koperasi (Fixed System Admin)
+  if (
+    clean === 'coop_koperasi' ||
+    clean === 'coop_admin' ||
+    clean === 'koperasi' ||
+    clean.includes('koperasi') ||
+    clean === 's1' ||
+    clean === 'usr_koperasi_admin'
+  ) return 'coop_koperasi';
+
+  // 2. Super Admin Nurmiyaty (Fixed System Admin)
+  if (
+    clean === 'admin_nurmiyaty' ||
+    clean === 'superadmin' ||
+    clean === 'super_admin' ||
+    clean === 'nurmiyaty' ||
+    clean === 'miyya@gmail.com' ||
+    clean === 'mnurmiyaty2@gmail.com' ||
+    clean.includes('nurmiyaty') ||
+    clean === 'usr_nurmiyaty_superadmin' ||
+    (clean.includes('admin') && !clean.includes('koperasi'))
+  ) return 'admin_nurmiyaty';
+
+  // 3. Pengguna dinamis lainnya: kembalikan ID asli murni
   return clean;
 }
 
 /**
- * 🔗 Standarisasi Identitas Room Deterministik (Alfabetis + Triple Underscore)
- * Menjamin Laptop & HP masuk ke channel yang sama persis
+ * 🔗 Standarisasi Identitas Room Deterministik
+ * Formula: orderId ? `order_${orderId}_${sorted[0]}_${sorted[1]}` : `chat_${sorted[0]}_${sorted[1]}`
  */
-export const getDeterministicRoomId = (userA: string, userB: string): string => {
-  const normA = (normalizeUserId(userA) || (userA || '')).trim().toLowerCase();
-  const normB = (normalizeUserId(userB) || (userB || '')).trim().toLowerCase();
-  return [normA, normB].sort().join('-');
+export const getRoomId = (userA: string, userB: string, orderId?: string): string => {
+  const normA = normalizeUserId(userA);
+  const normB = normalizeUserId(userB);
+  const sorted = [String(normA || userA).toLowerCase().trim(), String(normB || userB).toLowerCase().trim()].sort();
+  return orderId ? `order_${orderId}_${sorted[0]}_${sorted[1]}` : `chat_${sorted[0]}_${sorted[1]}`;
 };
 
-export function buildRoomId(emailA: string, emailB: string): string {
-  return getDeterministicRoomId(emailA, emailB);
+export const getDeterministicRoomId = (userA: string, userB: string, orderId?: string): string => {
+  return getRoomId(userA, userB, orderId);
+};
+
+export function buildRoomId(emailA: string, emailB: string, orderId?: string): string {
+  return getRoomId(emailA, emailB, orderId);
 }
 
 /**
@@ -461,14 +485,11 @@ export async function fetchCloudChats(identifier: string): Promise<{ success: bo
     const sNorm = normalizeUserId(m.senderId);
     const rNorm = normalizeUserId(m.receiverId);
 
-    const isForMe = (
-      sNorm === myNorm || rNorm === myNorm ||
-      (myNorm === 'udin14@gmail.com' && (sNorm.includes('udin') || rNorm.includes('udin') || m.roomId?.includes('udin'))) ||
-      (myNorm === 'raisa14@gmail.com' && (sNorm.includes('raisa') || rNorm.includes('raisa') || m.roomId?.includes('raisa'))) ||
-      (myNorm === 'seller_1' && (sNorm.includes('seller') || rNorm.includes('seller') || sNorm.includes('myammiy') || rNorm.includes('myammiy'))) ||
-      myNorm === 'miyya@gmail.com' ||
-      myNorm === 'super_admin' ||
-      (myUname && (m.senderId?.toLowerCase().includes(myUname) || m.receiverId?.toLowerCase().includes(myUname)))
+    const isForMe = Boolean(
+      sNorm === myNorm ||
+      rNorm === myNorm ||
+      !rNorm ||
+      (myNorm === 'admin_nurmiyaty' && (sNorm.includes('admin') || rNorm.includes('admin')))
     );
 
     if (!isForMe) return;
@@ -548,13 +569,11 @@ export async function sendCloudChat(payload: {
   let rNorm = normalizeUserId(rawTo);
 
   // Auto-fill fallback jika salah satu pihak tidak terisi
-  if (!rNorm && (sNorm === 'udin14@gmail.com' || sNorm.includes('udin'))) {
-    rNorm = 'raisa14@gmail.com';
-  } else if (!rNorm && (sNorm === 'raisa14@gmail.com' || sNorm.includes('raisa'))) {
-    rNorm = 'udin14@gmail.com';
+  if (!rNorm && sNorm) {
+    rNorm = 'admin_nurmiyaty';
   }
-  if (!sNorm && (rNorm === 'raisa14@gmail.com' || rNorm.includes('raisa'))) {
-    sNorm = 'udin14@gmail.com';
+  if (!sNorm && rNorm) {
+    sNorm = 'admin_nurmiyaty';
   }
 
   const roomId = payload.roomId || payload.room_id || getDeterministicRoomId(sNorm, rNorm);
@@ -566,12 +585,12 @@ export async function sendCloudChat(payload: {
     id: payload.id != null ? (payload.id as any) : Date.now(),
     roomId,
     senderId: sNorm,
-    senderName: rawFromName || (sNorm === 'raisa14@gmail.com' ? 'Raisa' : sNorm === 'udin14@gmail.com' ? (rawFromRole === 'ai' ? 'Udin (Asisten AI)' : 'Udin') : 'Pengguna'),
-    senderRole: rawFromRole || (sNorm === 'udin14@gmail.com' ? 'seller' : 'buyer'),
+    senderName: rawFromName || (sNorm === 'admin_nurmiyaty' ? 'Nurmiyaty (Super Admin)' : sNorm === 'coop_koperasi' ? 'Admin Koperasi' : 'Pengguna Kampus'),
+    senderRole: rawFromRole || (sNorm === 'admin_nurmiyaty' ? 'superadmin' : sNorm === 'coop_koperasi' ? 'coop_admin' : 'buyer'),
     senderAvatar: resolvedSenderAvatar,
     receiverId: rNorm,
-    receiverName: rawToName || (rNorm === 'udin14@gmail.com' ? 'Udin' : rNorm === 'raisa14@gmail.com' ? 'Raisa' : 'Pengguna'),
-    receiverRole: rawToRole || (rNorm === 'udin14@gmail.com' ? 'seller' : 'buyer'),
+    receiverName: rawToName || (rNorm === 'admin_nurmiyaty' ? 'Nurmiyaty (Super Admin)' : rNorm === 'coop_koperasi' ? 'Admin Koperasi' : 'Pengguna Kampus'),
+    receiverRole: rawToRole || (rNorm === 'admin_nurmiyaty' ? 'superadmin' : rNorm === 'coop_koperasi' ? 'coop_admin' : 'buyer'),
     receiverAvatar: resolvedReceiverAvatar,
     text: rawText,
     time: payload.time || timeNow,
@@ -610,8 +629,21 @@ export async function sendCloudChat(payload: {
 
   // 5. Pancarkan ke Soketi / Pusher Room Channel (Real-Time WebSocket)
   try {
+    broadcastSoketiAction(sNorm, rNorm, 'new-message', newMsg);
+    broadcastSoketiAction(sNorm, rNorm, 'client-message-sent', newMsg);
     broadcastSoketiAction(sNorm, rNorm, 'NewMessage', newMsg);
+    broadcastChatHttp(newMsg, [`chat.${roomId}`, `chat-room-${sNorm}-${rNorm}`, 'campusmart-chat', 'campusmart-chat-global']);
   } catch (_e) {}
+
+  // 6. Simpan fallback sync antar-tab di localStorage
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('am_last_sync_msg', JSON.stringify({
+        ...newMsg,
+        _t: Date.now()
+      }));
+    }
+  } catch (_) {}
 
   return { success: true, message: 'Pesan berhasil dikirim!', chat: newMsg };
 }
@@ -667,26 +699,21 @@ export function subscribeToCloudChatStream(
     const sNorm = normalizeUserId(incomingMsg.senderId || (incomingMsg as any).sender_id || (incomingMsg as any).fromId);
     const rNorm = normalizeUserId(incomingMsg.receiverId || (incomingMsg as any).receiver_id || (incomingMsg as any).toId);
 
-    const isForMe = sNorm === myNorm || rNorm === myNorm ||
-      (myNorm === 'udin14@gmail.com' && (sNorm.includes('udin') || rNorm.includes('udin'))) ||
-      (myNorm === 'raisa14@gmail.com' && (
-        sNorm.includes('raisa') ||
-        rNorm.includes('raisa') ||
-        sNorm.includes('udin') ||
-        incomingMsg.senderRole === 'ai' ||
-        (incomingMsg as any).sender_role === 'ai' ||
-        (incomingMsg.senderName && incomingMsg.senderName.toLowerCase().includes('asisten'))
-      ));
+    const isForMe = Boolean(
+      sNorm === myNorm ||
+      rNorm === myNorm ||
+      !rNorm ||
+      (myNorm === 'admin_nurmiyaty' && (sNorm.includes('admin') || rNorm.includes('admin')))
+    );
 
     if (isForMe) {
       // Pastikan struktur ternormalisasi dengan baik agar langsung cocok di room obrolan
-      const fallbackTarget = sNorm === 'udin14@gmail.com' ? 'raisa14@gmail.com' : 'udin14@gmail.com';
-      const effectiveRoomId = incomingMsg.roomId || (incomingMsg as any).room_id || getDeterministicRoomId(sNorm, rNorm || fallbackTarget);
+      const effectiveRoomId = incomingMsg.roomId || (incomingMsg as any).room_id || getDeterministicRoomId(sNorm, rNorm || myNorm);
       onMessage({
         ...incomingMsg,
         text: incomingMsg.text || (incomingMsg as any).content || '',
         senderId: sNorm,
-        receiverId: rNorm || fallbackTarget,
+        receiverId: rNorm || myNorm,
         roomId: effectiveRoomId
       });
     }
@@ -814,9 +841,9 @@ export async function syncCloudReaction(
 
   // 5. Siarkan ke Soketi / Pusher Room Channel Real-Time
   try {
-    const parts = cleanRoomId.includes('___') ? cleanRoomId.split('___') : [];
-    const userA = parts[0] || 'raisa14@gmail.com';
-    const userB = parts[1] || 'udin14@gmail.com';
+    const parts = cleanRoomId.includes('___') ? cleanRoomId.split('___') : (cleanRoomId.includes('_') ? cleanRoomId.replace(/^(chat_|order_[^_]+_)/, '').split('_') : []);
+    const userA = parts[0] || uId;
+    const userB = parts[1] || 'admin_nurmiyaty';
     broadcastSoketiAction(userA, userB, 'ReactionAdded', {
       id: String(msgId),
       msgId: String(msgId),
@@ -835,61 +862,85 @@ export async function getCloudContacts(userEmail: string) {
   const myNorm = normalizeUserId(userEmail);
   const contactMap = new Map<string, any>();
 
-  // 1. Kontak Standar Resmi
-  contactMap.set('seller_1', {
-    id: 901,
-    nama: 'Myammiy Craft (Katalog Resmi)',
-    email: 'seller_1',
-    role: 'seller',
-    avatar: MYAMMIY_STORE_AVATAR
-  });
-
-  contactMap.set('udin14@gmail.com', {
-    id: 102,
-    nama: 'Udin (Penjual & Pembeli)',
-    email: 'udin14@gmail.com',
-    role: 'seller',
-    avatar: getUserAvatar('udin14@gmail.com', 'Udin', 'seller')
-  });
-
-  contactMap.set('raisa14@gmail.com', {
-    id: 101,
-    nama: 'Raisa (Pembeli)',
-    email: 'raisa14@gmail.com',
-    role: 'buyer',
-    avatar: getUserAvatar('raisa14@gmail.com', 'Raisa', 'buyer')
+  // 1. Kontak Standar Resmi (Fixed Admin Support System)
+  contactMap.set('admin_nurmiyaty', {
+    id: 'admin_nurmiyaty',
+    nama: 'Nurmiyaty (Super Admin)',
+    email: 'miyya@gmail.com',
+    role: 'superadmin',
+    avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Nurmiyaty'
   });
 
   contactMap.set('s1', {
-    id: 902,
-    nama: 'Koperasi UIN Antasari',
+    id: 'coop_koperasi',
+    nama: 'Admin Koperasi UIN Antasari',
     email: 's1',
-    role: 'seller',
+    role: 'coop_admin',
     avatar: KOPERASI_ADMIN_AVATAR
   });
 
-  // 2. Ambil dari akun lokal terdaftar
+  // 2. Ambil dari akun lokal terdaftar secara dinamis murni
   if (typeof window !== 'undefined') {
     try {
       const raw = localStorage.getItem('am_registered_users');
       const regUsers: any[] = raw ? JSON.parse(raw) : [];
       regUsers.forEach(u => {
-        const uMail = normalizeUserId(u.email);
-        if (uMail && uMail !== myNorm) {
-          contactMap.set(uMail, {
-            id: u.id || Date.now(),
-            nama: u.nama || u.name || uMail,
-            email: uMail,
+        const uId = String(u.id || u.email || '').toLowerCase().trim();
+        const uNorm = normalizeUserId(uId);
+        if (uNorm && uNorm !== myNorm) {
+          contactMap.set(uNorm, {
+            id: u.id || uNorm,
+            nama: u.nama || u.name || 'Pengguna Kampus',
+            email: u.email || uNorm,
             role: u.role || (u.roles && u.roles[0]) || 'buyer',
-            avatar: getUserAvatar(u.email, u.nama, u.role, u.avatar)
+            avatar: getUserAvatar(u.email || u.id, u.nama || u.name, u.role, u.avatar)
           });
         }
       });
     } catch (_e) {}
   }
 
-  // Hapus akun diri sendiri dari daftar kontak
+  // 3. Tambahkan pengguna kampus standar (Pembeli/Raisa, Penjual, Driver) jika belum ada
+  if (!contactMap.has('raisa14@gmail.com') && myNorm !== 'raisa14@gmail.com' && !myNorm.includes('raisa')) {
+    contactMap.set('raisa14@gmail.com', {
+      id: 'raisa14@gmail.com',
+      nama: 'Raisa (Pembeli)',
+      email: 'raisa14@gmail.com',
+      role: 'buyer',
+      avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Raisa'
+    });
+  }
+  if (!contactMap.has('seller_1') && myNorm !== 'seller_1') {
+    contactMap.set('seller_1', {
+      id: 'seller_1',
+      nama: 'Myammiy Craft (Katalog Resmi)',
+      email: 'seller_1@campusmart.ac.id',
+      role: 'seller',
+      avatar: MYAMMIY_STORE_AVATAR
+    });
+  }
+  if (!contactMap.has('driver_kampus') && myNorm !== 'driver_kampus' && !myNorm.includes('driver')) {
+    contactMap.set('driver_kampus', {
+      id: 'driver_kampus',
+      nama: 'Driver Kampus',
+      email: 'driver@campusmart.ac.id',
+      role: 'driver',
+      avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=driver'
+    });
+  }
+
+  // Hapus akun diri sendiri secara ketat dari daftar kontak
   contactMap.delete(myNorm);
+  const isMeSuperAdmin = myNorm === 'admin_nurmiyaty' || myNorm.includes('admin') || myNorm.includes('nurmiyaty') || myNorm.includes('miyya');
+  const isMeCoopAdmin = myNorm === 'coop_koperasi' || myNorm === 's1' || myNorm.includes('coop') || myNorm.includes('koperasi');
+
+  if (isMeSuperAdmin) {
+    contactMap.delete('admin_nurmiyaty');
+  }
+  if (isMeCoopAdmin) {
+    contactMap.delete('s1');
+    contactMap.delete('coop_koperasi');
+  }
 
   return { success: true, contacts: Array.from(contactMap.values()) };
 }
@@ -1121,6 +1172,8 @@ export {
   getSoketiRoomChannel,
   isSoketiActive,
   getSoketiState,
+  broadcastChatHttp,
+  broadcastMessageToSoketi,
   type SoketiRoomEventHandlers
 } from './echo';
 

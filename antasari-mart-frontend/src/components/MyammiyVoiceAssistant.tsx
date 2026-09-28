@@ -448,7 +448,7 @@ export default function MyammiyVoiceAssistant({ onAddToCart, onNavigateTab }: My
         }
         @media (min-width: 768px) {
           .am-myammiy-launcher-wrap {
-            bottom: 2rem !important;
+            bottom: 4.8rem !important;
             right: 2rem !important;
           }
         }

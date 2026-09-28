@@ -9,6 +9,8 @@ export interface VueChatWrapperProps {
   activeRoomName?: string;
   activeRoomAvatar?: string;
   activeRoomRole?: string;
+  orderId?: string;
+  orderStatus?: string;
   messages?: any[];
   isPeerTyping?: boolean;
   peerTypingText?: string;
@@ -34,6 +36,8 @@ export default function VueChatWrapper(props: VueChatWrapperProps) {
       activeRoomName: props.activeRoomName,
       activeRoomAvatar: props.activeRoomAvatar,
       activeRoomRole: props.activeRoomRole,
+      orderId: props.orderId,
+      orderStatus: props.orderStatus,
       messages: props.messages || [],
       isPeerTyping: props.isPeerTyping || false,
       peerTypingText: props.peerTypingText || '',
@@ -80,6 +84,8 @@ export default function VueChatWrapper(props: VueChatWrapperProps) {
       reactiveStateRef.current.activeRoomName = props.activeRoomName;
       reactiveStateRef.current.activeRoomAvatar = props.activeRoomAvatar;
       reactiveStateRef.current.activeRoomRole = props.activeRoomRole;
+      reactiveStateRef.current.orderId = props.orderId;
+      reactiveStateRef.current.orderStatus = props.orderStatus;
       reactiveStateRef.current.messages = props.messages || [];
       reactiveStateRef.current.isPeerTyping = props.isPeerTyping || false;
       reactiveStateRef.current.peerTypingText = props.peerTypingText || '';
@@ -91,6 +97,8 @@ export default function VueChatWrapper(props: VueChatWrapperProps) {
     props.roomId,
     props.currentUserId,
     props.currentUserName,
+    props.orderId,
+    props.orderStatus,
     props.messages,
     props.isPeerTyping,
     props.peerTypingText,

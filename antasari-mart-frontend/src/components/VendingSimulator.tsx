@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import type { ThemeMode } from '../types';
 import { claimVendingApi, checkoutApi } from '../lib/api';
@@ -958,30 +959,42 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
       </div>
 
       {/* 🌸 MODAL ANIMASI SPESIAL: MESIN VENDING BERPUTAR DENGAN MUSIK IMUT */}
-      {isSpinningVisual && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(15, 23, 42, 0.75)',
-          backdropFilter: 'blur(8px)',
-          zIndex: 99999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 16
-        }}>
-          <div style={{
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #FFF1F2 100%)',
-            borderRadius: 24,
-            padding: '32px 28px',
-            maxWidth: 420,
+      {typeof document !== 'undefined' && isSpinningVisual && createPortal(
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-md"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             width: '100%',
-            textAlign: 'center',
-            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)',
-            border: '2px solid #F43F5E',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
+            height: '100%',
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+        >
+          <div
+            className="w-[92%] max-w-md mx-auto rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #FFFFFF 0%, #FFF1F2 100%)',
+              borderRadius: 24,
+              padding: '32px 28px',
+              maxWidth: 420,
+              width: '92%',
+              margin: '0 auto',
+              textAlign: 'center',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)',
+              border: '2px solid #F43F5E',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+          >
             {/* Cute Floating Music Notes */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: 14, fontSize: 24, marginBottom: 12 }}>
               <span style={{ animation: 'bounce 0.8s infinite alternate' }}>🎵</span>
@@ -1029,7 +1042,8 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
               <span>Memutar Musik Kawaii & Mengeluarkan Paket...</span>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 🎟️ KUPON PROMO RINGKAS DENGAN FITUR "PAKAI / KLAIM" LANGSUNG */}
@@ -1456,31 +1470,47 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
       </div>
 
       {/* 💳 MODAL PEMBAYARAN LANGSUNG BLIND BAG */}
-      {selectedSlotForPayment && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0, 0, 0, 0.65)',
-          backdropFilter: 'blur(6px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10000,
-          padding: 16,
-          animation: 'fadeIn 0.2s ease-out'
-        }}>
-          <div style={{
-            background: 'var(--am-surface, #ffffff)',
-            color: 'var(--am-text, #243329)',
-            borderRadius: 22,
-            padding: '20px',
-            maxWidth: 420,
+      {typeof document !== 'undefined' && selectedSlotForPayment && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             width: '100%',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-            border: '1.5px solid var(--am-primary, #5FA874)',
-            maxHeight: '90vh',
-            overflowY: 'auto'
-          }}>
+            height: '100%',
+            background: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: 16,
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedSlotForPayment(null);
+          }}
+        >
+          <div
+            className="w-[92%] max-w-md mx-auto bg-white rounded-3xl p-5 shadow-2xl border border-emerald-500/30 overflow-y-auto max-h-[90vh]"
+            style={{
+              background: 'var(--am-surface, #ffffff)',
+              color: 'var(--am-text, #243329)',
+              borderRadius: 24,
+              padding: '20px',
+              maxWidth: 440,
+              width: '92%',
+              margin: '0 auto',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+              border: '1.5px solid var(--am-primary, #5FA874)',
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}
+          >
             {/* Header Modal */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1757,7 +1787,8 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
               {isProcessingPayment ? 'Memproses Transaksi...' : '🚀 Bayar Sekarang & Buka Loker'}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 📍 TITIK LOKASI MESIN LOKER */}

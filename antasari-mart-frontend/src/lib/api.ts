@@ -1474,5 +1474,86 @@ export async function getUserOrdersApi(email: string) {
   return { success: true, orders: [] };
 }
 
+/**
+ * 🔄 Update Status Pesanan Sesuai State Machine
+ * 'pending' -> 'confirmed' -> 'processing' -> 'driver_assigned' -> 'picked_up' -> 'delivered' -> 'completed'
+ */
+export async function updateOrderStatusApi(
+  orderId: string,
+  status: string,
+  extra?: { changedBy?: string; role?: string; driverId?: string; driverName?: string; notes?: string }
+) {
+  try {
+    const res = await request<{
+      success: boolean;
+      message: string;
+      order?: any;
+      log?: any;
+      systemMessage?: string;
+    }>(`/api/orders/${encodeURIComponent(orderId)}/status`, {
+      method: 'POST',
+      body: JSON.stringify({
+        status,
+        ...(extra || {})
+      })
+    });
+
+    // Update juga di localStorage fallback
+    try {
+      const saved = localStorage.getItem('am_my_orders');
+      if (saved) {
+        const orders = JSON.parse(saved);
+        if (Array.isArray(orders)) {
+          const updated = orders.map((o: any) =>
+            o.id === orderId || o.orderId === orderId ? { ...o, status, ...(extra || {}) } : o
+          );
+          localStorage.setItem('am_my_orders', JSON.stringify(updated));
+        }
+      }
+    } catch (_e) {}
+
+    // Dispatch event lokal browser
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('am_order_status_updated', {
+        detail: { orderId, status, ...(extra || {}) }
+      }));
+    }
+
+    return res;
+  } catch (err: any) {
+    console.error('Error updating order status:', err);
+    return { success: false, message: err.message || 'Gagal mengubah status pesanan' };
+  }
+}
+
+/**
+ * 📜 Ambil Riwayat Perubahan Status Pesanan (order_logs)
+ */
+export async function getOrderLogsApi(orderId: string) {
+  try {
+    const res = await request<{ success: boolean; orderId: string; logs: any[] }>(
+      `/api/orders/${encodeURIComponent(orderId)}/logs`
+    );
+    return res;
+  } catch (err: any) {
+    return { success: false, orderId, logs: [] };
+  }
+}
+
+/**
+ * 🔍 Ambil Detail Pesanan Lengkap
+ */
+export async function getOrderDetailsApi(orderId: string) {
+  try {
+    const res = await request<{ success: boolean; order: any }>(
+      `/api/orders/${encodeURIComponent(orderId)}`
+    );
+    return res;
+  } catch (err: any) {
+    return { success: false, message: err.message, order: null };
+  }
+}
+
+
 
 

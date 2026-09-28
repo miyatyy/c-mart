@@ -12,6 +12,8 @@ defineProps<{
   activeRoomName?: string;
   activeRoomAvatar?: string;
   activeRoomRole?: string;
+  orderId?: string;
+  orderStatus?: string;
   messages?: ChatMessage[];
   isPeerTyping?: boolean;
   peerTypingText?: string;

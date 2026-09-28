@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ThemeMode, Campus, AppTab } from '../types';
 import { MOCK_ORDERS, formatRupiah } from '../data';
-import { getUserOrdersApi } from '../lib/api';
+import { getUserOrdersApi, updateOrderStatusApi } from '../lib/api';
 
 interface DriverDashboardProps {
   theme: ThemeMode;
@@ -104,8 +104,43 @@ export default function DriverDashboard({
 
   const historyOrders = MOCK_ORDERS.filter(o => o.campus === campus && o.status === 'delivered');
 
-  function handleAccept(orderId: string) {
+  const [pickedUpOrders, setPickedUpOrders] = useState<string[]>([]);
+
+  async function handleAccept(orderId: string) {
     setAccepted(prev => [...prev, orderId]);
+    try {
+      await updateOrderStatusApi(orderId, 'driver_assigned', {
+        changedBy: driverName,
+        role: 'driver',
+        driverId: driverEmail || 'driver_1',
+        driverName: driverName
+      });
+    } catch (_e) {}
+  }
+
+  async function handlePickedUp(orderId: string) {
+    setPickedUpOrders(prev => [...prev, orderId]);
+    try {
+      await updateOrderStatusApi(orderId, 'picked_up', {
+        changedBy: driverName,
+        role: 'driver',
+        driverId: driverEmail || 'driver_1',
+        driverName: driverName
+      });
+    } catch (_e) {}
+  }
+
+  async function handleDelivered(orderId: string) {
+    setAccepted(prev => prev.filter(id => id !== orderId));
+    setPickedUpOrders(prev => prev.filter(id => id !== orderId));
+    try {
+      await updateOrderStatusApi(orderId, 'delivered', {
+        changedBy: driverName,
+        role: 'driver',
+        driverId: driverEmail || 'driver_1',
+        driverName: driverName
+      });
+    } catch (_e) {}
   }
 
   function handleIgnore(orderId: string) {
@@ -349,8 +384,25 @@ export default function DriverDashboard({
                   📍 Antar ke: {order.buyerLocation}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="am-btn-primary" style={{ flex: 1, padding: '9px 0', fontSize: 12 }}>📦 Sudah Diambil</button>
-                  <button className="am-btn-primary" style={{ flex: 1, padding: '9px 0', fontSize: 12, background: '#22C55E' }} onClick={() => setAccepted(accepted.filter(id => id !== orderId))}>🎉 Selesai Antar</button>
+                  <button 
+                    className="am-btn-primary" 
+                    style={{ 
+                      flex: 1, 
+                      padding: '9px 0', 
+                      fontSize: 12,
+                      background: pickedUpOrders.includes(orderId) ? '#6B7280' : undefined 
+                    }}
+                    onClick={() => handlePickedUp(orderId)}
+                  >
+                    {pickedUpOrders.includes(orderId) ? '✅ Sudah Diambil' : '📦 Sudah Diambil'}
+                  </button>
+                  <button 
+                    className="am-btn-primary" 
+                    style={{ flex: 1, padding: '9px 0', fontSize: 12, background: '#22C55E' }} 
+                    onClick={() => handleDelivered(orderId)}
+                  >
+                    🎉 Selesai Antar
+                  </button>
                 </div>
               </div>
             );

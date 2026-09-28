@@ -101,6 +101,14 @@ function MainAppContent() {
 
   // 🔔 In-App Push Notification & Quick Reply State
   const [inAppNotification, setInAppNotification] = useState<InAppNotificationData | null>(null);
+  const [targetChatContact, setTargetChatContact] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('am_target_chat_contact');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const lastNotifiedChatIdRef = useRef<string | number | null>(null);
 
   // 🧹 Bersihkan overlay atau iframe Midtrans Snap saat berganti tab / halaman + Reset Scroll
@@ -820,8 +828,19 @@ function MainAppContent() {
                 <StandaloneVueChat
                   theme={theme}
                   campus={campus}
-                  onBack={() => setActiveTab('home')}
+                  onBack={() => {
+                    setTargetChatContact(null);
+                    localStorage.removeItem('am_target_chat_contact');
+                    localStorage.removeItem('am_target_chat_room');
+                    setActiveTab('home');
+                  }}
                   onRoomActiveChange={setIsChatRoomActive}
+                  roomId={targetChatContact?.id || undefined}
+                  currentUserId={currentUser.id || currentUser.email || 'user_active'}
+                  currentUserName={currentUser.nama || currentUser.name || 'Pengguna Antasari'}
+                  activeRoomName={targetChatContact?.name}
+                  activeRoomAvatar={targetChatContact?.avatar}
+                  activeRoomRole={targetChatContact?.role}
                 />
               )
             )}
@@ -979,18 +998,36 @@ function MainAppContent() {
           setInAppNotification(null);
           setActiveTab('seller');
         }}
-        onOpenChat={(roomId, senderId) => {
+        onOpenChat={(roomId, senderId, notifData) => {
           setInAppNotification(null);
           setActiveTab('chat');
           const myNorm = normalizeUserId(currentUser.email);
           const effectiveRoomId = roomId || (senderId ? buildRoomId(myNorm, normalizeUserId(senderId)) : null);
+          
+          const sName = notifData?.senderName || (senderId && senderId.includes('admin') ? 'Nurmiyaty (Super Admin)' : 'Kontak');
+          const sAvatar = notifData?.senderAvatar || 'https://api.dicebear.com/7.x/adventurer/svg?seed=' + encodeURIComponent(sName);
+          const sRole = notifData?.senderRole || (sName.toLowerCase().includes('admin') ? 'superadmin' : 'buyer');
+          const targetContact = {
+            id: effectiveRoomId || (senderId ? `room_${senderId}` : 'room_superadmin'),
+            partner_id: senderId || 'usr_nurmiyaty_superadmin',
+            partner_email: senderId?.includes('@') ? senderId : (sName.toLowerCase().includes('admin') ? 'miyya@gmail.com' : ''),
+            name: sName,
+            role: sRole,
+            avatar: sAvatar,
+            lastMessage: notifData?.text || '',
+            lastMessageTime: 'Baru saja'
+          };
+
           if (effectiveRoomId) {
             localStorage.setItem('am_target_chat_room', effectiveRoomId);
-            setIsChatRoomActive(true);
-            window.dispatchEvent(new CustomEvent('am_open_chat_room', {
-              detail: { roomId: effectiveRoomId, senderId }
-            }));
           }
+          localStorage.setItem('am_target_chat_contact', JSON.stringify(targetContact));
+          setTargetChatContact(targetContact);
+          setIsChatRoomActive(true);
+
+          window.dispatchEvent(new CustomEvent('am_open_chat_room', {
+            detail: { roomId: effectiveRoomId, senderId, contact: targetContact }
+          }));
         }}
         currentUserId={currentUser.id || currentUser.email || 'user_active'}
         currentUserName={currentUser.nama || currentUser.name || 'Pengguna Antasari'}

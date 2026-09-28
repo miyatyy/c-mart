@@ -34,8 +34,24 @@ function sendPusherMessage(ws, event, data, channel = null) {
 }
 
 // Helper mencari semua variasi nama channel yang merujuk ke pasangan user yang sama
+function normalizeChannel(ch) {
+  return (ch || '')
+    .toLowerCase()
+    .trim()
+    .replace(/^private-/, '')
+    .replace(/^chat\./, '')
+    .replace(/^chat-room-/, '')
+    .replace(/^room_/, '')
+    .replace(/^chat_/, '')
+    .replace(/^order\./, 'order_')
+    .replace(/___/g, '_')
+    .replace(/__/g, '_')
+    .replace(/-/g, '_');
+}
+
 function getMatchingChannelNames(targetChannel) {
   const normTarget = (targetChannel || '').toLowerCase().trim();
+  const cleanTarget = normalizeChannel(targetChannel);
   const matched = new Set();
   if (channels.has(targetChannel)) matched.add(targetChannel);
 
@@ -45,10 +61,8 @@ function getMatchingChannelNames(targetChannel) {
       matched.add(ch);
       continue;
     }
-    // Normalisasi delimiter: samakan chat-room-A-B dengan chat-room-A___B
-    const cleanA = normTarget.replace(/^chat-room-/, '').replace(/___/g, '-').replace(/__/g, '-').replace(/_/g, '-');
-    const cleanB = normCh.replace(/^chat-room-/, '').replace(/___/g, '-').replace(/__/g, '-').replace(/_/g, '-');
-    if (cleanA && cleanB && cleanA === cleanB) {
+    const cleanCh = normalizeChannel(ch);
+    if (cleanTarget && cleanCh && cleanTarget === cleanCh) {
       matched.add(ch);
     }
   }
@@ -78,6 +92,19 @@ function broadcastToChannel(channelName, event, data, excludeSocket = null) {
       }
     }
   }
+
+  // 🛡️ Fallback: jika channel belum memiliki subscriber langsung tapi ada client WebSocket yang tersambung,
+  // kirimkan ke SEMUA client yang aktif agar tidak ada pesan tertinggal (0 recipients)
+  if (count === 0 && typeof wss !== 'undefined' && wss.clients) {
+    for (const client of wss.clients) {
+      if (!sentSockets.has(client) && client.readyState === WebSocket.OPEN) {
+        sendPusherMessage(client, event, data, channelName);
+        sentSockets.add(client);
+        count++;
+      }
+    }
+  }
+
   return count;
 }
 
@@ -107,17 +134,21 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // HTTP Event Trigger (Kompatibel dengan Laravel / FrankenPHP / Custom POST)
-  // URL: POST /apps/:appId/events atau POST /trigger atau POST /api/trigger
-  if (req.method === 'POST' && (req.url.includes('/events') || req.url.includes('/trigger'))) {
+  // HTTP Event Trigger (Kompatibel dengan Laravel / FrankenPHP / Custom POST / Express)
+  // URL: POST /apps/:appId/events atau POST /trigger atau POST /api/broadcast-chat
+  if (req.method === 'POST' && (req.url.includes('/events') || req.url.includes('/trigger') || req.url.includes('/broadcast'))) {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
       try {
         const payload = JSON.parse(body || '{}');
-        const eventName = payload.name || payload.event;
-        const targetChannels = payload.channels || (payload.channel ? [payload.channel] : []);
-        const data = payload.data || {};
+        const eventName = payload.name || payload.event || 'NewMessage';
+        const data = payload.data || payload;
+        let targetChannels = payload.channels || (payload.channel ? [payload.channel] : []);
+        if (targetChannels.length === 0) {
+          const rId = data.roomId || data.room_id || 'room_admin_nurmiyaty_seller_udin';
+          targetChannels = ['campusmart-chat', 'campusmart-chat-global', `chat.${rId}`, rId];
+        }
         const socketId = payload.socket_id;
 
         let totalDelivered = 0;
@@ -135,13 +166,13 @@ const server = http.createServer((req, res) => {
             }
           }
           totalDelivered += broadcastToChannel(ch, eventName, data, excludeWs);
-          if (eventName && !eventName.startsWith('pusher:')) {
-            if (eventName.startsWith('client-')) {
-              broadcastToChannel(ch, eventName.slice(7), data, excludeWs);
-            } else {
-              broadcastToChannel(ch, `client-${eventName}`, data, excludeWs);
-            }
-          }
+          // Siarkan juga variasi event agar semua listener Echo/Pusher pasti menerimanya
+          broadcastToChannel(ch, `.${eventName.replace(/^\./, '')}`, data, excludeWs);
+          broadcastToChannel(ch, eventName.replace(/^\./, ''), data, excludeWs);
+          broadcastToChannel(ch, 'NewMessage', data, excludeWs);
+          broadcastToChannel(ch, '.NewMessage', data, excludeWs);
+          broadcastToChannel(ch, 'new-message', data, excludeWs);
+          broadcastToChannel(ch, 'client-message-sent', data, excludeWs);
         });
 
         console.log(`[CampusMart-Soketi] 📨 HTTP Trigger: ${eventName} -> [${targetChannels.join(', ')}] (${totalDelivered} recipients)`);

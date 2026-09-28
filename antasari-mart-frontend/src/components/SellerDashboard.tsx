@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { ThemeMode, Campus, Product, ProductCategory, VerificationStatus, SellerVerificationData } from '../types';
 import { MOCK_ORDERS, formatRupiah, CATEGORIES } from '../data';
 import {
@@ -14,10 +15,12 @@ import {
   getVouchersApi,
   analyzeProductAiApi,
   evaluateProductSuitabilityLocally,
-  getSellerVerificationStatusApi
+  getSellerVerificationStatusApi,
+  updateOrderStatusApi
 } from '../lib/api';
 import SellerCouponManager from './SellerCouponManager';
 import SellerVerificationModal from './SellerVerificationModal';
+import { broadcastAdminEvent } from '../lib/echo';
 
 interface SellerDashboardProps {
   theme: ThemeMode;
@@ -346,7 +349,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
       });
 
       // ⏳ 2. Simpan produk ke sistem dengan status 'pending' (tertahan untuk kurasi Super Admin)
-      await createProductApi({
+      const createdRes = await createProductApi({
         name: newProd.name,
         description: newProd.description,
         price: parseInt(newProd.price),
@@ -357,10 +360,33 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
         videoUrl: newProdVideo || undefined,
         campus: newProd.targetCampus,
         sellerId: sellerId || activeUser.email || 'seller_1',
-        sellerName: sellerName || activeUser.nama || 'Penjual Antasari',
+        sellerName: sellerName || activeUser.nama || 'Udin (Penjual)',
         status: 'pending',
         aiAnalysis: aiRes.analysis
       });
+
+      // 📡 3. Siarkan Notifikasi Real-Time ke Super Admin via Soketi / WebSocket channel admin-notifications
+      const newProductPayload = {
+        id: (createdRes as any)?.id || (createdRes as any)?.product?.id || `prod_${Date.now()}`,
+        title: newProd.name,
+        name: newProd.name,
+        sellerName: sellerName || activeUser.nama || 'Udin (Penjual)',
+        sellerId: sellerId || activeUser.email || 'seller_1',
+        price: parseInt(newProd.price),
+        stock: parseInt(newProd.stock),
+        category: newProd.category,
+        image: finalMainImage,
+        campus: newProd.targetCampus,
+        status: 'pending_approval',
+        aiScore: aiRes?.analysis?.score || 90,
+        timestamp: new Date().toISOString()
+      };
+
+      try {
+        broadcastAdminEvent('product-submitted', newProductPayload);
+      } catch (bcErr) {
+        console.warn('Failed to broadcast admin notification:', bcErr);
+      }
 
       setShowAddModal(false);
       setNewProd({ name: '', description: '', price: '', stock: '', category: 'makanan', targetCampus: 'semua' });
@@ -452,11 +478,18 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
     }
   };
 
-  const handleUpdateOrderStatus = (orderId: string, newStatus: string) => {
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
     setOrders(updated);
     localStorage.setItem(`am_seller_orders_${sellerId}`, JSON.stringify(updated));
     setAlertPopup({ message: `Status Pesanan #${orderId} diubah menjadi "${newStatus}"! ✅`, type: 'success' });
+
+    try {
+      await updateOrderStatusApi(orderId, newStatus, {
+        changedBy: sellerName || sellerId,
+        role: 'seller'
+      });
+    } catch (_err) {}
   };
 
   const handleWithdrawSubmit = (e: React.FormEvent) => {
@@ -512,7 +545,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
   });
 
   return (
-    <div style={{ padding: '24px 16px 100px', maxWidth: 1200, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
+    <div className="pb-32 sm:pb-36" style={{ padding: '24px 16px 130px', maxWidth: 1200, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
       {/* 🏪 STORE HERO BANNER & REAL-TIME STATS */}
       <div
         className="am-card"
@@ -548,7 +581,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div className="grid grid-cols-2 gap-2.5 w-full sm:w-auto mt-3 sm:mt-0">
             {/* Toggle Buka/Tutup Toko */}
             <button
               onClick={() => {
@@ -564,7 +597,11 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                 fontWeight: 700,
                 fontSize: 12,
                 cursor: 'pointer',
-                backdropFilter: 'blur(6px)'
+                backdropFilter: 'blur(6px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6
               }}
             >
               {isOpenStore ? '⏸️ Tutup Sementara' : '▶️ Buka Toko'}
@@ -574,7 +611,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
             <button
               onClick={() => setShowAddModal(true)}
               style={{
-                padding: '10px 20px',
+                padding: '10px 16px',
                 borderRadius: 12,
                 border: 'none',
                 background: '#FFFFFF',
@@ -585,6 +622,7 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                 boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: 6
               }}
             >
@@ -593,11 +631,11 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
           </div>
         </div>
 
-        {/* Quick Metrics Strip */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 20, paddingTop: 18, borderTop: '1px solid rgba(255,255,255,0.15)' }}>
-          <div style={{ background: 'rgba(255,255,255,0.08)', padding: '10px 14px', borderRadius: 14 }}>
-            <div style={{ fontSize: 11, opacity: 0.8 }}>Saldo Siap Ditarik</div>
-            <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* Quick Metrics Strip 2x2 Grid */}
+        <div className="grid grid-cols-2 gap-3 my-4 pt-3 border-t border-white/15">
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/10">
+            <div className="text-xs text-emerald-100/80">Saldo Siap Ditarik</div>
+            <div className="text-lg font-bold text-white mt-1 flex justify-between items-center gap-1.5 flex-wrap">
               <span>{formatRupiah(walletBalance)}</span>
               <button
                 onClick={() => setShowWithdrawModal(true)}
@@ -607,17 +645,17 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
               </button>
             </div>
           </div>
-          <div style={{ background: 'rgba(255,255,255,0.08)', padding: '10px 14px', borderRadius: 14 }}>
-            <div style={{ fontSize: 11, opacity: 0.8 }}>Total Produk Aktif</div>
-            <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2 }}>{products.filter(p => p.stock > 0).length} Item</div>
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/10">
+            <div className="text-xs text-emerald-100/80">Total Produk Aktif</div>
+            <div className="text-lg font-bold text-white mt-1">{products.filter(p => p.stock > 0).length} Item</div>
           </div>
-          <div style={{ background: 'rgba(255,255,255,0.08)', padding: '10px 14px', borderRadius: 14 }}>
-            <div style={{ fontSize: 11, opacity: 0.8 }}>Pesanan Perlu Diproses</div>
-            <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2, color: '#FDE047' }}>{orders.length} Pesanan</div>
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/10">
+            <div className="text-xs text-emerald-100/80">Pesanan Perlu Diproses</div>
+            <div className="text-lg font-bold text-white mt-1" style={{ color: '#FDE047' }}>{orders.length} Pesanan</div>
           </div>
-          <div style={{ background: 'rgba(255,255,255,0.08)', padding: '10px 14px', borderRadius: 14 }}>
-            <div style={{ fontSize: 11, opacity: 0.8 }}>Omset Terjual Bulan Ini</div>
-            <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2 }}>{formatRupiah(1850000)}</div>
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/10">
+            <div className="text-xs text-emerald-100/80">Omset Terjual Bulan Ini</div>
+            <div className="text-lg font-bold text-white mt-1">{formatRupiah(1850000)}</div>
           </div>
         </div>
       </div>
@@ -1525,12 +1563,21 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
       )}
 
       {/* ── MODAL TARIK SALDO ── */}
-      {showWithdrawModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="am-card" style={{ width: '100%', maxWidth: 460, padding: 24, borderRadius: 22, background: 'var(--am-surface)' }}>
-            <h3 className="am-heading" style={{ margin: '0 0 6px', fontSize: 18, color: 'var(--am-text)' }}>
-              🏧 Tarik Saldo Toko
-            </h3>
+      {showWithdrawModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/50 animate-fade-in">
+          <div className="fixed inset-x-0 bottom-0 md:bottom-auto md:top-1/2 md:-translate-y-1/2 mx-auto w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl md:rounded-3xl p-5 shadow-2xl z-50 max-h-[85vh] overflow-y-auto" style={{ color: 'var(--am-text)' }}>
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="am-heading font-extrabold text-lg text-gray-900 dark:text-white m-0">
+                🏧 Tarik Saldo Toko
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowWithdrawModal(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-800 dark:hover:text-white text-sm font-bold transition-colors"
+              >
+                ✕
+              </button>
+            </div>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--am-text-muted)' }}>
               Saldo saat ini: <strong style={{ color: 'var(--am-primary)' }}>{formatRupiah(walletBalance)}</strong>
             </p>
@@ -1593,16 +1640,29 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── MODAL TAMBAH PRODUK ── */}
-      {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="am-card" style={{ width: '100%', maxWidth: 500, padding: 24, borderRadius: 22, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="am-heading" style={{ margin: '0 0 14px', fontSize: 18, color: 'var(--am-text)' }}>
-              Tambah Produk Baru ke Lapak
-            </h3>
+      {showAddModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/50 animate-fade-in">
+          <div
+            className="fixed inset-x-0 bottom-0 md:bottom-auto md:top-1/2 md:-translate-y-1/2 mx-auto w-full max-w-lg bg-white dark:bg-gray-900 rounded-t-3xl md:rounded-3xl p-5 shadow-2xl z-50 max-h-[85vh] overflow-y-auto"
+            style={{ color: 'var(--am-text)' }}
+          >
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="am-heading font-extrabold text-lg text-gray-900 dark:text-white m-0">
+                Tambah Produk Baru ke Lapak
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-800 dark:hover:text-white text-sm font-bold transition-colors"
+              >
+                ✕
+              </button>
+            </div>
 
             <form onSubmit={handleCreateProduct} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
@@ -1611,8 +1671,12 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                   type="text"
                   required
                   placeholder="Contoh: Pentol Kuah UIN / Ganci Myammiy"
-                  value={newProd.name}
-                  onChange={e => setNewProd({ ...newProd, name: e.target.value })}
+                  defaultValue={newProd.name}
+                  onChange={e => { newProd.name = e.target.value; }}
+                  autoCapitalize="words"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck="false"
                   style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                 />
               </div>
@@ -1622,10 +1686,11 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                   <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Harga (Rp)</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     required
                     placeholder="10000"
-                    value={newProd.price}
-                    onChange={e => setNewProd({ ...newProd, price: e.target.value })}
+                    defaultValue={newProd.price}
+                    onChange={e => { newProd.price = e.target.value; }}
                     style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                   />
                 </div>
@@ -1633,10 +1698,11 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                   <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Stok Awal</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     required
                     placeholder="20"
-                    value={newProd.stock}
-                    onChange={e => setNewProd({ ...newProd, stock: e.target.value })}
+                    defaultValue={newProd.stock}
+                    onChange={e => { newProd.stock = e.target.value; }}
                     style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                   />
                 </div>
@@ -1957,8 +2023,12 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                 </div>
                 <textarea
                   placeholder="Jelaskan bahan, rasa, keunggulan, atau klik '✨ Buat AI DeepSeek'..."
-                  value={newProd.description}
-                  onChange={e => setNewProd({ ...newProd, description: e.target.value })}
+                  defaultValue={newProd.description}
+                  key={`add-desc-${newProd.description ? 'ai-set' : 'manual'}`}
+                  onChange={e => { newProd.description = e.target.value; }}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck="false"
                   style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', boxSizing: 'border-box', height: 80, fontSize: 12.5, background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                 />
               </div>
@@ -1995,16 +2065,29 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── MODAL EDIT PRODUK ── */}
-      {showEditModal && editingProduct && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="am-card" style={{ width: '100%', maxWidth: 500, padding: 24, borderRadius: 22, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="am-heading" style={{ margin: '0 0 14px', fontSize: 18, color: 'var(--am-text)' }}>
-              Edit Detail Produk Multi-Media
-            </h3>
+      {showEditModal && editingProduct && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/50 animate-fade-in">
+          <div
+            className="fixed inset-x-0 bottom-0 md:bottom-auto md:top-1/2 md:-translate-y-1/2 mx-auto w-full max-w-lg bg-white dark:bg-gray-900 rounded-t-3xl md:rounded-3xl p-5 shadow-2xl z-50 max-h-[85vh] overflow-y-auto"
+            style={{ color: 'var(--am-text)' }}
+          >
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="am-heading font-extrabold text-lg text-gray-900 dark:text-white m-0">
+                Edit Detail Produk Multi-Media
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-800 dark:hover:text-white text-sm font-bold transition-colors"
+              >
+                ✕
+              </button>
+            </div>
 
             <form onSubmit={handleUpdateProduct} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
@@ -2012,8 +2095,12 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                 <input
                   type="text"
                   required
-                  value={editingProduct.name}
-                  onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                  defaultValue={editingProduct.name}
+                  onChange={e => { editingProduct.name = e.target.value; }}
+                  autoCapitalize="words"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck="false"
                   style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                 />
               </div>
@@ -2023,9 +2110,10 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                   <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Harga (Rp)</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     required
-                    value={editingProduct.price}
-                    onChange={e => setEditingProduct({ ...editingProduct, price: e.target.value })}
+                    defaultValue={editingProduct.price}
+                    onChange={e => { editingProduct.price = e.target.value; }}
                     style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                   />
                 </div>
@@ -2033,9 +2121,10 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                   <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Stok</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     required
-                    value={editingProduct.stock}
-                    onChange={e => setEditingProduct({ ...editingProduct, stock: e.target.value })}
+                    defaultValue={editingProduct.stock}
+                    onChange={e => { editingProduct.stock = e.target.value; }}
                     style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', marginTop: 4, boxSizing: 'border-box', background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                   />
                 </div>
@@ -2213,8 +2302,12 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
                   </button>
                 </div>
                 <textarea
-                  value={editingProduct.description}
-                  onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                  defaultValue={editingProduct.description}
+                  key={`edit-desc-${editingProduct.id}-${editingProduct.description ? 'ai-set' : 'manual'}`}
+                  onChange={e => { editingProduct.description = e.target.value; }}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck="false"
                   style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid var(--am-border)', boxSizing: 'border-box', height: 80, fontSize: 12.5, background: 'var(--am-bg2)', color: 'var(--am-text)' }}
                 />
               </div>
@@ -2237,13 +2330,14 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── 🤖 MODAL LAPORAN ANALISIS AI PRODUK ── */}
-      {selectedAiReport && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="am-card" style={{ width: '100%', maxWidth: 540, padding: 24, borderRadius: 24, background: 'var(--am-surface)', maxHeight: '90vh', overflowY: 'auto' }}>
+      {selectedAiReport && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/50 animate-fade-in">
+          <div className="fixed inset-x-0 bottom-0 md:bottom-auto md:top-1/2 md:-translate-y-1/2 mx-auto w-full max-w-lg bg-white dark:bg-gray-900 rounded-t-3xl md:rounded-3xl p-5 shadow-2xl z-50 max-h-[85vh] overflow-y-auto" style={{ color: 'var(--am-text)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, borderBottom: '1px solid var(--am-border)', paddingBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 14, background: 'linear-gradient(135deg, #10B981, #059669)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
@@ -2420,7 +2514,8 @@ export default function SellerDashboard({ theme: _theme, campus: _campus, seller
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 🎓 KTM Seller Verification Modal */}

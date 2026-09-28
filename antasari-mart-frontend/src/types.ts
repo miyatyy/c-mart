@@ -41,9 +41,23 @@ export interface SessionUser {
   rejectionReason?: string
   [key: string]: unknown
 }
+export * from './types/auth';
+
 export type PaymentMethod = 'qris' | 'dana' | 'gopay' | 'cod' | 'seabank' | 'campus_wallet' | 'qris_sim'
 export type DeliveryMethod = 'courier' | 'pickup'
-export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'searching_driver' | 'driver_found' | 'picked_up' | 'on_the_way' | 'delivered' | 'cancelled'
+export type OrderStatus = 
+  | 'pending'
+  | 'confirmed'
+  | 'processing'
+  | 'driver_assigned'
+  | 'picked_up'
+  | 'delivered'
+  | 'completed'
+  | 'preparing'
+  | 'searching_driver'
+  | 'driver_found'
+  | 'on_the_way'
+  | 'cancelled'
 export type ProductCategory = 'makanan' | 'minuman' | 'pakaian' | 'atk' | 'kerajinan' | 'jasa' | 'buku' | 'aksesoris'
 
 export interface User {

@@ -551,9 +551,9 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
   }
 
   return (
-    <div style={{ padding: '24px 16px 80px', maxWidth: 800, margin: '0 auto', fontFamily: 'var(--am-font-body)' }}>
+    <div className="max-w-3xl mx-auto p-4 md:p-6 flex flex-col items-center min-h-screen pb-16 w-full" style={{ fontFamily: 'var(--am-font-body)' }}>
       {step === 'form' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="w-full flex flex-col gap-5">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button onClick={onBack} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--am-text)' }}>
               ←
@@ -682,9 +682,9 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
           )}
 
           {/* Metode Pembayaran */}
-          <div className="am-card" style={{ padding: 20, borderRadius: 20, background: 'var(--am-surface)' }}>
+          <div className="am-card w-full" style={{ padding: 20, borderRadius: 20, background: 'var(--am-surface)' }}>
             <h3 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700, color: 'var(--am-text)' }}>Pilih Metode Pembayaran</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full mb-6">
               {[
                 { id: 'qris_sim', label: '⚡ QRIS Dinamis (Simulator)', desc: 'Scan & Instan Otomatis' },
                 { id: 'campus_wallet', label: '💳 Dompet Kampus', desc: `Saldo: ${formatRupiah(walletBalance)}` },
@@ -716,23 +716,23 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
 
             {/* Kotak QRIS Dinamis Simulator */}
             {payment === 'qris_sim' && (
-              <div style={{ padding: 18, borderRadius: 16, background: 'var(--am-bg2)', border: '1.5px solid #10B981', marginTop: 14, textAlign: 'center' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(16, 185, 129, 0.15)', color: '#059669', padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 800, marginBottom: 10 }}>
+              <div className="w-full max-w-md mx-auto flex flex-col items-center justify-center p-6 rounded-2xl bg-[var(--am-bg2)] border-2 border-emerald-500 shadow-xl my-4 text-center">
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(16, 185, 129, 0.15)', color: '#059669', padding: '4px 12px', borderRadius: 12, fontSize: 11.5, fontWeight: 800, marginBottom: 12 }}>
                   <span>⚡ QRIS DINAMIS KAMPUS SIMULATOR</span>
                 </div>
-                <div style={{ display: 'inline-block', padding: 12, background: 'white', borderRadius: 16, boxShadow: '0 4px 15px rgba(0,0,0,0.08)', marginBottom: 10 }}>
+                <div style={{ display: 'inline-block', padding: 14, background: 'white', borderRadius: 20, boxShadow: '0 6px 20px rgba(0,0,0,0.1)', marginBottom: 12 }}>
                   <QRCodeSVG
                     value={`00020101021226580016ID.CO.CAMPUSMART0118936000000000000000520454115303360540${total}5802ID5912ANTASARIMART6013BANJARMASIN6304ABCD`}
-                    size={155}
+                    size={175}
                   />
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--am-text-muted)', marginBottom: 2 }}>
                   Nominal Pembayaran:
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--am-primary)', marginBottom: 6 }}>
+                <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--am-primary)', marginBottom: 6 }}>
                   {formatRupiah(total)}
                 </div>
-                <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>
                   ⏱️ Selesaikan pembayaran dalam: <strong style={{ color: '#e11d48' }}>{Math.floor(qrisSecsLeft / 60).toString().padStart(2, '0')}:{(qrisSecsLeft % 60).toString().padStart(2, '0')}</strong>
                 </div>
                 <button
@@ -743,15 +743,18 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                   }}
                   disabled={loadingPayment}
                   style={{
-                    padding: '10px 20px',
-                    borderRadius: 12,
+                    width: '100%',
+                    maxWidth: 320,
+                    padding: '12px 24px',
+                    borderRadius: 14,
                     border: 'none',
                     background: 'linear-gradient(135deg, #10B981, #059669)',
                     color: 'white',
-                    fontSize: 12.5,
+                    fontSize: 13,
                     fontWeight: 800,
                     cursor: 'pointer',
-                    boxShadow: '0 3px 10px rgba(16, 185, 129, 0.3)'
+                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   ⚡ Simulasi Bayar QRIS Sukses (Instan)
