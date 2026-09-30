@@ -27,7 +27,7 @@ const DB_PASS = process.env.DB_PASS || '140203';
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = process.env.DB_PORT || 5432;
 
-const isRemoteDb = DB_HOST && !['localhost', '127.0.0.1'].includes(DB_HOST.toLowerCase());
+const isRemoteDb = (process.env.DB_SSL === 'true') || (DB_HOST && !['localhost', '127.0.0.1', 'postgres'].includes(DB_HOST.toLowerCase()) && DB_HOST.includes('.'));
 
 const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
   host: DB_HOST,
