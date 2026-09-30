@@ -656,6 +656,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { sendSocketMessage } from '../../lib/socket';
+import { sendChatApi } from '../../lib/api';
 import {
   sendCloudChat,
   pushCloudChatMessage,
@@ -791,8 +792,8 @@ const FIXED_SUPPORT_ACCOUNTS: CurrentUser[] = [
     avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Koperasi'
   },
   {
-    id: 'admin_nurmiyaty',
-    email: 'miyya@gmail.com',
+    id: '1',
+    email: 'nurmiyaty@gmail.com',
     name: 'Nurmiyaty (Super Admin)',
     role: 'superadmin',
     avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Nurmiyaty'
@@ -834,12 +835,12 @@ const getActiveUser = (): CurrentUser => {
 
   const rawFallbackId = String(props.currentUserId || 'guest_user').trim();
   const fallbackNormId = normalizeUserId(rawFallbackId);
-  const isSuper = fallbackNormId === 'admin_nurmiyaty' || (props.currentUserName?.toLowerCase().includes('admin') && !props.currentUserName?.toLowerCase().includes('koperasi'));
-  const isCoop = fallbackNormId === 'coop_koperasi' || props.currentUserName?.toLowerCase().includes('koperasi');
+  const isSuper = fallbackNormId === '1' || fallbackNormId === 'admin_nurmiyaty' || (props.currentUserName?.toLowerCase().includes('admin') && !props.currentUserName?.toLowerCase().includes('koperasi'));
+  const isCoop = fallbackNormId === '4' || fallbackNormId === 'coop_koperasi' || props.currentUserName?.toLowerCase().includes('koperasi');
 
   return {
-    id: isSuper ? 'admin_nurmiyaty' : (isCoop ? 'coop_koperasi' : fallbackNormId),
-    email: isSuper ? 'miyya@gmail.com' : (isCoop ? 's1' : `${fallbackNormId}@campusmart.ac.id`),
+    id: isSuper ? '1' : (isCoop ? '4' : fallbackNormId),
+    email: isSuper ? 'nurmiyaty@gmail.com' : (isCoop ? 'koperasi@antasari.ac.id' : `${fallbackNormId}@campusmart.ac.id`),
     name: props.currentUserName || (isSuper ? 'Nurmiyaty (Super Admin)' : (isCoop ? 'Admin Koperasi' : 'Pengguna Kampus')),
     role: isSuper ? 'superadmin' : (isCoop ? 'coop_admin' : 'buyer'),
     avatar: isSuper ? 'https://api.dicebear.com/7.x/adventurer/svg?seed=Nurmiyaty' : (isCoop ? 'https://api.dicebear.com/7.x/adventurer/svg?seed=Koperasi' : `https://api.dicebear.com/7.x/identicon/svg?seed=${fallbackNormId}`)
@@ -935,9 +936,9 @@ const getContactsForUser = (user: CurrentUser) => {
   // 1. Kontak Admin Resmi (Hanya tampilkan jika BUKAN akun yang sedang login)
   if (!isUserSuperAdmin) {
     list.push({
-      id: 'admin_nurmiyaty',
-      partner_id: 'admin_nurmiyaty',
-      partner_email: 'miyya@gmail.com',
+      id: '1',
+      partner_id: '1',
+      partner_email: 'nurmiyaty@gmail.com',
       name: 'Nurmiyaty (Super Admin)',
       role: 'superadmin',
       avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Nurmiyaty',
@@ -948,9 +949,9 @@ const getContactsForUser = (user: CurrentUser) => {
 
   if (!isUserCoopAdmin) {
     list.push({
-      id: 'coop_koperasi',
-      partner_id: 'coop_koperasi',
-      partner_email: 's1',
+      id: '4',
+      partner_id: '4',
+      partner_email: 'koperasi@antasari.ac.id',
       name: 'Admin Koperasi UIN Antasari',
       role: 'coop_admin',
       avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Koperasi',
@@ -1630,7 +1631,7 @@ const getRoomId = (userIdA: string, userIdB: string, orderId?: string): string =
 const currentDeterministicRoomId = computed(() => {
   const normCurrent = getNormalizedId(currentUser.value) || String(currentUser.value?.id || 'guest');
   const activePartner = selectedChat.value || defaultPartner.value;
-  const normPartner = getNormalizedId(activePartner) || (normCurrent === 'admin_nurmiyaty' ? 'coop_koperasi' : 'admin_nurmiyaty');
+  const normPartner = getNormalizedId(activePartner) || (normCurrent === '1' ? '4' : '1');
   return getRoomId(normCurrent, normPartner);
 });
 
@@ -1638,7 +1639,7 @@ const activeRoom = computed(() => {
   const detRoomId = currentDeterministicRoomId.value;
   const partner = selectedChat.value || defaultPartner.value;
   const normCurrent = getNormalizedId(currentUser.value);
-  const otherId = getNormalizedId(partner) || (normCurrent === 'admin_nurmiyaty' ? 'coop_koperasi' : 'admin_nurmiyaty');
+  const otherId = getNormalizedId(partner) || (normCurrent === '1' ? '4' : '1');
   return {
     id: detRoomId,
     room_id: detRoomId,
@@ -1659,10 +1660,10 @@ const sendAIMessageFromSeller = async (aiContent: string) => {
   if (!aiContent || !aiContent.trim()) return;
 
   const currentRoom = activeRoom.value?.id || currentDeterministicRoomId.value || 'room_default';
-  const mySenderId = currentUser.value?.id || 'seller_user';
+  const mySenderId = getNormalizedId(currentUser.value) || '3';
   const mySenderName = currentUser.value?.name || 'Penjual';
   const partner = selectedChat.value || defaultPartner.value;
-  const partnerId = partner?.id || 'admin_nurmiyaty';
+  const partnerId = getNormalizedId(partner) || '1';
   const partnerName = activePartnerName.value || partner?.name || 'Lawan Bicara';
   const partnerRole = activePartnerRole.value || partner?.role || 'buyer';
 
@@ -1799,7 +1800,7 @@ const deduplicatedContacts = computed(() => {
     if (!c || !c.id) return false;
     const contactId = String(c.id || c.partner_id || '').toLowerCase().trim();
     if (contactId === myId) return false;
-    if (myId.includes('admin') && contactId.includes('admin_nurmiyaty')) return false;
+    if ((myId === '1' || myId.includes('admin')) && (contactId === '1' || contactId.includes('admin_nurmiyaty'))) return false;
     if (isSelfUser(c, myId, myEmail, myName, myRole)) return false;
     return true;
   });
@@ -2549,10 +2550,10 @@ const getUnifiedChatHistory = (userIdA: string, userIdB: string): ChatMessage[] 
 // 📥 MUAT RIWAYAT OBROLAN (< 24 JAM) DARI CLOUD SYNC & CACHE LOKAL
 const loadChatHistory = async () => {
   try {
-    const myId = currentUser.value?.id || 'admin_nurmiyaty';
-    const myNormId = normalizeUserId(myId);
-    const partnerId = (activeRoom.value as any)?.otherId || selectedChat.value?.id || selectedChat.value?.partner_id || (myNormId === 'admin_nurmiyaty' ? 'coop_koperasi' : 'admin_nurmiyaty');
-    const partnerNormId = normalizeUserId(partnerId);
+    const myId = normalizeUserId(currentUser.value?.id) || '1';
+    const myNormId = myId;
+    const partnerId = normalizeUserId((activeRoom.value as any)?.otherId || selectedChat.value?.id || selectedChat.value?.partner_id || (myNormId === '1' ? '4' : '1'));
+    const partnerNormId = partnerId;
     const targetRoomId = getRoomId(myNormId, partnerNormId);
 
     // 1. Ambil dari gabungan cache lokal yang terpisah (instan render & self-healing)
@@ -2663,7 +2664,7 @@ const handleReactToMessage = async (msgId: any, emoji: string) => {
   if (!msgId || !emoji) return;
   const sMsgId = String(msgId);
   const currentRoomId = activeRoom.value?.id || props.roomId || selectedChat.value?.id || 'global';
-  const partnerId = (activeRoom.value as any)?.otherId || (selectedChat.value as any)?.partner_email || selectedChat.value?.partner_id || selectedChat.value?.id || 'admin_nurmiyaty';
+  const partnerId = normalizeUserId((activeRoom.value as any)?.otherId || (selectedChat.value as any)?.partner_email || selectedChat.value?.partner_id || selectedChat.value?.id || '1');
   const myId = String(currentUser.value?.email || currentUser.value?.id || 'me').toLowerCase().trim();
 
   // 1. Tentukan apakah aksi ini toggle add atau toggle remove
@@ -2779,7 +2780,7 @@ const submitEditMessage = async () => {
   if (editingMessageId.value == null || !editingText.value.trim()) return;
   const msgId = editingMessageId.value;
   const newText = editingText.value.trim();
-  const partnerId = (activeRoom.value as any)?.otherId || (selectedChat.value as any)?.partner_email || selectedChat.value?.partner_id || selectedChat.value?.id || 'admin_nurmiyaty';
+  const partnerId = normalizeUserId((activeRoom.value as any)?.otherId || (selectedChat.value as any)?.partner_email || selectedChat.value?.partner_id || selectedChat.value?.id || '1');
   const currentRoomId = activeRoom.value?.id || props.roomId || selectedChat.value?.id || 'global';
 
   const targetMsg = messages.value.find(m => String(m.id) === String(msgId) || ((m as any).client_id && String((m as any).client_id) === String(msgId)));
@@ -2827,7 +2828,7 @@ const handleDeleteMessage = async (msgId: string | number | undefined) => {
   const confirmed = typeof window !== 'undefined' ? window.confirm('Apakah Anda yakin ingin menghapus pesan ini untuk semua orang?') : true;
   if (!confirmed) return;
 
-  const partnerId = (activeRoom.value as any)?.otherId || (selectedChat.value as any)?.partner_email || selectedChat.value?.partner_id || selectedChat.value?.id || 'admin_nurmiyaty';
+  const partnerId = normalizeUserId((activeRoom.value as any)?.otherId || (selectedChat.value as any)?.partner_email || selectedChat.value?.partner_id || selectedChat.value?.id || '1');
   const currentRoomId = activeRoom.value?.id || props.roomId || selectedChat.value?.id || 'global';
 
   // 1. Update status lokal seketika
@@ -3004,8 +3005,8 @@ const handleIncomingReactionAdded = (data: { id?: string | number; msgId?: strin
 
 // ⌨️ Handler Mengetik Real-time ke Soketi & BroadcastChannel
 const handleTypingInput = () => {
-  const currentUserId = currentUser.value?.id;
-  const partnerId = (activeRoom.value as any)?.otherId || (selectedChat.value as any)?.partner_email || selectedChat.value?.partner_id || selectedChat.value?.id || 'admin_nurmiyaty';
+  const currentUserId = normalizeUserId(currentUser.value?.id);
+  const partnerId = normalizeUserId((activeRoom.value as any)?.otherId || (selectedChat.value as any)?.partner_email || selectedChat.value?.partner_id || selectedChat.value?.id || '1');
   const roomId = String(activeRoom.value?.id || props.roomId || selectedChat.value?.id || 'room_default');
   const myName = currentUser.value?.name || 'Pengguna Kampus';
 
@@ -3618,30 +3619,17 @@ const handleKirimPesan = () => {
     isSendingMessage = false;
   }, 350);
 
-  let myId = currentUser.value?.id || 'guest_user';
-  const myNorm = normalizeUserId(myId);
-  if (myNorm === 'admin_nurmiyaty') myId = 'admin_nurmiyaty';
-  if (myNorm === 'coop_koperasi') myId = 'coop_koperasi';
-
+  let myId = normalizeUserId(currentUser.value?.id || 'guest_user');
   const activePartner = selectedChat.value || defaultPartner.value;
-  let partnerId = activePartner?.id || activePartner?.partner_id || (myId === 'admin_nurmiyaty' ? 'coop_koperasi' : 'admin_nurmiyaty');
-
-  if (
-    String(partnerId).toLowerCase().includes('admin') ||
-    String(partnerId).toLowerCase().includes('nurmiyaty') ||
-    String(activePartner?.name || '').toLowerCase().includes('admin') ||
-    String(activePartner?.name || '').toLowerCase().includes('nurmiyaty')
-  ) {
-    partnerId = 'admin_nurmiyaty';
-  }
+  let partnerId = normalizeUserId(activePartner?.id || activePartner?.partner_id || (myId === '1' ? '4' : '1'));
 
   // 🎯 STANDARISASI NAMA CHANNEL & ROOM DETERMINISTIK:
   let currentRoomId = getRoomId(myId, partnerId);
 
   const partnerName = activePartnerName.value || activePartner?.name || 'Lawan Bicara';
   const partnerRole = activePartnerRole.value || activePartner?.role || 'buyer';
-  const myName = currentUser.value?.name || (myId === 'admin_nurmiyaty' ? 'Nurmiyaty (Super Admin)' : myId === 'coop_koperasi' ? 'Admin Koperasi' : 'Pengguna Kampus');
-  const myRole = currentUser.value?.role || (myId === 'admin_nurmiyaty' ? 'superadmin' : myId === 'coop_koperasi' ? 'coop_admin' : 'buyer');
+  const myName = currentUser.value?.name || (myId === '1' ? 'Nurmiyaty (Super Admin)' : myId === '4' ? 'Admin Koperasi' : 'Pengguna Kampus');
+  const myRole = currentUser.value?.role || (myId === '1' ? 'superadmin' : myId === '4' ? 'coop_admin' : 'buyer');
 
   const replyPayload = replyingToMessage.value ? {
     id: replyingToMessage.value.id,
@@ -3682,6 +3670,22 @@ const handleKirimPesan = () => {
 
   // 1. Tampilkan pesan ke riwayat chat lokal (kanan / hijau) dengan proteksi anti-dobel ketat
   appendMessageSafe(payload);
+
+  // 1.2 Simpan ke PostgreSQL database via REST API terlebih dahulu
+  try {
+    sendChatApi({
+      id: payload.id,
+      fromId: myId,
+      fromName: myName,
+      fromRole: myRole,
+      fromAvatar: currentUser.value.avatar,
+      toId: String(partnerId),
+      toName: partnerName,
+      toRole: partnerRole,
+      toAvatar: activePartnerAvatar.value,
+      text: textToSend
+    }).catch(e => console.warn('POST /api/chats error:', e));
+  } catch (_e) {}
 
   // 1.5 SINKRONKAN PREVIEW TEKS KONTAK DI SISI PENGIRIM & bawa ke urutan paling atas
   const partnerToUpdate = contacts.value.find((c: any) => {

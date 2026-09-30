@@ -21,6 +21,23 @@ const path = require('path');
 const fs = require('fs');
 const { getCache, setCache, delCache, delCachePattern } = require('./redis');
 
+// ⚡ Inisialisasi Pusher / Soketi Server Client untuk Realtime Broadcast
+let pusher = null;
+try {
+  const Pusher = require('pusher');
+  pusher = new Pusher({
+    appId: process.env.PUSHER_APP_ID || 'campusmart-app',
+    key: process.env.PUSHER_APP_KEY || 'campusmart-key',
+    secret: process.env.PUSHER_APP_SECRET || 'campusmart-secret',
+    host: process.env.SOKETI_HOST || 'soketi',
+    port: parseInt(process.env.SOKETI_PORT || '6001'),
+    useTLS: false
+  });
+  console.log('⚡ [Soketi/Pusher] Engine siap siar ke host:', process.env.SOKETI_HOST || 'soketi');
+} catch (pErr) {
+  console.warn('⚠️ [Soketi/Pusher] Inisialisasi Pusher warning:', pErr.message);
+}
+
 // 🔒 Direktori Privat Foto KTM (Tidak dapat diakses publik)
 const KTM_PRIVATE_DIR = path.join(__dirname, 'private_uploads', 'ktm');
 try {
@@ -331,16 +348,64 @@ const BugReport = sequelize.define('BugReport', {
 
 BugReport.sync({ alter: true }).catch(err => console.warn('⚠️ BugReport sync error:', err.message));
 
-function buildRoomId(emailA, emailB) {
-  return [String(emailA).toLowerCase(), String(emailB).toLowerCase()].sort().join('__');
+/**
+ * 🎯 Normalisasi ID Kontak Deterministik (Deduplikasi Total: Super Admin = '1', Koperasi = '4')
+ */
+function normalizeUserId(rawId) {
+  const clean = String(rawId || '').toLowerCase().trim();
+  if (!clean) return '';
+  if (
+    clean === '1' ||
+    clean === 'admin_nurmiyaty' ||
+    clean === 'superadmin' ||
+    clean === 'super_admin' ||
+    clean === 'nurmiyaty' ||
+    clean === 'nurmiyaty@gmail.com' ||
+    clean === 'miyya@gmail.com' ||
+    clean === 'mnurmiyaty2@gmail.com' ||
+    clean.includes('nurmiyaty') ||
+    (clean.includes('admin') && !clean.includes('koperasi'))
+  ) {
+    return '1';
+  }
+  if (
+    clean === '4' ||
+    clean === 'coop_koperasi' ||
+    clean === 'coop_admin' ||
+    clean === 'koperasi' ||
+    clean === 'koperasi@antasari.ac.id' ||
+    clean.includes('koperasi') ||
+    clean === 's1'
+  ) {
+    return '4';
+  }
+  if (clean === '2' || clean === 'pembeli@antasari.ac.id' || clean.includes('fauzi')) {
+    return '2';
+  }
+  if (clean === '3' || clean === 'seller1@antasari.ac.id' || clean === 'seller_1' || clean.includes('myammiy')) {
+    return '3';
+  }
+  if (clean === '5' || clean === 'driver@antasari.ac.id' || clean.includes('budi')) {
+    return '5';
+  }
+  return clean;
 }
 
 /**
- * 🎯 Standar Deterministic Room ID Generator (Sesuai Spesifikasi Sistem)
- * orderId ? `order_${orderId}_${sorted[0]}_${sorted[1]}` : `chat_${sorted[0]}_${sorted[1]}`
+ * 🎯 Standarisasi Penamaan Channel WebSocket Deterministik:
+ * const channelName = `chat_${[userIdA, userIdB].sort().join('_')}`;
  */
+function buildRoomId(userA, userB) {
+  const normA = normalizeUserId(userA);
+  const normB = normalizeUserId(userB);
+  const sorted = [normA, normB].sort();
+  return `chat_${sorted[0]}_${sorted[1]}`;
+}
+
 function getRoomId(userA, userB, orderId) {
-  const sorted = [String(userA || '').toLowerCase().trim(), String(userB || '').toLowerCase().trim()].sort();
+  const normA = normalizeUserId(userA);
+  const normB = normalizeUserId(userB);
+  const sorted = [normA, normB].sort();
   return orderId ? `order_${orderId}_${sorted[0]}_${sorted[1]}` : `chat_${sorted[0]}_${sorted[1]}`;
 }
 
@@ -1870,14 +1935,19 @@ app.get('/api/chats/:identifier', async (req, res) => {
 
 app.post('/api/chats', async (req, res) => {
   try {
-    const { fromId, fromName, fromRole, toId, toName, toRole, text } = req.body;
+    const { fromId, fromName, fromRole, fromAvatar, toId, toName, toRole, toAvatar, text, mediaType, mediaUrl, audioDuration } = req.body;
     if (!text || !text.trim()) {
       return res.status(400).json({ success: false, message: 'Isi pesan tidak boleh kosong!' });
     }
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const roomId = buildRoomId(fromId, toId);
+    
+    // 🎯 1. Normalisasi ID dan Channel Deterministik: chat_${[normA, normB].sort().join('_')}
+    const normFrom = normalizeUserId(fromId);
+    const normTo = normalizeUserId(toId);
+    const roomId = buildRoomId(normFrom, normTo);
+    const channelName = roomId;
 
-    const cleanReceiverId = String(toId).toLowerCase().trim();
+    const cleanReceiverId = String(normTo).toLowerCase().trim();
     const isReceiverOnline = onlineUsers.has(cleanReceiverId) && onlineUsers.get(cleanReceiverId).size > 0;
     const roomSockets = io.sockets.adapter.rooms.get(roomId);
     const isRoomActive = roomSockets && roomSockets.size > 1;
@@ -1885,60 +1955,104 @@ app.post('/api/chats', async (req, res) => {
 
     let savedChat = null;
 
-    // 🍃 1. Simpan ke MongoDB (Utama)
-    if (isMongoConnected) {
-      try {
-        const mChat = await MongoChat.create({
-          roomId,
-          senderId: fromId,
-          senderName: fromName || fromId,
-          senderRole: fromRole || 'buyer',
-          receiverId: toId,
-          receiverName: toName || toId,
-          receiverRole: toRole || 'seller',
-          text: text.trim(),
-          time: timeNow,
-          status: initialStatus,
-          isRead: false
-        });
-        savedChat = { ...mChat.toObject(), id: String(mChat._id) };
-      } catch (mErr) {
-        console.warn('Gagal simpan ke MongoDB:', mErr.message);
-      }
-    }
-
-    // 🐘 2. Simpan cadangan ke PostgreSQL
+    // 🐘 2. Simpan Utama ke PostgreSQL
     const pgChat = await Chat.create({
       roomId,
-      senderId: fromId, 
-      senderName: fromName || fromId, 
+      senderId: normFrom, 
+      senderName: fromName || normFrom, 
       senderRole: fromRole || 'buyer',
-      receiverId: toId, 
-      receiverName: toName || toId, 
-      receiverRole: toRole || 'buyer',
+      receiverId: normTo, 
+      receiverName: toName || normTo, 
+      receiverRole: toRole || 'seller',
       text: text.trim(), 
       time: timeNow,
       status: initialStatus,
       isRead: false
     });
 
-    if (!savedChat) {
-      savedChat = pgChat;
+    // 🍃 3. Simpan Cadangan ke MongoDB (jika aktif)
+    if (isMongoConnected) {
+      try {
+        const mChat = await MongoChat.create({
+          roomId,
+          senderId: normFrom,
+          senderName: fromName || normFrom,
+          senderRole: fromRole || 'buyer',
+          receiverId: normTo,
+          receiverName: toName || normTo,
+          receiverRole: toRole || 'seller',
+          text: text.trim(),
+          time: timeNow,
+          status: initialStatus,
+          isRead: false
+        });
+        savedChat = { ...mChat.toObject(), id: pgChat.id };
+      } catch (mErr) {
+        console.warn('Gagal simpan ke MongoDB:', mErr.message);
+      }
     }
 
-    // ⚡ Pancarkan pesan ke WebSocket Clients secara Real-Time
+    if (!savedChat) {
+      savedChat = pgChat.toJSON ? pgChat.toJSON() : pgChat;
+    }
+
+    const broadcastPayload = {
+      ...savedChat,
+      id: pgChat.id,
+      roomId,
+      room_id: roomId,
+      senderId: normFrom,
+      sender_id: normFrom,
+      senderName: fromName || normFrom,
+      sender_name: fromName || normFrom,
+      senderRole: fromRole || 'buyer',
+      sender_role: fromRole || 'buyer',
+      senderAvatar: fromAvatar || '',
+      receiverId: normTo,
+      receiver_id: normTo,
+      receiverName: toName || normTo,
+      receiver_name: toName || normTo,
+      receiverRole: toRole || 'seller',
+      receiver_role: toRole || 'seller',
+      receiverAvatar: toAvatar || '',
+      text: text.trim(),
+      content: text.trim(),
+      time: timeNow,
+      createdAt: pgChat.createdAt,
+      created_at: pgChat.createdAt,
+      mediaType: mediaType || 'text',
+      mediaUrl: mediaUrl || '',
+      audioDuration: audioDuration || 0,
+      status: initialStatus
+    };
+
+    // ⚡ 4. Siarkan (Broadcast) Event 'new-message' ke Soketi Channel Deterministik
+    if (pusher) {
+      try {
+        await pusher.trigger(channelName, 'new-message', broadcastPayload);
+        await pusher.trigger(channelName, 'client-new-message', broadcastPayload);
+        console.log(`📡 [Soketi Broadcast] Event 'new-message' disiarkan ke '${channelName}' (Sender: ${normFrom} -> Receiver: ${normTo})`);
+      } catch (soketiErr) {
+        console.warn('⚠️ [Soketi Broadcast Warning]:', soketiErr.message);
+      }
+    }
+
+    // ⚡ 5. Pancarkan juga ke Socket.IO Clients
     try {
-      io.to(roomId).emit('receive_message', savedChat);
-      io.to(roomId).emit('new_message', savedChat);
-      io.emit('new_chat_notification', savedChat);
-      io.emit('chat_list_update', savedChat);
+      io.to(roomId).emit('new-message', broadcastPayload);
+      io.to(roomId).emit('receive_message', broadcastPayload);
+      io.to(roomId).emit('new_message', broadcastPayload);
+      io.emit('new_chat_notification', broadcastPayload);
+      io.emit('chat_list_update', broadcastPayload);
     } catch (_wsErr) {}
 
-    res.json({ success: true, message: "Pesan terkirim dan tersimpan di database!", chat: savedChat });
+    res.json({ success: true, message: "Pesan terkirim dan tersimpan di database!", chat: broadcastPayload });
   } catch (error) {
+    console.error('Error POST /api/chats:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
 
 // 👀 TANDAI PESAN CHAT SEBAGAI SUDAH DIBACA (READ STATUS SYNC)
 const handleMarkChatAsRead = async (req, res) => {

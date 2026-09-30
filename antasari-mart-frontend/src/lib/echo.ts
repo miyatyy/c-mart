@@ -23,18 +23,26 @@ export interface SoketiConfig {
  * Host dinamis: mengikuti window.location.hostname (otomatis 192.168.18.12 di HP, localhost di Laptop)
  */
 export function getSoketiConfig(): SoketiConfig {
-  const isLocal = typeof window !== 'undefined' && (
-    window.location.hostname.includes('192.168') ||
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1'
-  );
-  const socketHost = isLocal ? window.location.hostname : '192.168.18.12';
+  const isBrowser = typeof window !== 'undefined';
+  const socketHost = isBrowser ? window.location.hostname : '127.0.0.1';
+  const key = (import.meta.env.VITE_SOKETI_KEY as string) || 'campusmart-key';
+
+  let port = 6001;
+  if (isBrowser) {
+    if (window.location.port === '5173' || window.location.port === '3000') {
+      port = Number(import.meta.env.VITE_SOKETI_PORT || 6002);
+    } else if (window.location.port) {
+      port = Number(window.location.port);
+    } else {
+      port = window.location.protocol === 'https:' ? 443 : 80;
+    }
+  }
 
   return {
-    key: (import.meta.env.VITE_SOKETI_KEY as string) || 'campusmartkey',
+    key: key,
     host: socketHost,
-    port: Number(import.meta.env.VITE_SOKETI_PORT || 6001),
-    forceTLS: false
+    port: port,
+    forceTLS: isBrowser ? window.location.protocol === 'https:' : false
   };
 }
 
@@ -159,6 +167,8 @@ export function subscribeToSoketiRoom(
   const normA = normalizeUserId(currentUserId);
   const normB = normalizeUserId(partnerId);
   const sortedIds = [normA, normB].sort();
+  // 🎯 STANDARISASI PENAMAAN CHANNEL WEBSOCKET (DETERMINISTIC CHANNEL)
+  const deterministicChannel = `chat_${sortedIds[0]}_${sortedIds[1]}`;
   const rawRoomName = `room_${sortedIds[0]}_${sortedIds[1]}`;
   const dotChannelName = `chat.${rawRoomName}`;
   const globalChannelName = `campusmart-chat`;
@@ -234,11 +244,13 @@ export function subscribeToSoketiRoom(
   };
 
   const allChannelNames = Array.from(new Set([
+    deterministicChannel,
+    `chat_${sortedIds[1]}_${sortedIds[0]}`,
+    rawRoomName,
     dotChannelName,
     globalChannelName,
     globalChatChannel,
     channelName,
-    rawRoomName,
     roomPrefixedChannel,
     privateChannelName,
     legacyChannelName
@@ -359,6 +371,8 @@ export function broadcastSoketiAction(
   const normA = normalizeUserId(currentUserId);
   const normB = normalizeUserId(partnerId);
   const sortedIds = [normA, normB].sort();
+  // 🎯 STANDARISASI PENAMAAN CHANNEL DETERMINISTIK: chat_${[userIdA, userIdB].sort().join('_')}
+  const deterministicChannel = `chat_${sortedIds[0]}_${sortedIds[1]}`;
   const rawRoomName = `room_${sortedIds[0]}_${sortedIds[1]}`;
   const dotChannelName = `chat.${rawRoomName}`;
   const globalChannelName = `campusmart-chat`;
@@ -369,11 +383,13 @@ export function broadcastSoketiAction(
   const legacyChannelName = `chat-room-${sortedIds[0]}___${sortedIds[1]}`;
 
   const allChannelNames = Array.from(new Set([
+    deterministicChannel,
+    `chat_${sortedIds[1]}_${sortedIds[0]}`,
+    rawRoomName,
     dotChannelName,
     globalChannelName,
     globalChatChannel,
     channelName,
-    rawRoomName,
     roomPrefixedChannel,
     privateChannelName,
     legacyChannelName
@@ -640,7 +656,7 @@ export function getSoketiRoomChannel(currentUserId: string, partnerId: string) {
   const normA = normalizeUserId(currentUserId);
   const normB = normalizeUserId(partnerId);
   const sortedIds = [normA, normB].sort();
-  const channelName = `chat-room-${sortedIds[0]}-${sortedIds[1]}`;
+  const channelName = `chat_${sortedIds[0]}_${sortedIds[1]}`;
 
   const pusher = getPusherClient();
   if (pusher) {

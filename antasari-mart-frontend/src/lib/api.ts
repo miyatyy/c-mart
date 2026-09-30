@@ -11,6 +11,10 @@ export const API_BASE_URL = (() => {
       return 'https://antasari-mart-backend.vercel.app';
     }
     if (hn) {
+      // Jika di production atau dijalankan lewat Nginx (port 80, 8088, dsb), semua request /api/ di-reverse proxy oleh Nginx
+      if (window.location.port !== '5173') {
+        return '';
+      }
       return `${window.location.protocol}//${hn}:5000`;
     }
   }
@@ -646,14 +650,20 @@ export async function sendChatApi(payload: {
   mediaUrl?: string;
   audioDuration?: number;
 }) {
-  // Kirim ke backend jika online (background)
-  request<{ success: boolean; message: string; chat: BackendChatMessage }>('/api/chats', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  }).catch(() => {});
+  // 1. Simpan ke database PostgreSQL via REST API backend terlebih dahulu
+  let backendResult: any = null;
+  try {
+    backendResult = await request<{ success: boolean; message: string; chat: BackendChatMessage }>('/api/chats', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.warn('Backend /api/chats error:', err);
+  }
 
-  // Simpan & pancarkan ke Cloud Sync Engine (Sinkronisasi Instan Laptop & HP Mobile)
-  return sendCloudChat(payload);
+  // 2. Simpan & pancarkan ke Cloud Sync Engine lokal
+  const cloudResult = await sendCloudChat(payload);
+  return (backendResult && backendResult.chat) ? backendResult : cloudResult;
 }
 
 export async function deleteChatApi(id: number | string) {

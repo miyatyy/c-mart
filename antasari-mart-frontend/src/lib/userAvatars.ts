@@ -32,6 +32,13 @@ export const MYAMMIY_STORE_AVATAR = 'https://api.dicebear.com/7.x/adventurer/svg
 
 // 🎯 Mapping Profil Default & Akun Utama Antasari Mart
 export const KNOWN_USER_AVATARS: Record<string, string> = {
+  // Standardized Database IDs 1..5
+  '1': SUPER_ADMIN_AVATAR,
+  '2': 'https://api.dicebear.com/7.x/adventurer/svg?seed=AhmadFauzi&backgroundColor=ffd5dc',
+  '3': MYAMMIY_STORE_AVATAR,
+  '4': KOPERASI_ADMIN_AVATAR,
+  '5': DRIVER_DEFAULT_AVATAR,
+
   // Super Admin & Admin Koperasi (Fixed Support System)
   'admin_nurmiyaty': SUPER_ADMIN_AVATAR,
   'coop_koperasi': KOPERASI_ADMIN_AVATAR,
