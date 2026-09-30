@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Salin manifest dependensi dan pasang semua paket (termasuk devDependencies untuk build)
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Salin source code dan jalankan proses build
 COPY . .

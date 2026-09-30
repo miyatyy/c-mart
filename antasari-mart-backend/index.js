@@ -2058,6 +2058,8 @@ app.delete('/api/chats/:id', async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
+});
+
 // ⚡ Helper Broadcast ke Soketi Server (Port 6001)
 function broadcastToSoketiServer(channel, event, data) {
   try {
@@ -2068,8 +2070,8 @@ function broadcastToSoketiServer(channel, event, data) {
       data: data
     });
     const req = http.request({
-      hostname: '127.0.0.1',
-      port: 6001,
+      hostname: process.env.SOKETI_HOST || '127.0.0.1',
+      port: parseInt(process.env.SOKETI_PORT || '6001'),
       path: '/apps/campusmart/events',
       method: 'POST',
       headers: {
