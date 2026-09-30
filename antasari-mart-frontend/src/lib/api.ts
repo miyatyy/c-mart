@@ -1554,6 +1554,96 @@ export async function getOrderDetailsApi(orderId: string) {
   }
 }
 
+/**
+ * 🛵 Penjual Request Driver ke Pool Rebutan Driver
+ */
+export async function requestDriverApi(
+  orderId: string,
+  extra?: { sellerName?: string; notes?: string }
+) {
+  try {
+    const res = await request<{
+      success: boolean;
+      message: string;
+      order?: any;
+      job?: any;
+    }>(`/api/orders/${encodeURIComponent(orderId)}/request-driver`, {
+      method: 'POST',
+      body: JSON.stringify(extra || {})
+    });
+    return res;
+  } catch (err: any) {
+    console.error('Error requesting driver:', err);
+    return { success: false, message: err.message || 'Gagal memanggil driver' };
+  }
+}
+
+/**
+ * ⚡ Driver Mengklaim Orderan (Atomic First-Come-First-Served)
+ */
+export async function claimDriverApi(
+  orderId: string,
+  driverId: string,
+  driverName?: string
+) {
+  try {
+    const res = await request<{
+      success: boolean;
+      message: string;
+      order?: any;
+    }>(`/api/orders/${encodeURIComponent(orderId)}/claim-driver`, {
+      method: 'POST',
+      body: JSON.stringify({ driverId, driverName })
+    });
+    return res;
+  } catch (err: any) {
+    console.error('Error claiming order:', err);
+    return { success: false, message: err.message || 'Gagal mengambil orderan' };
+  }
+}
+
+/**
+ * 📍 Kirim Koordinat Driver Realtime (Live GPS Tracking)
+ */
+export async function sendDriverLocationApi(
+  orderId: string,
+  lat: number,
+  lng: number,
+  driverId?: string,
+  heading?: number,
+  speed?: number
+) {
+  try {
+    const res = await request<{
+      success: boolean;
+      coords: { lat: number; lng: number };
+    }>(`/api/orders/${encodeURIComponent(orderId)}/location`, {
+      method: 'POST',
+      body: JSON.stringify({ lat, lng, driverId, heading, speed })
+    });
+    return res;
+  } catch (err: any) {
+    return { success: false, message: err.message };
+  }
+}
+
+/**
+ * 📋 Ambil Daftar Orderan Delivery Terbuka yang Siap Diambil Driver
+ */
+export async function getAvailableDeliveryJobsApi() {
+  try {
+    const res = await request<{
+      success: boolean;
+      jobs: any[];
+    }>('/api/orders/available-jobs');
+    return res;
+  } catch (err: any) {
+    console.error('Error fetching available delivery jobs:', err);
+    return { success: false, jobs: [] };
+  }
+}
+
+
 
 
 

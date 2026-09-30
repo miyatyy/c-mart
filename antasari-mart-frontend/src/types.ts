@@ -43,18 +43,25 @@ export interface SessionUser {
 }
 export * from './types/auth';
 
-export type PaymentMethod = 'qris' | 'dana' | 'gopay' | 'cod' | 'seabank' | 'campus_wallet' | 'qris_sim'
-export type DeliveryMethod = 'courier' | 'pickup'
+export type PaymentMethod = 'qris' | 'dana' | 'gopay' | 'cod' | 'seabank' | 'campus_wallet' | 'qris_sim' | 'cash' | 'midtrans'
+export type DeliveryMethod = 'courier' | 'pickup' | 'delivery'
+export type DeliveryType = 'pickup' | 'delivery'
+export type PickupStatus = 'pending' | 'confirmed' | 'processing' | 'ready_for_pickup' | 'completed'
+export type DeliveryStatus = 'pending' | 'confirmed' | 'processing' | 'searching_driver' | 'driver_assigned' | 'picked_up' | 'delivering' | 'completed'
+export type TransactionPaymentStatus = 'unpaid' | 'paid'
+
 export type OrderStatus = 
   | 'pending'
   | 'confirmed'
   | 'processing'
+  | 'ready_for_pickup'
+  | 'searching_driver'
   | 'driver_assigned'
   | 'picked_up'
+  | 'delivering'
   | 'delivered'
   | 'completed'
   | 'preparing'
-  | 'searching_driver'
   | 'driver_found'
   | 'on_the_way'
   | 'cancelled'
@@ -127,21 +134,30 @@ export interface CartItem {
 
 export interface Order {
   id: string
-  buyerId: string
+  orderId?: string
+  sellerId?: string
+  sellerName?: string
+  buyerId?: string
   buyerName: string
+  buyerEmail?: string
   buyerLocation: string
   items: CartItem[]
   total: number
   deliveryFee: number
-  deliveryMethod: DeliveryMethod
-  paymentMethod: PaymentMethod
-  status: OrderStatus
-  driverId?: string
-  driverName?: string
+  deliveryMethod?: DeliveryMethod | string
+  deliveryType?: DeliveryType
+  paymentMethod?: PaymentMethod | string
+  paymentStatus?: TransactionPaymentStatus
+  pickupStatus?: PickupStatus
+  deliveryStatus?: DeliveryStatus
+  status: OrderStatus | PickupStatus | DeliveryStatus | string
+  driverId?: string | null
+  driverName?: string | null
   driverPhone?: string
   driverAvatar?: string
+  driverCoords?: { lat: number; lng: number } | null
   createdAt: string
-  campus: Campus
+  campus?: Campus
 }
 
 export interface Driver {

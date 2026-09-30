@@ -243,14 +243,23 @@ const Order = sequelize.define('Order', {
   buyerId: { type: DataTypes.STRING, allowNull: true },
   buyerName: { type: DataTypes.STRING, allowNull: false },
   buyerEmail: { type: DataTypes.STRING, allowNull: true },
+  buyerLocation: { type: DataTypes.STRING, allowNull: true },
+  deliveryType: { type: DataTypes.STRING, defaultValue: 'pickup' }, // 'pickup' | 'delivery'
+  paymentMethod: { type: DataTypes.STRING, defaultValue: 'cash' }, // 'cash' | 'midtrans'
+  paymentStatus: { type: DataTypes.STRING, defaultValue: 'unpaid' }, // 'unpaid' | 'paid'
+  pickupStatus: { type: DataTypes.STRING, defaultValue: 'pending' }, // 'pending' | 'confirmed' | 'processing' | 'ready_for_pickup' | 'completed'
+  deliveryStatus: { type: DataTypes.STRING, defaultValue: 'pending' }, // 'pending' | 'confirmed' | 'processing' | 'searching_driver' | 'driver_assigned' | 'picked_up' | 'delivering' | 'completed'
   driverId: { type: DataTypes.STRING, allowNull: true },
   driverName: { type: DataTypes.STRING, allowNull: true },
+  driverCoords: { type: DataTypes.JSON, allowNull: true },
   totalAmount: { type: DataTypes.INTEGER, allowNull: false },
   status: { type: DataTypes.STRING, defaultValue: 'pending' },
   courier: { type: DataTypes.STRING, allowNull: true },
   vendingToken: { type: DataTypes.STRING, allowNull: true, unique: true },
   slotNumber: { type: DataTypes.INTEGER, defaultValue: 1 }
 });
+
+Order.sync({ alter: true }).catch(err => console.warn('⚠️ Order sync error:', err.message));
 
 const OrderItem = sequelize.define('OrderItem', {
   productName: { type: DataTypes.STRING, allowNull: false },
@@ -2591,7 +2600,18 @@ app.post('/api/checkout', async (req, res) => {
 app.post('/api/orders', async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { buyerId, buyerEmail, buyerName, items, total, deliveryMethod, paymentMethod } = req.body;
+    const {
+      buyerId,
+      buyerEmail,
+      buyerName,
+      buyerLocation,
+      items,
+      total,
+      deliveryMethod,
+      deliveryType: rawDeliveryType,
+      paymentMethod: rawPaymentMethod,
+      paymentStatus: rawPaymentStatus
+    } = req.body;
     const bEmail = (buyerEmail || req.body.customerDetails?.email || '').toLowerCase().trim();
     const bName = (buyerName || req.body.customerDetails?.name || '').toLowerCase().trim();
     const bId = String(buyerId || req.body.customerDetails?.id || '').toLowerCase().trim();
@@ -2621,13 +2641,50 @@ app.post('/api/orders', async (req, res) => {
     const cleanAmount = parseInt(total || req.body.grossAmount || 0);
     const sellerIdTarget = items && items[0] ? (items[0].product?.sellerId || items[0].sellerId || 'seller_1') : 'seller_1';
 
+    const deliveryType = rawDeliveryType || (deliveryMethod === 'courier' || deliveryMethod === 'delivery' || deliveryMethod === 'antar' ? 'delivery' : 'pickup');
+    const cleanPaymentMethod = (rawPaymentMethod === 'midtrans' || rawPaymentMethod === 'qris' || rawPaymentMethod === 'dana' || rawPaymentMethod === 'gopay') ? 'midtrans' : 'cash';
+    const paymentStatus = rawPaymentStatus || (cleanPaymentMethod === 'midtrans' ? 'paid' : 'unpaid');
+    const pickupStatus = deliveryType === 'pickup' ? 'pending' : null;
+    const deliveryStatus = deliveryType === 'delivery' ? 'pending' : null;
+
     const newOrder = await Order.create({
       orderId,
       sellerId: sellerIdTarget,
+      buyerId: bId || null,
       buyerName: bName || 'Mahasiswa UIN Antasari',
       buyerEmail: bEmail || 'mhs@uin-antasari.ac.id',
+      buyerLocation: buyerLocation || 'Area Kampus UIN Antasari',
+      deliveryType,
+      paymentMethod: cleanPaymentMethod,
+      paymentStatus,
+      pickupStatus,
+      deliveryStatus,
       totalAmount: cleanAmount,
       status: 'pending'
+    }, { transaction: t });
+
+    // Simpan rincian OrderItem jika ada
+    if (items && Array.isArray(items)) {
+      for (const item of items) {
+        const pName = item.product?.nama_produk || item.product?.name || item.name || 'Produk Kampus';
+        const pQty = parseInt(item.quantity || item.qty || 1);
+        const pPrice = parseInt(item.product?.harga || item.product?.price || item.price || 0);
+        await OrderItem.create({
+          OrderId: newOrder.id,
+          productName: pName,
+          quantity: pQty,
+          price: pPrice
+        }, { transaction: t });
+      }
+    }
+
+    await OrderLog.create({
+      orderId,
+      previousStatus: null,
+      newStatus: 'pending',
+      changedBy: bName || 'Pembeli',
+      role: 'buyer',
+      notes: `Pesanan dibuat via ${deliveryType === 'pickup' ? 'Ambil di Toko' : 'Kurir Antar'} (${cleanPaymentMethod.toUpperCase()})`
     }, { transaction: t });
 
     await t.commit();
@@ -2640,8 +2697,12 @@ app.post('/api/orders', async (req, res) => {
         sellerId: sellerIdTarget,
         buyerName: bName || 'Mahasiswa UIN Antasari',
         buyerEmail: bEmail || 'mhs@uin-antasari.ac.id',
+        buyerLocation: buyerLocation || 'Area Kampus UIN Antasari',
         totalAmount: cleanAmount,
-        deliveryMethod: deliveryMethod || 'pickup',
+        deliveryMethod: deliveryType,
+        deliveryType,
+        paymentMethod: cleanPaymentMethod,
+        paymentStatus,
         items: items ? items.map(i => ({
           name: i.product?.nama_produk || i.product?.name || i.name || 'Produk Kampus',
           quantity: i.quantity || 1,
@@ -2705,9 +2766,12 @@ const ORDER_STATUS_FLOW = [
 const ORDER_SYSTEM_MESSAGE_TEMPLATES = {
   confirmed: (order, driverName) => `Pesanan #${order.orderId} telah dikonfirmasi oleh penjual. Toko sedang menyiapkan barang pesanan Anda.`,
   processing: (order, driverName) => `Pesanan #${order.orderId} sedang diproses dan disiapkan oleh toko.`,
-  driver_assigned: (order, driverName) => `Driver ${driverName || order.driverName || 'Pak Budi'} telah ditugaskan untuk mengantar pesanan #${order.orderId}.`,
-  picked_up: (order, driverName) => `Driver ${driverName || order.driverName || 'Pak Budi'} sedang mengambil pesanan di toko dan siap meluncur ke lokasi Anda. 🛵`,
-  delivered: (order, driverName) => `Driver ${driverName || order.driverName || 'Pak Budi'} telah tiba dan menyerahkan pesanan #${order.orderId} di lokasi tujuan.`,
+  ready_for_pickup: (order) => `Pesanan #${order.orderId} telah selesai disiapkan oleh toko dan siap diambil di lokasi/toko! 🛍️`,
+  searching_driver: (order) => `Penjual sedang mencari kurir kampus untuk mengantar pesanan #${order.orderId}... 🔍`,
+  driver_assigned: (order, driverName) => `Driver ${driverName || order.driverName || 'Kurir'} telah ditugaskan untuk mengantar pesanan #${order.orderId}.`,
+  picked_up: (order, driverName) => `Driver ${driverName || order.driverName || 'Kurir'} sedang mengambil pesanan di toko dan siap meluncur ke lokasi Anda. 🛵`,
+  delivering: (order, driverName) => `Driver ${driverName || order.driverName || 'Kurir'} sedang dalam perjalanan mengantarkan pesanan #${order.orderId} ke alamat Anda. 🛵`,
+  delivered: (order, driverName) => `Driver ${driverName || order.driverName || 'Kurir'} telah tiba dan menyerahkan pesanan #${order.orderId} di lokasi tujuan.`,
   completed: (order, driverName) => `Pesanan #${order.orderId} telah selesai dan diterima dengan baik oleh pembeli. Terima kasih telah berbelanja di Campus Mart! 🎉`,
   cancelled: (order, driverName) => `Pesanan #${order.orderId} telah dibatalkan.`
 };
@@ -2718,6 +2782,11 @@ const ORDER_SYSTEM_MESSAGE_TEMPLATES = {
 async function transitionOrderStatus(order, nextStatus, { changedBy, role, driverId, driverName, notes } = {}) {
   const previousStatus = order.status;
   const updatePayload = { status: nextStatus };
+  if (order.deliveryType === 'pickup') {
+    updatePayload.pickupStatus = nextStatus;
+  } else {
+    updatePayload.deliveryStatus = nextStatus;
+  }
   if (driverId) updatePayload.driverId = driverId;
   if (driverName) updatePayload.driverName = driverName;
 
@@ -2941,6 +3010,275 @@ app.get('/api/orders/:orderId', async (req, res) => {
       return res.status(404).json({ success: false, message: `Pesanan #${orderId} tidak ditemukan.` });
     }
     res.json({ success: true, order });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 🛵 POST /api/orders/:orderId/request-driver (Penjual broadcast pesanan ke pool rebutan driver)
+app.post('/api/orders/:orderId/request-driver', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { sellerName, notes } = req.body;
+
+    const order = await Order.findOne({
+      where: { orderId },
+      include: [{ model: OrderItem, as: 'items' }]
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: `Pesanan #${orderId} tidak ditemukan.` });
+    }
+
+    if (order.deliveryType !== 'delivery') {
+      return res.status(400).json({ success: false, message: 'Pesanan ini bukan pesanan delivery/kurir.' });
+    }
+
+    if (order.driverId) {
+      return res.status(400).json({ success: false, message: `Pesanan #${orderId} sudah memiliki driver (${order.driverName || order.driverId}).` });
+    }
+
+    // Ubah status order menjadi searching_driver
+    const result = await transitionOrderStatus(order, 'searching_driver', {
+      changedBy: sellerName || 'Penjual',
+      role: 'seller',
+      notes: notes || 'Penjual memanggil kurir kampus untuk pengantaran.'
+    });
+
+    // Siarkan ke WebSocket channel 'campusmart-drivers' event 'NewDeliveryJob'
+    const jobPayload = {
+      orderId: order.orderId,
+      id: order.id,
+      sellerId: order.sellerId,
+      buyerName: order.buyerName,
+      buyerEmail: order.buyerEmail,
+      buyerLocation: order.buyerLocation,
+      deliveryType: order.deliveryType,
+      deliveryStatus: 'searching_driver',
+      status: 'searching_driver',
+      totalAmount: order.totalAmount,
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus,
+      items: order.items || [],
+      createdAt: order.createdAt,
+      timestamp: new Date().toISOString()
+    };
+
+    try {
+      io.to('campusmart-drivers').emit('NewDeliveryJob', jobPayload);
+      io.emit('NewDeliveryJob', jobPayload);
+      broadcastToSoketiServer('campusmart-drivers', 'NewDeliveryJob', jobPayload);
+    } catch (wsErr) {
+      console.warn('⚠️ Gagal broadcast NewDeliveryJob:', wsErr.message);
+    }
+
+    res.json({
+      success: true,
+      message: `Pencarian driver untuk pesanan #${orderId} berhasil disiarkan!`,
+      order: result.order,
+      job: jobPayload
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ⚡ POST /api/orders/:orderId/claim-driver (Driver klaim orderan - First Come First Served Atomic Lock)
+app.post('/api/orders/:orderId/claim-driver', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { driverId, driverName } = req.body;
+
+    if (!driverId) {
+      return res.status(400).json({ success: false, message: 'ID Driver wajib disertakan.' });
+    }
+
+    // Atomic update dengan check WHERE driverId IS NULL OR driverId = ''
+    const [affectedCount] = await Order.update({
+      driverId,
+      driverName: driverName || 'Driver Kampus',
+      deliveryStatus: 'driver_assigned',
+      status: 'driver_assigned'
+    }, {
+      where: {
+        orderId,
+        [Op.or]: [
+          { driverId: null },
+          { driverId: '' }
+        ]
+      }
+    });
+
+    if (affectedCount === 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Orderan sudah diambil driver lain.'
+      });
+    }
+
+    // Ambil data order terbaru setelah atomic update berhasil
+    const updatedOrder = await Order.findOne({
+      where: { orderId },
+      include: [
+        { model: OrderItem, as: 'items' },
+        { model: OrderLog, as: 'logs' }
+      ]
+    });
+
+    // Catat log transisi
+    try {
+      await OrderLog.create({
+        orderId,
+        previousStatus: 'searching_driver',
+        newStatus: 'driver_assigned',
+        changedBy: driverName || 'Driver Kampus',
+        role: 'driver',
+        notes: `Driver ${driverName || driverId} berhasil mengklaim tugas pengantaran.`
+      });
+    } catch (_logErr) {}
+
+    // Siarkan ke channel campusmart-drivers bahwa orderan telah diklaim (agar driver lain menghapus kartu job)
+    const claimPayload = {
+      orderId,
+      driverId,
+      driverName: driverName || 'Driver Kampus',
+      deliveryStatus: 'driver_assigned',
+      timestamp: new Date().toISOString()
+    };
+
+    try {
+      io.to('campusmart-drivers').emit('DeliveryJobClaimed', claimPayload);
+      io.emit('DeliveryJobClaimed', claimPayload);
+      broadcastToSoketiServer('campusmart-drivers', 'DeliveryJobClaimed', claimPayload);
+
+      // Siarkan status update ke channel pesanan
+      const statusEventData = {
+        orderId,
+        status: 'driver_assigned',
+        deliveryStatus: 'driver_assigned',
+        driverId,
+        driverName: driverName || 'Driver Kampus',
+        timestamp: new Date().toISOString()
+      };
+      io.to(`order.${orderId}`).emit('order-status-updated', statusEventData);
+      io.to(`order_${orderId}`).emit('order-status-updated', statusEventData);
+      io.emit('order-status-updated', statusEventData);
+      broadcastToSoketiServer(`order.${orderId}`, 'order-status-updated', statusEventData);
+      broadcastToSoketiServer(`order_${orderId}`, 'order-status-updated', statusEventData);
+    } catch (_wsErr) {}
+
+    // Kirim pesan sistem ke ruang obrolan terkait
+    try {
+      const templateFn = ORDER_SYSTEM_MESSAGE_TEMPLATES['driver_assigned'];
+      const systemMessage = templateFn ? templateFn(updatedOrder, driverName) : `Driver ${driverName} telah ditugaskan.`;
+      const buyerId = updatedOrder.buyerEmail || updatedOrder.buyerName || 'buyer';
+      const sellerId = updatedOrder.sellerId || 'seller_1';
+      const rId = getRoomId(buyerId, sellerId, updatedOrder.orderId);
+      const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const sysMsgPayload = {
+        roomId: rId,
+        senderId: 'system',
+        senderName: 'Sistem Campus Mart',
+        senderRole: 'system',
+        receiverId: buyerId,
+        receiverName: updatedOrder.buyerName || 'Pembeli',
+        receiverRole: 'buyer',
+        text: systemMessage,
+        time: timeNow,
+        status: 'sent',
+        isRead: false,
+        createdAt: new Date()
+      };
+      await Chat.create(sysMsgPayload);
+      io.to(rId).emit('receive_message', sysMsgPayload);
+      broadcastToSoketiServer(rId, 'NewMessage', sysMsgPayload);
+    } catch (_chatErr) {}
+
+    res.json({
+      success: true,
+      message: 'Selamat! Anda berhasil mengambil orderan ini.',
+      order: updatedOrder
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 📍 POST /api/orders/:orderId/location (Live Tracking Kurir)
+app.post('/api/orders/:orderId/location', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { lat, lng, driverId, heading, speed } = req.body;
+
+    if (lat == null || lng == null) {
+      return res.status(400).json({ success: false, message: 'Koordinat lat dan lng wajib disertakan.' });
+    }
+
+    const cleanLat = Number(lat);
+    const cleanLng = Number(lng);
+
+    // Update lokasi driver di tabel Order
+    await Order.update({
+      driverCoords: { lat: cleanLat, lng: cleanLng, heading: heading || 0, speed: speed || 0, updatedAt: new Date().toISOString() }
+    }, {
+      where: { orderId }
+    });
+
+    const locationPayload = {
+      orderId,
+      driverId: driverId || null,
+      coords: { lat: cleanLat, lng: cleanLng },
+      lat: cleanLat,
+      lng: cleanLng,
+      heading: heading || 0,
+      speed: speed || 0,
+      timestamp: new Date().toISOString()
+    };
+
+    // Broadcast ke order channel (order.${orderId} dan order_${orderId})
+    try {
+      io.to(`order.${orderId}`).emit('driver-location-updated', locationPayload);
+      io.to(`order_${orderId}`).emit('driver-location-updated', locationPayload);
+      io.emit('driver-location-updated', locationPayload);
+
+      broadcastToSoketiServer(`order.${orderId}`, 'driver-location-updated', locationPayload);
+      broadcastToSoketiServer(`order_${orderId}`, 'driver-location-updated', locationPayload);
+    } catch (_wsErr) {}
+
+    res.json({
+      success: true,
+      coords: { lat: cleanLat, lng: cleanLng }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 📋 GET /api/orders/available-jobs (Daftar Orderan Terbuka untuk Driver)
+app.get('/api/orders/available-jobs', async (req, res) => {
+  try {
+    const jobs = await Order.findAll({
+      where: {
+        deliveryType: 'delivery',
+        deliveryStatus: {
+          [Op.in]: ['searching_driver', 'processing', 'confirmed', 'pending']
+        },
+        [Op.or]: [
+          { driverId: null },
+          { driverId: '' }
+        ],
+        status: {
+          [Op.notIn]: ['completed', 'cancelled', 'driver_assigned', 'picked_up', 'delivering']
+        }
+      },
+      include: [
+        { model: OrderItem, as: 'items' }
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: 50
+    });
+
+    res.json({ success: true, jobs });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

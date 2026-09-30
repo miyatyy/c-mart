@@ -514,9 +514,64 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
 
   function processOrderSuccess(selectedDelivery: DeliveryMethod) {
     deductOrderedStock(items);
+    const orderId = `ANTASARI-${Date.now()}`;
+    const deliveryType = selectedDelivery === 'pickup' ? 'pickup' : 'delivery';
+    const isCash = payment === 'cash';
+    const cleanPaymentMethod = isCash ? 'cash' : 'midtrans';
+    const cleanPaymentStatus = isCash ? 'unpaid' : 'paid';
+    const pickupStatus = deliveryType === 'pickup' ? 'pending' : undefined;
+    const deliveryStatus = deliveryType === 'delivery' ? 'pending' : undefined;
+
+    const activeUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('am_user_session') || '{}') : {};
+
+    const newOrderData = {
+      orderId,
+      id: orderId,
+      sellerId: items[0]?.product?.sellerId || 'seller_1',
+      buyerId: activeUser.id || activeUser.email || 'buyer_user',
+      buyerName: activeUser.nama || activeUser.name || 'Mahasiswa UIN Antasari',
+      buyerEmail: activeUser.email || 'mahasiswa@uin-antasari.ac.id',
+      buyerLocation: finalLocation || 'Area Kampus UIN Antasari',
+      items: items.map(i => ({
+        product: i.product,
+        productName: i.product?.name || (i as any).nama_produk,
+        quantity: i.quantity,
+        price: i.product?.price || 0
+      })),
+      total,
+      totalAmount: total,
+      deliveryMethod: selectedDelivery,
+      deliveryType,
+      paymentMethod: cleanPaymentMethod,
+      paymentStatus: cleanPaymentStatus,
+      pickupStatus,
+      deliveryStatus,
+      driverId: null,
+      driverName: null,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      const existingStr = localStorage.getItem('am_my_orders');
+      const existing = existingStr ? JSON.parse(existingStr) : [];
+      const updated = [newOrderData, ...(Array.isArray(existing) ? existing : [])];
+      localStorage.setItem('am_my_orders', JSON.stringify(updated));
+      localStorage.setItem('am_active_order_id', orderId);
+      localStorage.setItem('am_delivery_type', deliveryType);
+      window.dispatchEvent(new CustomEvent('am_order_created', { detail: newOrderData }));
+    } catch (_e) {}
+
+    // Asinkronus sync ke backend database
+    fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newOrderData)
+    }).catch(err => console.warn('Sync /api/orders error:', err));
+
     if (selectedDelivery === 'pickup') {
       const newReceipt = {
-        orderId: `ANTASARI-${Date.now()}`,
+        orderId,
         queueNumber: `AM-${Math.floor(100 + Math.random() * 900)}`,
         total: total
       };
