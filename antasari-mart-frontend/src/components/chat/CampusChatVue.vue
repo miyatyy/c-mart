@@ -656,7 +656,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { sendSocketMessage } from '../../lib/socket';
-import { sendChatApi } from '../../lib/api';
+import { sendChatApi, getChatsApi } from '../../lib/api';
 import {
   sendCloudChat,
   pushCloudChatMessage,
@@ -673,7 +673,8 @@ import {
 } from '../../lib/cloudChatSync';
 import { broadcastMessageToSoketi, subscribeToGlobalChat, broadcastChatHttp, getEcho, getPusherClient } from '../../lib/echo';
 import { requestBrowserNotificationPermission, showSystemWebNotification } from '../../lib/webNotification';
-import { getRoomId as standardGetRoomId, isSelfUser } from '../../utils/chatUtils';
+import { getRoomId as standardGetRoomId, isSelfUser, getCanonicalContactId } from '../../utils/chatUtils';
+import { SUPER_ADMIN_AVATAR, KOPERASI_ADMIN_AVATAR } from '../../lib/userAvatars';
 import { canChat, getChatRestrictionReason, UserRoleEnum, type ValidRole } from '../../types/auth';
 
 interface CurrentUser {
@@ -817,16 +818,19 @@ const getActiveUser = (): CurrentUser => {
       else if (rawRole.includes('super') || (rawRole.includes('admin') && !rawRole.includes('koperasi'))) normRole = 'superadmin';
 
       const rawId = String(parsed.id || parsed.user_id || parsed.email || props.currentUserId || 'guest_user').trim();
-      const normId = normalizeUserId(rawId);
-      const normEmail = parsed.email || `${normId}@campusmart.ac.id`;
-      const normName = String(parsed.name || parsed.nama || parsed.username || props.currentUserName || 'Pengguna Kampus');
+      const normId = getCanonicalContactId(parsed) || normalizeUserId(rawId);
+      const isSuper = normId === '1' || normRole === 'superadmin';
+      const isCoop = normId === '4' || normRole === 'coop_admin';
+      const finalRole = isSuper ? 'superadmin' : isCoop ? 'coop_admin' : normRole;
+      const normEmail = isSuper ? 'nurmiyaty@gmail.com' : isCoop ? 'koperasi@antasari.ac.id' : (parsed.email || `${normId}@campusmart.ac.id`);
+      const normName = isSuper ? 'Nurmiyaty (Super Admin)' : isCoop ? 'Admin Koperasi UIN Antasari' : String(parsed.name || parsed.nama || parsed.username || props.currentUserName || 'Pengguna Kampus');
 
       return {
         id: normId,
         email: normEmail,
         name: normName,
-        role: normRole,
-        avatar: parsed.avatar || (normRole === 'superadmin' ? 'https://api.dicebear.com/7.x/adventurer/svg?seed=Nurmiyaty' : normRole === 'coop_admin' ? 'https://api.dicebear.com/7.x/adventurer/svg?seed=Koperasi' : `https://api.dicebear.com/7.x/identicon/svg?seed=${normId}`)
+        role: finalRole,
+        avatar: isSuper ? SUPER_ADMIN_AVATAR : isCoop ? KOPERASI_ADMIN_AVATAR : (parsed.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${normId}`)
       };
     }
   } catch (e) {
@@ -834,16 +838,16 @@ const getActiveUser = (): CurrentUser => {
   }
 
   const rawFallbackId = String(props.currentUserId || 'guest_user').trim();
-  const fallbackNormId = normalizeUserId(rawFallbackId);
-  const isSuper = fallbackNormId === '1' || fallbackNormId === 'admin_nurmiyaty' || (props.currentUserName?.toLowerCase().includes('admin') && !props.currentUserName?.toLowerCase().includes('koperasi'));
-  const isCoop = fallbackNormId === '4' || fallbackNormId === 'coop_koperasi' || props.currentUserName?.toLowerCase().includes('koperasi');
+  const fallbackNormId = getCanonicalContactId(rawFallbackId);
+  const isSuper = fallbackNormId === '1' || (props.currentUserName?.toLowerCase().includes('admin') && !props.currentUserName?.toLowerCase().includes('koperasi'));
+  const isCoop = fallbackNormId === '4' || props.currentUserName?.toLowerCase().includes('koperasi');
 
   return {
     id: isSuper ? '1' : (isCoop ? '4' : fallbackNormId),
     email: isSuper ? 'nurmiyaty@gmail.com' : (isCoop ? 'koperasi@antasari.ac.id' : `${fallbackNormId}@campusmart.ac.id`),
-    name: props.currentUserName || (isSuper ? 'Nurmiyaty (Super Admin)' : (isCoop ? 'Admin Koperasi' : 'Pengguna Kampus')),
+    name: props.currentUserName || (isSuper ? 'Nurmiyaty (Super Admin)' : (isCoop ? 'Admin Koperasi UIN Antasari' : 'Pengguna Kampus')),
     role: isSuper ? 'superadmin' : (isCoop ? 'coop_admin' : 'buyer'),
-    avatar: isSuper ? 'https://api.dicebear.com/7.x/adventurer/svg?seed=Nurmiyaty' : (isCoop ? 'https://api.dicebear.com/7.x/adventurer/svg?seed=Koperasi' : `https://api.dicebear.com/7.x/identicon/svg?seed=${fallbackNormId}`)
+    avatar: isSuper ? SUPER_ADMIN_AVATAR : (isCoop ? KOPERASI_ADMIN_AVATAR : `https://api.dicebear.com/7.x/identicon/svg?seed=${fallbackNormId}`)
   };
 };
 
@@ -891,8 +895,8 @@ function getRoleBadge(role?: string) {
 // 🌟 Pengguna Kampus Standar (Pembeli, Penjual, Driver) agar di SEMUA browser/tab selalu tersedia kontak aktif
 const DEFAULT_CAMPUS_USERS: any[] = [
   {
-    id: 'raisa14@gmail.com',
-    partner_id: 'raisa14@gmail.com',
+    id: '2',
+    partner_id: '2',
     partner_email: 'raisa14@gmail.com',
     name: 'Raisa (Pembeli)',
     role: 'buyer',
@@ -901,8 +905,8 @@ const DEFAULT_CAMPUS_USERS: any[] = [
     time: '10:30'
   },
   {
-    id: 'seller_1',
-    partner_id: 'seller_1',
+    id: '3',
+    partner_id: '3',
     partner_email: 'seller_1@campusmart.ac.id',
     name: 'Myammiy Craft (Katalog Resmi)',
     role: 'seller',
@@ -911,8 +915,8 @@ const DEFAULT_CAMPUS_USERS: any[] = [
     time: '08:45'
   },
   {
-    id: 'driver_kampus',
-    partner_id: 'driver_kampus',
+    id: '5',
+    partner_id: '5',
     partner_email: 'driver@campusmart.ac.id',
     name: 'Driver Kampus',
     role: 'driver',
@@ -926,12 +930,13 @@ const DEFAULT_CAMPUS_USERS: any[] = [
 const getContactsForUser = (user: CurrentUser) => {
   const list: any[] = [];
   const uId = String(user?.id || props.currentUserId || '').toLowerCase().trim();
+  const uCanonical = getCanonicalContactId(user || uId);
   const uEmail = String(user?.email || '').toLowerCase().trim();
   const uName = String(user?.name || props.currentUserName || '').toLowerCase().trim();
   const uRole = String(user?.role || '').toLowerCase().trim();
 
-  const isUserSuperAdmin = uRole.includes('super') || uId.includes('admin') || uId.includes('nurmiyaty') || uEmail.includes('miyya') || uName.includes('nurmiyaty');
-  const isUserCoopAdmin = uRole.includes('coop') || uRole.includes('koperasi') || uId.includes('coop') || uId.includes('koperasi') || uEmail === 's1';
+  const isUserSuperAdmin = uCanonical === '1' || uRole.includes('super') || uId.includes('admin') || uId.includes('nurmiyaty') || uEmail.includes('miyya') || uName.includes('nurmiyaty');
+  const isUserCoopAdmin = uCanonical === '4' || uRole.includes('coop') || uRole.includes('koperasi') || uId.includes('coop') || uId.includes('koperasi') || uEmail === 's1';
 
   // 1. Kontak Admin Resmi (Hanya tampilkan jika BUKAN akun yang sedang login)
   if (!isUserSuperAdmin) {
@@ -941,7 +946,7 @@ const getContactsForUser = (user: CurrentUser) => {
       partner_email: 'nurmiyaty@gmail.com',
       name: 'Nurmiyaty (Super Admin)',
       role: 'superadmin',
-      avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Nurmiyaty',
+      avatar: SUPER_ADMIN_AVATAR,
       lastMessage: 'Halo! Ada yang bisa dibantu?',
       time: '12:10'
     });
@@ -954,7 +959,7 @@ const getContactsForUser = (user: CurrentUser) => {
       partner_email: 'koperasi@antasari.ac.id',
       name: 'Admin Koperasi UIN Antasari',
       role: 'coop_admin',
-      avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Koperasi',
+      avatar: KOPERASI_ADMIN_AVATAR,
       lastMessage: 'Voucher belanja kampus aktif!',
       time: '09:15'
     });
@@ -962,8 +967,9 @@ const getContactsForUser = (user: CurrentUser) => {
 
   // 2. Kontak Pengguna Kampus Standar (Pembeli, Penjual, Driver)
   for (const defU of DEFAULT_CAMPUS_USERS) {
-    if (!isSelfUser(defU, uId, uEmail, uName, uRole)) {
-      list.push({ ...defU });
+    const defCanonical = getCanonicalContactId(defU);
+    if (defCanonical !== uCanonical && !isSelfUser(defU, uId, uEmail, uName, uRole)) {
+      list.push({ ...defU, id: defCanonical, partner_id: defCanonical });
     }
   }
 
@@ -976,10 +982,11 @@ const getContactsForUser = (user: CurrentUser) => {
         if (Array.isArray(users)) {
           for (const u of users) {
             if (!u) continue;
+            const regCanonical = getCanonicalContactId(u);
             const regId = String(u.id || u.email || '').toLowerCase().trim();
             const regEmail = String(u.email || '').toLowerCase().trim();
-            if (regId && !isSelfUser(u, uId, uEmail, uName, uRole)) {
-              const existingIdx = list.findIndex(c => String(c.id).toLowerCase() === regId || String(c.partner_email || c.email).toLowerCase() === regEmail);
+            if (regCanonical && regCanonical !== uCanonical && !isSelfUser(u, uId, uEmail, uName, uRole)) {
+              const existingIdx = list.findIndex(c => getCanonicalContactId(c) === regCanonical || String(c.partner_email || c.email).toLowerCase() === regEmail);
               if (existingIdx >= 0) {
                 list[existingIdx] = {
                   ...list[existingIdx],
@@ -989,12 +996,12 @@ const getContactsForUser = (user: CurrentUser) => {
                 };
               } else {
                 list.push({
-                  id: u.id || regId,
-                  partner_id: u.id || regId,
+                  id: regCanonical,
+                  partner_id: regCanonical,
                   partner_email: u.email || `${regId}@campusmart.ac.id`,
                   name: u.nama || u.name || 'Pengguna Kampus',
                   role: u.role || (u.roles && u.roles[0]) || 'buyer',
-                  avatar: u.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${regId}`,
+                  avatar: u.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${regCanonical}`,
                   lastMessage: 'Halo! Siap bertransaksi',
                   time: 'Baru saja'
                 });
@@ -1011,18 +1018,19 @@ const getContactsForUser = (user: CurrentUser) => {
         const raw = localStorage.getItem(k);
         if (raw) {
           const sess = JSON.parse(raw);
+          const sCanonical = getCanonicalContactId(sess);
           const sId = String(sess.id || sess.email || '').toLowerCase().trim();
           const sEmail = String(sess.email || '').toLowerCase().trim();
-          if (sId && !isSelfUser(sess, uId, uEmail, uName, uRole)) {
-            const already = list.some(c => String(c.id).toLowerCase() === sId || String(c.partner_email || c.email).toLowerCase() === sEmail);
+          if (sCanonical && sCanonical !== uCanonical && !isSelfUser(sess, uId, uEmail, uName, uRole)) {
+            const already = list.some(c => getCanonicalContactId(c) === sCanonical || String(c.partner_email || c.email).toLowerCase() === sEmail);
             if (!already) {
               list.push({
-                id: sess.id || sId,
-                partner_id: sess.id || sId,
+                id: sCanonical,
+                partner_id: sCanonical,
                 partner_email: sess.email || `${sId}@campusmart.ac.id`,
                 name: sess.nama || sess.name || 'Pengguna Kampus',
                 role: sess.role || (sess.roles && sess.roles[0]) || 'buyer',
-                avatar: sess.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${sId}`,
+                avatar: sess.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${sCanonical}`,
                 lastMessage: 'Halo! Siap bertransaksi',
                 time: 'Baru saja'
               });
@@ -1045,20 +1053,23 @@ const getContactsForUser = (user: CurrentUser) => {
                 if (!m) continue;
                 const sId = String(m.senderId || m.sender_id || '').toLowerCase().trim();
                 const rId = String(m.receiverId || m.receiver_id || '').toLowerCase().trim();
-                const partnerId = (sId && sId !== uId && !sId.includes(uId)) ? sId : ((rId && rId !== uId && !rId.includes(uId)) ? rId : '');
-                if (partnerId) {
-                  const partnerDummy = { id: partnerId, email: partnerId, name: m.senderName || m.receiverName };
-                  if (!isSelfUser(partnerDummy, uId, uEmail, uName, uRole)) {
-                    const already = list.some(c => String(c.id).toLowerCase() === partnerId || String(c.partner_id).toLowerCase() === partnerId);
+                const partnerRawId = (sId && sId !== uId && !sId.includes(uId)) ? sId : ((rId && rId !== uId && !rId.includes(uId)) ? rId : '');
+                if (partnerRawId) {
+                  const partnerDummy = { id: partnerRawId, email: partnerRawId, name: m.senderName || m.receiverName };
+                  const partnerCanonical = getCanonicalContactId(partnerDummy);
+                  if (partnerCanonical && partnerCanonical !== uCanonical && !isSelfUser(partnerDummy, uId, uEmail, uName, uRole)) {
+                    const already = list.some(c => getCanonicalContactId(c) === partnerCanonical);
                     if (!already) {
-                      const isSender = partnerId === sId;
+                      const isSender = partnerRawId === sId;
+                      const isSuperAdmin = partnerCanonical === '1';
+                      const isCoopAdmin = partnerCanonical === '4';
                       list.push({
-                        id: partnerId,
-                        partner_id: partnerId,
-                        partner_email: `${partnerId}@campusmart.ac.id`,
-                        name: (isSender ? (m.senderName || m.sender_name) : (m.receiverName || m.receiver_name)) || 'Pengguna Kampus',
-                        role: (isSender ? (m.senderRole || m.sender_role) : (m.receiverRole || m.receiver_role)) || 'buyer',
-                        avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${partnerId}`,
+                        id: partnerCanonical,
+                        partner_id: partnerCanonical,
+                        partner_email: isSuperAdmin ? 'nurmiyaty@gmail.com' : isCoopAdmin ? 'koperasi@antasari.ac.id' : `${partnerCanonical}@campusmart.ac.id`,
+                        name: isSuperAdmin ? 'Nurmiyaty (Super Admin)' : isCoopAdmin ? 'Admin Koperasi UIN Antasari' : ((isSender ? (m.senderName || m.sender_name) : (m.receiverName || m.receiver_name)) || 'Pengguna Kampus'),
+                        role: isSuperAdmin ? 'superadmin' : isCoopAdmin ? 'coop_admin' : ((isSender ? (m.senderRole || m.sender_role) : (m.receiverRole || m.receiver_role)) || 'buyer'),
+                        avatar: isSuperAdmin ? SUPER_ADMIN_AVATAR : isCoopAdmin ? KOPERASI_ADMIN_AVATAR : `https://api.dicebear.com/7.x/identicon/svg?seed=${partnerCanonical}`,
                         lastMessage: m.text || m.content || m.message || 'Halo!',
                         time: m.time || 'Riwayat'
                       });
@@ -1084,28 +1095,33 @@ const rawContacts = contactsList;
 const deduplicateContactsList = () => {
   const map = new Map<string, any>();
   const myId = String(currentUser.value?.id || props.currentUserId || '').toLowerCase().trim();
+  const myCanonical = getCanonicalContactId(currentUser.value || myId);
   const myEmail = String(currentUser.value?.email || '').toLowerCase().trim();
   const myName = String(currentUser.value?.name || props.currentUserName || '').toLowerCase().trim();
   const myRole = String(currentUser.value?.role || '').toLowerCase().trim();
 
   for (const c of contactsList.value) {
     if (!c || isSelfUser(c, myId, myEmail, myName, myRole)) continue;
-    const normId = String(c.id || c.partner_id || '').toLowerCase().trim();
-    if (!normId) continue;
+    const canonicalId = getCanonicalContactId(c);
+    if (!canonicalId || canonicalId === myCanonical) continue;
+
+    const isSuperAdmin = canonicalId === '1';
+    const isCoopAdmin = canonicalId === '4';
 
     const unified = {
       ...c,
-      id: normId,
-      partner_id: normId,
-      name: c.name || c.nama || 'Pengguna Kampus',
-      role: c.role || 'buyer',
-      avatar: c.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${normId}`
+      id: canonicalId,
+      partner_id: canonicalId,
+      partner_email: isSuperAdmin ? 'nurmiyaty@gmail.com' : isCoopAdmin ? 'koperasi@antasari.ac.id' : (c.partner_email || c.email || `${canonicalId}@campusmart.ac.id`),
+      name: isSuperAdmin ? 'Nurmiyaty (Super Admin)' : isCoopAdmin ? 'Admin Koperasi UIN Antasari' : (c.name || c.nama || 'Pengguna Kampus'),
+      role: isSuperAdmin ? 'superadmin' : isCoopAdmin ? 'coop_admin' : (c.role || 'buyer'),
+      avatar: isSuperAdmin ? SUPER_ADMIN_AVATAR : isCoopAdmin ? KOPERASI_ADMIN_AVATAR : (c.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${canonicalId}`)
     };
 
-    if (!map.has(normId)) {
-      map.set(normId, unified);
+    if (!map.has(canonicalId)) {
+      map.set(canonicalId, unified);
     } else {
-      const existing = map.get(normId);
+      const existing = map.get(canonicalId);
       if (c.lastMessage && (!existing.lastMessage || (c.lastMessageTime && c.lastMessageTime >= existing.lastMessageTime))) {
         existing.lastMessage = c.lastMessage;
         existing.last_message = c.last_message || c.lastMessage;
@@ -1117,11 +1133,11 @@ const deduplicateContactsList = () => {
   contactsList.value = Array.from(map.values());
 };
 deduplicateContactsList();
-// 🧹 Pembersihan Cache Lama yang Tercemar/Tertukar (Reset State Bersih v11)
+// 🧹 Pembersihan Cache Lama yang Tercemar/Tertukar (Reset State Bersih v12)
 const purgeDirtyLegacyChatCache = () => {
   if (typeof window === 'undefined') return;
   try {
-    const purgedFlag = 'am_chat_v11_clean';
+    const purgedFlag = 'am_chat_v12_dedup_clean';
     if (!localStorage.getItem(purgedFlag)) {
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
@@ -1132,6 +1148,7 @@ const purgeDirtyLegacyChatCache = () => {
           k.startsWith('am_local_chats_') ||
           k.startsWith('am_chat_clean_') ||
           k.startsWith('am_last_sync_msg') ||
+          k.includes('chat_101_') ||
           k.includes('room_admin_') ||
           k.includes('room_seller_') ||
           k.includes('room_udin') ||
@@ -1791,37 +1808,44 @@ const deduplicatedContacts = computed(() => {
   const contactMap = new Map<string, any>();
 
   const myId = String(currentUser.value?.id || props.currentUserId || '').toLowerCase().trim();
+  const myCanonical = getCanonicalContactId(currentUser.value || myId);
   const myEmail = String(currentUser.value?.email || '').toLowerCase().trim();
   const myName = String(currentUser.value?.name || props.currentUserName || '').toLowerCase().trim();
   const myRole = String(currentUser.value?.role || '').toLowerCase().trim();
 
-  // Filter ketat: jika id kontak sama persis atau mengandung ID akun login saya, buang!
+  // Filter ketat: jika kontak merujuk ke diri sendiri, buang!
   const filtered = rawContacts.value.filter(c => {
-    if (!c || !c.id) return false;
-    const contactId = String(c.id || c.partner_id || '').toLowerCase().trim();
-    if (contactId === myId) return false;
-    if ((myId === '1' || myId.includes('admin')) && (contactId === '1' || contactId.includes('admin_nurmiyaty'))) return false;
+    if (!c) return false;
+    const cCanonical = getCanonicalContactId(c);
+    if (cCanonical === myCanonical) return false;
     if (isSelfUser(c, myId, myEmail, myName, myRole)) return false;
     return true;
   });
 
   for (const user of filtered) {
-    if (!user || !user.id) continue;
-    const normalizedId = String(user.id).toLowerCase().trim();
+    if (!user) continue;
+    const canonicalId = getCanonicalContactId(user);
+    if (!canonicalId || canonicalId === myCanonical) continue;
 
-    // Aturan 2: Pertahankan Admin Koperasi & Super Admin jika ada
-    // Aturan 3: Setiap user unik (siapapun nama barunya) hanya muncul 1 kali
-    if (!contactMap.has(normalizedId)) {
-      contactMap.set(normalizedId, {
-        ...user,
-        id: normalizedId,
-        partner_id: normalizedId,
-        name: user.name || user.nama || 'Pengguna Kampus',
-        role: user.role || 'buyer', // default role jika tidak ada
-        avatar: user.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${normalizedId}`
-      });
+    const isSuperAdmin = canonicalId === '1';
+    const isCoopAdmin = canonicalId === '4';
+
+    // Standarisasi data kontak berdasarkan canonical ID
+    const standardizedUser = {
+      ...user,
+      id: canonicalId,
+      partner_id: canonicalId,
+      partner_email: isSuperAdmin ? 'nurmiyaty@gmail.com' : isCoopAdmin ? 'koperasi@antasari.ac.id' : (user.partner_email || user.email || `${canonicalId}@campusmart.ac.id`),
+      name: isSuperAdmin ? 'Nurmiyaty (Super Admin)' : isCoopAdmin ? 'Admin Koperasi UIN Antasari' : (user.name || user.nama || 'Pengguna Kampus'),
+      role: isSuperAdmin ? 'superadmin' : isCoopAdmin ? 'coop_admin' : (user.role || 'buyer'),
+      avatar: isSuperAdmin ? SUPER_ADMIN_AVATAR : isCoopAdmin ? KOPERASI_ADMIN_AVATAR : (user.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${canonicalId}`)
+    };
+
+    if (!contactMap.has(canonicalId)) {
+      contactMap.set(canonicalId, standardizedUser);
     } else {
-      const existing = contactMap.get(normalizedId);
+      const existing = contactMap.get(canonicalId);
+      // Gabungkan riwayat pesan terbaru jika ada
       if (user.lastMessage && (!existing.lastMessage || (user.lastMessageTime && user.lastMessageTime >= existing.lastMessageTime))) {
         existing.lastMessage = user.lastMessage;
         existing.last_message = user.last_message || user.lastMessage;
@@ -1860,7 +1884,18 @@ const displayedContacts = computed(() => {
 });
 
 function selectContact(c: any) {
-  const target = { ...c };
+  const canonicalId = getCanonicalContactId(c);
+  const isSuperAdmin = canonicalId === '1';
+  const isCoopAdmin = canonicalId === '4';
+
+  const target = {
+    ...c,
+    id: canonicalId,
+    partner_id: canonicalId,
+    name: isSuperAdmin ? 'Nurmiyaty (Super Admin)' : isCoopAdmin ? 'Admin Koperasi UIN Antasari' : (c.name || c.nama || 'Pengguna Kampus'),
+    role: isSuperAdmin ? 'superadmin' : isCoopAdmin ? 'coop_admin' : (c.role || 'buyer'),
+    avatar: isSuperAdmin ? SUPER_ADMIN_AVATAR : isCoopAdmin ? KOPERASI_ADMIN_AVATAR : c.avatar
+  };
   selectedChat.value = target;
   rawMessagesMap.clear();
   messages.value = [];
@@ -2547,12 +2582,12 @@ const getUnifiedChatHistory = (userIdA: string, userIdB: string): ChatMessage[] 
   return sorted;
 };
 
-// 📥 MUAT RIWAYAT OBROLAN (< 24 JAM) DARI CLOUD SYNC & CACHE LOKAL
+// 📥 MUAT RIWAYAT OBROLAN (< 24 JAM) DARI CLOUD SYNC, POSTGRESQL & CACHE LOKAL
 const loadChatHistory = async () => {
   try {
-    const myId = normalizeUserId(currentUser.value?.id) || '1';
+    const myId = getCanonicalContactId(currentUser.value?.id) || '1';
     const myNormId = myId;
-    const partnerId = normalizeUserId((activeRoom.value as any)?.otherId || selectedChat.value?.id || selectedChat.value?.partner_id || (myNormId === '1' ? '4' : '1'));
+    const partnerId = getCanonicalContactId((activeRoom.value as any)?.otherId || selectedChat.value?.id || selectedChat.value?.partner_id || (myNormId === '1' ? '4' : '1'));
     const partnerNormId = partnerId;
     const targetRoomId = getRoomId(myNormId, partnerNormId);
 
@@ -2586,6 +2621,22 @@ const loadChatHistory = async () => {
               room_id: targetRoomId
             });
           }
+        });
+        initContactsFromLocalHistory();
+      }
+    } catch (_e) {}
+
+    // 3. Ambil langsung dari PostgreSQL Backend (/api/chats/:id)
+    try {
+      const dbChats = await getChatsApi(myNormId, partnerNormId, targetRoomId);
+      if (Array.isArray(dbChats) && dbChats.length > 0) {
+        markExistingAsNotified(dbChats);
+        dbChats.forEach((m: any) => {
+          appendMessageSafe({
+            ...m,
+            roomId: targetRoomId,
+            room_id: targetRoomId
+          });
         });
         initContactsFromLocalHistory();
       }

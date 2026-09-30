@@ -618,21 +618,40 @@ export interface BackendChatMessage {
 
 import { fetchCloudChats, sendCloudChat, markCloudChatAsRead, getCloudContacts } from './cloudChatSync';
 
-export async function getChatsApi(identifier: string) {
+export async function getChatsApi(identifier: string, partner?: string, roomId?: string) {
+  const norm = normalizeUserId(identifier);
+  let dbChats: BackendChatMessage[] = [];
   try {
-    const cloudRes = await fetchCloudChats(identifier);
-    if (cloudRes && cloudRes.success) {
-      return cloudRes;
+    let url = `/api/chats/${encodeURIComponent(norm || identifier)}`;
+    const queryParams: string[] = [];
+    if (partner) queryParams.push(`partner=${encodeURIComponent(normalizeUserId(partner) || partner)}`);
+    if (roomId) queryParams.push(`roomId=${encodeURIComponent(roomId)}`);
+    if (queryParams.length > 0) url += `?${queryParams.join('&')}`;
+
+    const res = await request<{ success: boolean; chats: BackendChatMessage[] }>(url, {
+      method: 'GET'
+    });
+    if (res && res.chats && Array.isArray(res.chats)) {
+      dbChats = res.chats;
     }
   } catch (_e) {}
 
+  let cloudChats: BackendChatMessage[] = [];
   try {
-    return await request<{ success: boolean; chats: BackendChatMessage[] }>(`/api/chats/${encodeURIComponent(identifier)}`, {
-      method: 'GET'
-    });
-  } catch (_e) {
-    return fetchCloudChats(identifier);
-  }
+    const cloudRes = await fetchCloudChats(identifier);
+    if (cloudRes && cloudRes.chats && Array.isArray(cloudRes.chats)) {
+      cloudChats = cloudRes.chats;
+    }
+  } catch (_e) {}
+
+  const map = new Map<string, BackendChatMessage>();
+  [...cloudChats, ...dbChats].forEach(m => {
+    if (!m) return;
+    const key = String(m.id || `${m.senderId}_${m.receiverId}_${m.text}_${m.time}`);
+    map.set(key, m);
+  });
+
+  return { success: true, chats: Array.from(map.values()) };
 }
 
 export async function sendChatApi(payload: {

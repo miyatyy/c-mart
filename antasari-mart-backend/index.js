@@ -364,7 +364,9 @@ function normalizeUserId(rawId) {
     clean === 'miyya@gmail.com' ||
     clean === 'mnurmiyaty2@gmail.com' ||
     clean.includes('nurmiyaty') ||
-    (clean.includes('admin') && !clean.includes('koperasi'))
+    clean === 'usr_nurmiyaty_superadmin' ||
+    (clean.includes('admin') && !clean.includes('koperasi')) ||
+    (clean.startsWith('chat_') && (clean.includes('_1') || clean.includes('1_') || clean.includes('nurmiyaty')))
   ) {
     return '1';
   }
@@ -379,13 +381,20 @@ function normalizeUserId(rawId) {
   ) {
     return '4';
   }
-  if (clean === '2' || clean === 'pembeli@antasari.ac.id' || clean.includes('fauzi')) {
+  if (
+    clean === '2' ||
+    clean === '101' ||
+    clean === 'pembeli@antasari.ac.id' ||
+    clean.includes('fauzi') ||
+    clean.includes('raisa') ||
+    clean === 'raisa14@gmail.com'
+  ) {
     return '2';
   }
   if (clean === '3' || clean === 'seller1@antasari.ac.id' || clean === 'seller_1' || clean.includes('myammiy')) {
     return '3';
   }
-  if (clean === '5' || clean === 'driver@antasari.ac.id' || clean.includes('budi')) {
+  if (clean === '5' || clean === 'driver@antasari.ac.id' || clean === 'driver_kampus' || clean.includes('budi') || clean.includes('driver')) {
     return '5';
   }
   return clean;
@@ -1910,17 +1919,38 @@ app.get('/api/chats/:identifier', async (req, res) => {
     }
 
     // Fallback ke PostgreSQL dengan Privasi Ketat
+    const normIdentifier = normalizeUserId(identifier);
+    let idList = [identifier];
+    if (normIdentifier && !idList.includes(normIdentifier)) idList.push(normIdentifier);
+
     let pgWhere = {
       [Sequelize.Op.or]: [
-        { senderId: identifier }, 
-        { receiverId: identifier }
+        { senderId: { [Sequelize.Op.in]: idList } }, 
+        { receiverId: { [Sequelize.Op.in]: idList } }
       ]
     };
 
     if (roomId) {
       pgWhere = { roomId: String(roomId).toLowerCase() };
     } else if (partner) {
-      pgWhere = { roomId: buildRoomId(identifier, partner) };
+      const normPartner = normalizeUserId(partner);
+      const targetRoomId = buildRoomId(identifier, partner);
+      let partnerList = [partner];
+      if (normPartner && !partnerList.includes(normPartner)) partnerList.push(normPartner);
+
+      pgWhere = {
+        [Sequelize.Op.or]: [
+          { roomId: targetRoomId },
+          {
+            senderId: { [Sequelize.Op.in]: idList },
+            receiverId: { [Sequelize.Op.in]: partnerList }
+          },
+          {
+            senderId: { [Sequelize.Op.in]: partnerList },
+            receiverId: { [Sequelize.Op.in]: idList }
+          }
+        ]
+      };
     }
 
     const chats = await Chat.findAll({
