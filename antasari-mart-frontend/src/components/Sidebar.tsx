@@ -175,7 +175,7 @@ export default function Sidebar({
 
   const getMenuByRole = () => {
     const menus: { key: AppTab; label: string }[] = [
-      { key: 'landing_page', label: 'Info & Panduan' },
+      { key: 'landing_page', label: 'Website Utama' },
       { key: 'home', label: 'Katalog Belanja' },
       { key: 'tracker', label: hasActiveOrder ? trackerLabel : 'Peta Lokasi' },
       { key: 'cart', label: 'Keranjang' },

@@ -105,27 +105,28 @@ function MainAppContent() {
       const tabParam = params.get('tab');
       const hash = window.location.hash.replace('#', '').toLowerCase();
 
+      // Rute eksplisit masuk langsung ke Web App Belanja
       if (
-        pathname.endsWith('/landing') ||
-        pathname.endsWith('/tentang') ||
-        pathname.endsWith('/about') ||
-        pathname.endsWith('/info') ||
-        tabParam === 'landing' ||
-        tabParam === 'landing_page' ||
-        hash === 'landing' ||
-        hash === 'landing_page' ||
-        hash === 'info'
+        pathname.endsWith('/app') ||
+        pathname.endsWith('/katalog') ||
+        pathname.endsWith('/shop') ||
+        tabParam === 'app' ||
+        tabParam === 'home' ||
+        hash === 'app' ||
+        hash === 'home'
       ) {
-        return 'landing_page';
+        return 'home';
       }
-      if (tabParam && ['home', 'cart', 'checkout', 'tracker', 'seller', 'admin', 'chat', 'driver', 'super_admin', 'login_page', 'vending_simulator', 'landing_page'].includes(tabParam)) {
+
+      if (tabParam && ['cart', 'checkout', 'tracker', 'seller', 'admin', 'chat', 'driver', 'super_admin', 'login_page', 'vending_simulator'].includes(tabParam)) {
         return tabParam as AppTab;
       }
-      if (hash && ['home', 'cart', 'checkout', 'tracker', 'seller', 'admin', 'chat', 'driver', 'super_admin', 'login_page', 'vending_simulator', 'landing_page'].includes(hash)) {
+      if (hash && ['cart', 'checkout', 'tracker', 'seller', 'admin', 'chat', 'driver', 'super_admin', 'login_page', 'vending_simulator'].includes(hash)) {
         return hash as AppTab;
       }
     }
-    return 'home';
+    // Default utama saat membuka website adalah Landing Page resmi
+    return 'landing_page';
   });
   const [cart, setCart] = useState<CartItem[]>([]);
   const [chatUnread, setChatUnread] = useState(0);
@@ -158,21 +159,28 @@ function MainAppContent() {
       const t = params.get('tab');
 
       if (
+        p.endsWith('/app') ||
+        p.endsWith('/katalog') ||
+        p.endsWith('/shop') ||
+        h === 'app' ||
+        h === 'home' ||
+        t === 'app' ||
+        t === 'home'
+      ) {
+        setActiveTab('home');
+      } else if (p.endsWith('/vending') || h === 'vending' || h === 'vending_simulator') {
+        setActiveTab('vending_simulator');
+      } else if (
+        p === '/' ||
+        p === '' ||
         p.endsWith('/landing') ||
         p.endsWith('/tentang') ||
         p.endsWith('/about') ||
-        p.endsWith('/info') ||
         h === 'landing' ||
-        h === 'landing_page' ||
         h === 'info' ||
-        t === 'landing' ||
-        t === 'landing_page'
+        t === 'landing'
       ) {
         setActiveTab('landing_page');
-      } else if (p.endsWith('/vending') || h === 'vending' || h === 'vending_simulator') {
-        setActiveTab('vending_simulator');
-      } else if (h === 'home' || h === 'katalog' || p.endsWith('/home')) {
-        setActiveTab('home');
       }
     };
     window.addEventListener('popstate', handleUrlSync);
@@ -605,15 +613,15 @@ function MainAppContent() {
     }
     if (tab === 'landing_page') {
       try {
-        window.history.pushState(null, '', '/landing');
-      } catch {
-        window.location.hash = 'landing';
-      }
-    } else if (tab === 'home') {
-      try {
         window.history.pushState(null, '', '/');
       } catch {
         window.location.hash = '';
+      }
+    } else if (tab === 'home') {
+      try {
+        window.history.pushState(null, '', '/app');
+      } catch {
+        window.location.hash = 'app';
       }
     } else if (tab === 'vending_simulator') {
       try {
@@ -753,6 +761,54 @@ function MainAppContent() {
 
   if (activeTab === 'login_page') {
     return <Login onLogin={(r, g, c, ud) => { handleLogin(r, g, c, ud); setActiveTab('home'); }} />;
+  }
+
+  // 🌟 STANDALONE WEBSITE LANDING PAGE (DEDIKASI KHUSUS WEBSITE, BUKAN SHELL APK/APP)
+  if (activeTab === 'landing_page') {
+    return (
+      <div className={`am-root theme-${theme} min-h-screen bg-[var(--am-bg)] text-[var(--am-text)] w-full`}>
+        <style>{customModalStyles}</style>
+        <LandingPage
+          theme={theme}
+          onToggleTheme={() => setTheme(t => t === 'aesthetic' ? 'modern' : 'aesthetic')}
+          campus={campus}
+          setCampus={setCampus}
+          onNavigateTab={handleSetActiveTab}
+          onRequireLogin={() => setShowLoginModal(true)}
+          isGuest={isGuest}
+          onOpenProModal={() => {
+            if (isGuest) setShowLoginModal(true);
+            else setShowProModal(true);
+          }}
+        />
+        {modalMessage && (
+          <InfoModal
+            data={modalMessage}
+            onClose={() => setModalMessage(null)}
+          />
+        )}
+        {showLoginModal && (
+          <LoginPromptModal
+            onDismiss={() => setShowLoginModal(false)}
+            onGoToLogin={() => {
+              setShowLoginModal(false);
+              setActiveTab('login_page');
+            }}
+          />
+        )}
+        {showProModal && (
+          <ProModal
+            theme={theme}
+            user={currentUser}
+            onClose={() => setShowProModal(false)}
+            onSuccess={() => {
+              setShowProModal(false);
+              setSuccessPopupMessage('Selamat! Akun Anda kini telah resmi di-upgrade ke Campus Mart PRO 💎');
+            }}
+          />
+        )}
+      </div>
+    );
   }
 
   return (
@@ -1016,21 +1072,6 @@ function MainAppContent() {
             {activeTab === 'vending_simulator' && (
               <VendingSimulator
                 theme={theme}
-              />
-            )}
-
-            {activeTab === 'landing_page' && (
-              <LandingPage
-                theme={theme}
-                campus={campus}
-                setCampus={setCampus}
-                onNavigateTab={handleSetActiveTab}
-                onRequireLogin={() => setShowLoginModal(true)}
-                isGuest={isGuest}
-                onOpenProModal={() => {
-                  if (isGuest) setShowLoginModal(true);
-                  else setShowProModal(true);
-                }}
               />
             )}
           </div>

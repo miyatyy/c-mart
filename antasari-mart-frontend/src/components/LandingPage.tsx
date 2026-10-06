@@ -4,6 +4,7 @@ import { formatRupiah } from '../data';
 
 interface LandingPageProps {
   theme: ThemeMode;
+  onToggleTheme?: () => void;
   campus: Campus;
   setCampus: (c: Campus) => void;
   onNavigateTab: (tab: AppTab) => void;
@@ -14,6 +15,7 @@ interface LandingPageProps {
 
 export default function LandingPage({
   theme,
+  onToggleTheme,
   campus,
   setCampus,
   onNavigateTab,
@@ -25,6 +27,7 @@ export default function LandingPage({
   const [activeRoleTab, setActiveRoleTab] = useState<'buyer' | 'seller' | 'driver' | 'koperasi'>('buyer');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const campusData = {
     banjarmasin: {
@@ -125,7 +128,11 @@ export default function LandingPage({
   const faqs = [
     {
       q: 'Apa itu Campus Mart (Antasari Mart)?',
-      a: 'Campus Mart adalah platform marketplace resmi yang mengintegrasikan seluruh ekosistem belanja di UIN Antasari. Menghubungkan mahasiswa pembeli, tenant kantin/koperasi, kurir antar-gedung sesama mahasiswa, hingga smart vending machine IoT.'
+      a: 'Campus Mart adalah website portal dan platform marketplace resmi yang mengintegrasikan seluruh ekosistem belanja di UIN Antasari. Menghubungkan mahasiswa pembeli, tenant kantin/koperasi, kurir antar-gedung sesama mahasiswa, hingga smart vending machine IoT.'
+    },
+    {
+      q: 'Apakah bisa diakses langsung via browser tanpa harus download aplikasi?',
+      a: 'Bisa banget! Campus Mart tersedia versi Web App yang bisa Anda buka langsung di browser HP maupun laptop tanpa perlu download. Namun jika ingin pengalaman lebih cepat dan notifikasi real-time, Anda juga bisa mengunduh file APK Android resminya.'
     },
     {
       q: 'Apakah pengantaran kurir bisa langsung sampai ke ruang kelas atau fakultas?',
@@ -142,17 +149,148 @@ export default function LandingPage({
     {
       q: 'Apa itu fitur Smart Vending Machine?',
       a: 'Merupakan mesin otomatis berteknologi IoT yang ditempatkan di spot strategis kampus. Anda bisa membeli snack, minuman dingin, dan Mystery Blind Bag secara mandiri dengan scan QRIS atau mencoba simulasinya di web ini.'
-    },
-    {
-      q: 'Apa keuntungan berlangganan Antasari Mart PRO?',
-      a: 'Dengan biaya mulai Rp10.000/bulan, anggota PRO menikmati Bebas Ongkir sepuasnya tanpa batas minimal belanja, prioritas penugasan kurir super cepat, lencana eksklusif di profil, dan diskon spesial dari tenant rekanan.'
     }
   ];
 
+  const scrollToSection = (id: string) => {
+    setMobileMenuOpen(false);
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
-    <div className="w-full text-left transition-colors duration-300 font-sans">
-      {/* 🌸 HEADER HERO TOP BANNER */}
-      <section className="relative overflow-hidden pt-8 pb-16 md:pt-14 md:pb-24 px-4 sm:px-6 lg:px-8 border-b border-[var(--am-border)] bg-gradient-to-b from-[var(--am-bg2)] via-[var(--am-bg)] to-[var(--am-surface)]">
+    <div className="w-full min-h-screen text-left transition-colors duration-300 font-sans bg-[var(--am-bg)] text-[var(--am-text)]">
+      
+      {/* 🌐 WEBSITE TOP NAVBAR (DEDIKASI UNTUK LANDING PAGE RESMI) */}
+      <header className="sticky top-0 z-50 w-full backdrop-blur-xl bg-[var(--am-surface)]/90 border-b border-[var(--am-border)] shadow-xs transition-colors">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-4">
+          
+          {/* Logo & Brand Identity */}
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => scrollToSection('hero')}>
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[var(--am-primary)] to-[var(--am-accent)] flex items-center justify-center text-white font-extrabold text-xl shadow-md shadow-[var(--am-primary)]/20 flex-shrink-0">
+              🌸
+            </div>
+            <div>
+              <div className="text-base sm:text-lg font-extrabold tracking-tight text-[var(--am-text)] leading-tight flex items-center gap-2">
+                <span>Campus Mart</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--am-primary)]/15 text-[var(--am-primary)] hidden sm:inline-block">
+                  UIN Antasari
+                </span>
+              </div>
+              <div className="text-[11px] text-[var(--am-text-muted)] font-medium leading-none mt-0.5">
+                Official Campus Marketplace
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop Navigation Links */}
+          <nav className="hidden lg:flex items-center gap-7 text-xs sm:text-sm font-semibold text-[var(--am-text-muted)]">
+            <button onClick={() => scrollToSection('fitur')} className="hover:text-[var(--am-primary)] transition-colors cursor-pointer">
+              Fitur Ekosistem
+            </button>
+            <button onClick={() => scrollToSection('peran')} className="hover:text-[var(--am-primary)] transition-colors cursor-pointer">
+              Pilihan Peran
+            </button>
+            <button onClick={() => scrollToSection('vending')} className="hover:text-[var(--am-primary)] transition-colors cursor-pointer">
+              Vending IoT
+            </button>
+            <button onClick={() => scrollToSection('katalog')} className="hover:text-[var(--am-primary)] transition-colors cursor-pointer">
+              Katalog
+            </button>
+            <button onClick={() => scrollToSection('unduh-apk')} className="hover:text-[var(--am-primary)] transition-colors cursor-pointer text-[var(--am-primary)] font-bold">
+              📱 Unduh APK
+            </button>
+            <button onClick={() => scrollToSection('faq')} className="hover:text-[var(--am-primary)] transition-colors cursor-pointer">
+              FAQ
+            </button>
+          </nav>
+
+          {/* Header Action Buttons */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Dark / Light Mode Switcher */}
+            {onToggleTheme && (
+              <button
+                onClick={onToggleTheme}
+                title={isDark ? 'Ganti ke Mode Terang' : 'Ganti ke Mode Malam'}
+                className="w-9 h-9 rounded-xl border border-[var(--am-border)] bg-[var(--am-bg2)] flex items-center justify-center text-sm cursor-pointer hover:border-[var(--am-primary)] transition-colors"
+              >
+                {isDark ? '☀️' : '🌙'}
+              </button>
+            )}
+
+            {/* Direct Download APK button */}
+            <a
+              href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
+              download="antasari_mart_release.apk"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-[var(--am-text)] bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)] hover:bg-[var(--am-bg2)] transition-all cursor-pointer shadow-2xs"
+            >
+              <span>📱</span>
+              <span>Unduh APK</span>
+            </a>
+
+            {/* Main CTA: Masuk ke Web App Belanja */}
+            <button
+              onClick={() => onNavigateTab('home')}
+              className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-[var(--am-primary)] to-[var(--am-primary-dark)] hover:opacity-95 shadow-md shadow-[var(--am-primary)]/20 transition-all cursor-pointer flex items-center gap-1.5 transform hover:scale-102"
+            >
+              <span>🛍️</span>
+              <span>Buka Web App</span>
+            </button>
+
+            {/* Mobile Hamburger Toggle */}
+            <button
+              onClick={() => setMobileMenuOpen(prev => !prev)}
+              className="lg:hidden w-9 h-9 rounded-xl border border-[var(--am-border)] bg-[var(--am-surface)] flex items-center justify-center text-lg cursor-pointer"
+              aria-label="Menu"
+            >
+              {mobileMenuOpen ? '✕' : '☰'}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Dropdown Menu */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t border-[var(--am-border)] bg-[var(--am-surface)] px-4 py-4 space-y-3 shadow-lg">
+            <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+              <button onClick={() => scrollToSection('fitur')} className="p-2.5 rounded-xl bg-[var(--am-bg2)] text-left">
+                ✨ Fitur Ekosistem
+              </button>
+              <button onClick={() => scrollToSection('peran')} className="p-2.5 rounded-xl bg-[var(--am-bg2)] text-left">
+                👥 Pilihan Peran
+              </button>
+              <button onClick={() => scrollToSection('vending')} className="p-2.5 rounded-xl bg-[var(--am-bg2)] text-left">
+                🤖 Vending Machine
+              </button>
+              <button onClick={() => scrollToSection('katalog')} className="p-2.5 rounded-xl bg-[var(--am-bg2)] text-left">
+                🛍️ Katalog Produk
+              </button>
+              <button onClick={() => scrollToSection('unduh-apk')} className="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-left col-span-2">
+                📱 Unduh APK Android (.apk)
+              </button>
+            </div>
+            <div className="pt-2 border-t border-[var(--am-border)] flex gap-2">
+              <button
+                onClick={() => { setMobileMenuOpen(false); onNavigateTab('home'); }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-[var(--am-primary)] text-center cursor-pointer"
+              >
+                Masuk Web App Belanja 🛍️
+              </button>
+              <a
+                href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
+                download="antasari_mart_release.apk"
+                className="px-3 py-2.5 rounded-xl text-xs font-bold text-[var(--am-text)] bg-[var(--am-bg2)] border border-[var(--am-border)] text-center cursor-pointer"
+              >
+                Unduh APK 📥
+              </a>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* 🌸 HERO SECTION */}
+      <section id="hero" className="relative overflow-hidden pt-10 pb-16 md:pt-16 md:pb-24 px-4 sm:px-6 lg:px-8 border-b border-[var(--am-border)] bg-gradient-to-b from-[var(--am-bg2)] via-[var(--am-bg)] to-[var(--am-surface)]">
         {/* Ambient Glowing Orbs */}
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-[var(--am-primary)] opacity-10 blur-3xl pointer-events-none rounded-full" />
         <div className="absolute top-1/3 right-10 w-80 h-80 bg-[var(--am-accent)] opacity-15 blur-3xl pointer-events-none rounded-full" />
@@ -162,10 +300,10 @@ export default function LandingPage({
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[var(--am-primary)]/30 bg-[var(--am-surface)]/80 backdrop-blur-md shadow-sm mb-6">
             <span className="flex h-2 w-2 rounded-full bg-[var(--am-primary)] animate-pulse" />
             <span className="text-xs font-bold tracking-wide uppercase text-[var(--am-primary)]">
-              Digital Campus Commerce • UIN Antasari
+              Website Resmi • Marketplace Kampus UIN Antasari
             </span>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--am-primary)]/15 text-[var(--am-primary)]">
-              2 Kampus Aktif
+              Banjarmasin & Banjarbaru
             </span>
           </div>
 
@@ -173,20 +311,20 @@ export default function LandingPage({
             {/* Left Column: Headline & Call To Actions */}
             <div className="lg:col-span-7 space-y-6">
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-5xl font-extrabold tracking-tight text-[var(--am-text)] leading-[1.18]">
-                Belanja, Jual & Antar Kebutuhan Kampus Jadi{' '}
+                Platform Belanja & Ekosistem Digital Sivitas Kampus{' '}
                 <span className="bg-gradient-to-r from-[var(--am-primary)] via-[#4D9562] to-[var(--am-accent-dark)] bg-clip-text text-transparent">
-                  Lebih Mudah & Terintegrasi
+                  UIN Antasari
                 </span>
               </h1>
 
               <p className="text-base sm:text-lg text-[var(--am-text-muted)] leading-relaxed max-w-2xl font-normal">
-                Ekosistem marketplace cerdas untuk sivitas akademika UIN Antasari (Banjarmasin & Banjarbaru). Nikmati pesan-antar kurir ke depan ruang kelas, belanja produk karya mahasiswa, hingga jajan instan lewat Smart IoT Vending Machine.
+                Satu platform untuk seluruh kebutuhan mahasiswa, dosen, dan staf. Beli snack kantin, buket wisuda, ATK, hingga smart vending machine. Akses mudah langsung dari <strong>Web Browser</strong> atau pasang <strong>Aplikasi Android (.APK)</strong>.
               </p>
 
               {/* Campus Selector Pill Bar */}
               <div className="p-2 sm:p-2.5 rounded-2xl bg-[var(--am-surface)] border border-[var(--am-border)] shadow-sm inline-flex flex-wrap items-center gap-2 max-w-full">
                 <span className="text-xs font-semibold text-[var(--am-text-muted)] px-2.5 flex items-center gap-1">
-                  <span>📍</span> Pilih Kampus:
+                  <span>📍</span> Lokasi Kampus:
                 </span>
                 <button
                   onClick={() => setCampus('banjarmasin')}
@@ -210,59 +348,55 @@ export default function LandingPage({
                 </button>
               </div>
 
-              {/* CTA Action Buttons */}
+              {/* Dual Action CTA Buttons: Web App vs APK */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   onClick={() => onNavigateTab('home')}
                   className="px-6 py-3.5 rounded-xl font-bold text-sm sm:text-base text-white bg-gradient-to-r from-[var(--am-primary)] to-[var(--am-primary-dark)] hover:opacity-95 shadow-lg shadow-[var(--am-primary)]/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 cursor-pointer"
                 >
                   <span>🛍️</span>
-                  <span>Mulai Belanja Katalog</span>
+                  <span>Buka Web App Belanja</span>
                 </button>
 
-                <button
-                  onClick={() => onNavigateTab('vending_simulator')}
+                <a
+                  href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
+                  download="antasari_mart_release.apk"
                   className="px-5 py-3.5 rounded-xl font-bold text-sm sm:text-base text-[var(--am-text)] bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)] hover:bg-[var(--am-bg2)] transition-all flex items-center gap-2 cursor-pointer shadow-sm"
                 >
-                  <span>🤖</span>
-                  <span>Coba Vending IoT</span>
-                </button>
+                  <span>📥</span>
+                  <span>Unduh APK Android (.apk)</span>
+                </a>
 
-                {isGuest && (
-                  <button
-                    onClick={() => {
-                      if (onRequireLogin) onRequireLogin();
-                      else onNavigateTab('login_page');
-                    }}
-                    className="px-4 py-3.5 rounded-xl font-semibold text-sm text-[var(--am-primary)] hover:underline flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span>Masuk Akun</span>
-                    <span>→</span>
-                  </button>
-                )}
+                <button
+                  onClick={() => scrollToSection('vending')}
+                  className="px-4 py-3.5 rounded-xl font-semibold text-sm text-[var(--am-primary)] hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Vending IoT</span>
+                  <span>↓</span>
+                </button>
               </div>
 
               {/* Trust Badges */}
               <div className="pt-2 flex flex-wrap items-center gap-4 text-xs font-medium text-[var(--am-text-muted)]">
                 <div className="flex items-center gap-1.5">
                   <span className="text-emerald-500 font-bold">✓</span>
-                  <span>Verifikasi KTM Resmi</span>
+                  <span>Akses Web Instan Tanpa Install</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-emerald-500 font-bold">✓</span>
-                  <span>0% Potongan Lapak Mahasiswa</span>
+                  <span>File APK Android Resmi (~19MB)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-emerald-500 font-bold">✓</span>
-                  <span>QRIS & E-Wallet Instant</span>
+                  <span>QRIS & E-Wallet Real-Time</span>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Interactive Card Showcase */}
+            {/* Right Column: Platform Preview Cards */}
             <div className="lg:col-span-5 relative">
-              <div className="relative mx-auto max-w-md rounded-3xl p-4 sm:p-5 bg-[var(--am-surface)] border border-[var(--am-border)] shadow-2xl backdrop-blur-xl">
-                {/* Visual Header with Campus Banner */}
+              <div className="relative mx-auto max-w-md rounded-3xl p-5 bg-[var(--am-surface)] border border-[var(--am-border)] shadow-2xl backdrop-blur-xl">
+                {/* Visual Header Banner */}
                 <div className="relative h-48 sm:h-52 rounded-2xl overflow-hidden mb-4 border border-[var(--am-border)] group">
                   <img
                     src="/banners/banner_delivery.jpg"
@@ -271,10 +405,10 @@ export default function LandingPage({
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex flex-col justify-end p-4 text-white">
                     <span className="text-[11px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-md bg-[var(--am-primary)] text-white w-fit mb-1">
-                      Campus Express
+                      Campus Delivery
                     </span>
                     <h2 className="text-base font-bold leading-snug">
-                      Pengantaran Cepat Antar Gedung & Fakultas
+                      Pesan Antar Antar Gedung & Ruang Kelas
                     </h2>
                     <p className="text-xs text-gray-200">
                       Diantar kurir mahasiswa langsung ke depan kelas atau lab
@@ -282,63 +416,188 @@ export default function LandingPage({
                   </div>
                 </div>
 
-                {/* Floating Interactive Status Mini-Card */}
-                <div className="p-3.5 rounded-xl bg-[var(--am-bg2)] border border-[var(--am-border)] flex items-center justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[var(--am-primary)] text-white flex items-center justify-center font-bold text-lg shadow-sm">
-                      🛵
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-[var(--am-text)]">
-                        Pesanan Sedang Diantar
+                {/* Platform Access Selector Card */}
+                <div className="space-y-2.5">
+                  <div className="p-3.5 rounded-xl bg-[var(--am-bg2)] border border-[var(--am-border)] flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-[var(--am-primary)] text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                        🌐
                       </div>
-                      <div className="text-[11px] text-[var(--am-text-muted)]">
-                        Menuju: Gedung Fakultas Tarbiyah (Lantai 2)
+                      <div>
+                        <div className="text-xs font-bold text-[var(--am-text)]">
+                          Web App Browser
+                        </div>
+                        <div className="text-[11px] text-[var(--am-text-muted)]">
+                          Buka langsung di Chrome, Safari, atau Edge
+                        </div>
                       </div>
                     </div>
+                    <button
+                      onClick={() => onNavigateTab('home')}
+                      className="text-xs font-bold px-3 py-1.5 rounded-lg bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)] text-[var(--am-primary)] cursor-pointer"
+                    >
+                      Buka 🚀
+                    </button>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[11px] font-extrabold text-[var(--am-primary)] bg-[var(--am-surface)] px-2 py-1 rounded-md border border-[var(--am-border)] shadow-2xs">
-                      ⚡ ~4 Menit
-                    </span>
+
+                  <div className="p-3.5 rounded-xl bg-[var(--am-bg2)] border border-[var(--am-border)] flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                        📱
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[var(--am-text)]">
+                          Aplikasi Android APK
+                        </div>
+                        <div className="text-[11px] text-[var(--am-text-muted)]">
+                          File APK Release • 19.1 MB • Siap Pasang
+                        </div>
+                      </div>
+                    </div>
+                    <a
+                      href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
+                      download="antasari_mart_release.apk"
+                      className="text-xs font-bold px-3 py-1.5 rounded-lg bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-purple-500 text-purple-600 dark:text-purple-400 cursor-pointer"
+                    >
+                      Unduh 📥
+                    </a>
                   </div>
                 </div>
 
-                {/* Campus Spot Highlight Info */}
-                <div className="p-3 rounded-xl bg-[var(--am-surface)] border border-[var(--am-border)] text-xs space-y-1.5">
+                {/* Campus Spot Highlight */}
+                <div className="mt-3 p-3 rounded-xl bg-[var(--am-surface)] border border-[var(--am-border)] text-xs space-y-1">
                   <div className="flex justify-between items-center text-[var(--am-text)] font-semibold">
                     <span>📍 {campusData[campus].name}</span>
-                    <span className="text-[10px] text-[var(--am-primary)] font-bold">Aktif & Buka</span>
+                    <span className="text-[10px] text-[var(--am-primary)] font-bold">Layanan Aktif</span>
                   </div>
                   <p className="text-[11px] text-[var(--am-text-muted)] line-clamp-1">
                     {campusData[campus].address}
                   </p>
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {campusData[campus].spots.slice(0, 3).map((sp, idx) => (
-                      <span key={idx} className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--am-bg2)] text-[var(--am-text-muted)]">
-                        • {sp}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Quick Action in Card */}
-                <div className="mt-4 pt-3 border-t border-[var(--am-border)] flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-[var(--am-text)]">Mau jadi penjual?</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold dark:bg-emerald-950/60 dark:text-emerald-300">
-                      0% Fee
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => onNavigateTab('seller')}
-                    className="text-xs font-bold text-[var(--am-primary)] hover:underline cursor-pointer"
-                  >
-                    Buka Toko Gratis →
-                  </button>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 📱 SECTION KHUSUS: DOWNLOAD APLIKASI ANDROID (.APK) VS WEB APP */}
+      <section id="unduh-apk" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-surface)] border-b border-[var(--am-border)]">
+        <div className="max-w-6xl mx-auto space-y-12">
+          <div className="text-center max-w-3xl mx-auto space-y-3">
+            <span className="text-xs font-bold tracking-wider uppercase text-[var(--am-primary)] bg-[var(--am-primary)]/10 px-3 py-1 rounded-full">
+              Pilihan Akses Platform
+            </span>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[var(--am-text)]">
+              Gunakan Lewat Website atau Pasang Aplikasi Android
+            </h2>
+            <p className="text-sm sm:text-base text-[var(--am-text-muted)]">
+              Fleksibel sesuai preferensi Anda. Nikmati versi Web App instan atau unduh paket aplikasi mandiri (APK).
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            
+            {/* Card 1: Android APK Package */}
+            <div className="rounded-3xl p-6 sm:p-8 bg-gradient-to-b from-[var(--am-bg2)] to-[var(--am-surface)] border-2 border-[var(--am-primary)]/40 shadow-xl flex flex-col justify-between space-y-6 relative overflow-hidden">
+              <div className="absolute top-4 right-4 text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
+                Official Release v1.0
+              </div>
+
+              <div className="space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-3xl shadow-md">
+                  🤖
+                </div>
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-[var(--am-text)]">
+                    Aplikasi Android (.APK)
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[var(--am-text-muted)] mt-1">
+                    Paket instalasi mandiri untuk smartphone Android
+                  </p>
+                </div>
+
+                <ul className="text-xs sm:text-sm space-y-2.5 text-[var(--am-text)]">
+                  <li className="flex items-center gap-2">
+                    <span className="text-emerald-500 font-bold">✓</span>
+                    <span>Ukuran file ringan (~19.1 MB)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-emerald-500 font-bold">✓</span>
+                    <span>Notifikasi status pesanan & chat instan</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-emerald-500 font-bold">✓</span>
+                    <span>Scanner barcode kamera real-time</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-emerald-500 font-bold">✓</span>
+                    <span>Performa lancar & hemat kuota data</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <a
+                  href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
+                  download="antasari_mart_release.apk"
+                  className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:opacity-95 shadow-lg shadow-emerald-600/25 transition-all text-center flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>📥 Unduh APK Android (19.1 MB)</span>
+                </a>
+                <p className="text-[11px] text-center text-[var(--am-text-muted)]">
+                  Kompatibel dengan Android 8.0 Oreo ke atas
+                </p>
+              </div>
+            </div>
+
+            {/* Card 2: Web App Platform */}
+            <div className="rounded-3xl p-6 sm:p-8 bg-[var(--am-surface)] border border-[var(--am-border)] shadow-md flex flex-col justify-between space-y-6">
+              <div className="space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-blue-500 text-white flex items-center justify-center text-3xl shadow-md">
+                  🌐
+                </div>
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-[var(--am-text)]">
+                    Web App Browser
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[var(--am-text-muted)] mt-1">
+                    Buka langsung di browser tanpa perlu instalasi
+                  </p>
+                </div>
+
+                <ul className="text-xs sm:text-sm space-y-2.5 text-[var(--am-text)]">
+                  <li className="flex items-center gap-2">
+                    <span className="text-blue-500 font-bold">✓</span>
+                    <span>0 MB penyimpanan HP terpakai</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-blue-500 font-bold">✓</span>
+                    <span>Bisa dibuka di iPhone, Laptop, PC Lab, & Android</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-blue-500 font-bold">✓</span>
+                    <span>Mendukung instalasi PWA (Progressive Web App)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-blue-500 font-bold">✓</span>
+                    <span>Selalu versi terbaru otomatis</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  onClick={() => onNavigateTab('home')}
+                  className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-[var(--am-text)] bg-[var(--am-bg2)] border border-[var(--am-border)] hover:border-[var(--am-primary)] hover:bg-[var(--am-surface)] transition-all text-center flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>🛍️ Buka Web App Belanja Sekarang</span>
+                </button>
+                <p className="text-[11px] text-center text-[var(--am-text-muted)]">
+                  Dapat diakses dari browser apa pun
+                </p>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
@@ -397,14 +656,14 @@ export default function LandingPage({
       </section>
 
       {/* 🌟 6 PILAR EKOSISTEM UTAMA */}
-      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-bg)]">
+      <section id="fitur" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-bg)]">
         <div className="max-w-6xl mx-auto space-y-12">
           <div className="text-center max-w-3xl mx-auto space-y-3">
             <span className="text-xs font-bold tracking-wider uppercase text-[var(--am-primary)] bg-[var(--am-primary)]/10 px-3 py-1 rounded-full">
-              Fitur Unggulan
+              Fitur Ekosistem
             </span>
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[var(--am-text)]">
-              Semua Kebutuhan Kampus dalam Satu Aplikasi
+              Semua Kebutuhan Kampus dalam Satu Ekosistem
             </h2>
             <p className="text-sm sm:text-base text-[var(--am-text-muted)]">
               Campus Mart dirancang khusus untuk memenuhi dinamika kehidupan perkuliahan, dari belanja hemat hingga peluang bisnis mandiri.
@@ -412,7 +671,6 @@ export default function LandingPage({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Card 1 */}
             <div className="p-6 rounded-2xl bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)]/50 transition-all hover:shadow-xl group space-y-4">
               <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
                 🛍️
@@ -427,11 +685,10 @@ export default function LandingPage({
                 onClick={() => onNavigateTab('home')}
                 className="text-xs font-bold text-[var(--am-primary)] flex items-center gap-1 group-hover:gap-2 transition-all cursor-pointer"
               >
-                Lihat Semua Produk →
+                Buka Katalog Web App →
               </button>
             </div>
 
-            {/* Card 2 */}
             <div className="p-6 rounded-2xl bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)]/50 transition-all hover:shadow-xl group space-y-4">
               <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
                 🛵
@@ -446,11 +703,10 @@ export default function LandingPage({
                 onClick={() => onNavigateTab('tracker')}
                 className="text-xs font-bold text-[var(--am-primary)] flex items-center gap-1 group-hover:gap-2 transition-all cursor-pointer"
               >
-                Cek Pelacakan Pengantaran →
+                Pelacakan Pengantaran Real-time →
               </button>
             </div>
 
-            {/* Card 3 */}
             <div className="p-6 rounded-2xl bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)]/50 transition-all hover:shadow-xl group space-y-4">
               <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
                 🤖
@@ -465,11 +721,10 @@ export default function LandingPage({
                 onClick={() => onNavigateTab('vending_simulator')}
                 className="text-xs font-bold text-[var(--am-primary)] flex items-center gap-1 group-hover:gap-2 transition-all cursor-pointer"
               >
-                Buka Simulator Vending →
+                Coba Simulator Vending →
               </button>
             </div>
 
-            {/* Card 4 */}
             <div className="p-6 rounded-2xl bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)]/50 transition-all hover:shadow-xl group space-y-4">
               <div className="w-12 h-12 rounded-xl bg-pink-100 dark:bg-pink-950/60 text-pink-600 dark:text-pink-400 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
                 💎
@@ -484,11 +739,10 @@ export default function LandingPage({
                 onClick={onOpenProModal}
                 className="text-xs font-bold text-[var(--am-primary)] flex items-center gap-1 group-hover:gap-2 transition-all cursor-pointer"
               >
-                Pelajari Benefit PRO →
+                Info Langganan PRO →
               </button>
             </div>
 
-            {/* Card 5 */}
             <div className="p-6 rounded-2xl bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)]/50 transition-all hover:shadow-xl group space-y-4">
               <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
                 💬
@@ -507,7 +761,6 @@ export default function LandingPage({
               </button>
             </div>
 
-            {/* Card 6 */}
             <div className="p-6 rounded-2xl bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)]/50 transition-all hover:shadow-xl group space-y-4">
               <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
                 🛡️
@@ -529,8 +782,8 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* 👥 PILIH PERANMU DI CAMPUS MART (INTERACTIVE ROLE SWITCHER) */}
-      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-surface)] border-y border-[var(--am-border)]">
+      {/* 👥 PILIH PERANMU DI CAMPUS MART */}
+      <section id="peran" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-surface)] border-y border-[var(--am-border)]">
         <div className="max-w-6xl mx-auto space-y-10">
           <div className="text-center max-w-3xl mx-auto space-y-3">
             <span className="text-xs font-bold tracking-wider uppercase text-[var(--am-primary)] bg-[var(--am-primary)]/10 px-3 py-1 rounded-full">
@@ -544,7 +797,6 @@ export default function LandingPage({
             </p>
           </div>
 
-          {/* Role Navigation Pills */}
           <div className="flex justify-center flex-wrap gap-2 sm:gap-3">
             <button
               onClick={() => setActiveRoleTab('buyer')}
@@ -588,7 +840,6 @@ export default function LandingPage({
             </button>
           </div>
 
-          {/* Role Dynamic Content Card */}
           <div className="p-6 sm:p-10 rounded-3xl bg-[var(--am-bg2)]/60 border border-[var(--am-border)] max-w-4xl mx-auto">
             {activeRoleTab === 'buyer' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
@@ -607,13 +858,20 @@ export default function LandingPage({
                     <li className="flex items-center gap-2">✨ Bayar mudah QRIS, GoPay, SeaBank, atau COD</li>
                     <li className="flex items-center gap-2">✨ Pelacakan posisi kurir real-time di peta kampus</li>
                   </ul>
-                  <div className="pt-2">
+                  <div className="pt-2 flex flex-wrap gap-2">
                     <button
                       onClick={() => onNavigateTab('home')}
                       className="px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-white bg-[var(--am-primary)] hover:opacity-90 shadow-md cursor-pointer"
                     >
-                      Mulai Belanja Sekarang 🛍️
+                      Buka Web App Belanja 🛍️
                     </button>
+                    <a
+                      href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
+                      download="antasari_mart_release.apk"
+                      className="px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-[var(--am-text)] bg-[var(--am-surface)] border border-[var(--am-border)] hover:bg-[var(--am-bg2)] cursor-pointer"
+                    >
+                      Unduh APK 📱
+                    </a>
                   </div>
                 </div>
                 <div className="rounded-2xl overflow-hidden border border-[var(--am-border)] shadow-md">
@@ -738,7 +996,7 @@ export default function LandingPage({
       </section>
 
       {/* 🤖 SPOTLIGHT SMART VENDING MACHINE (IoT) */}
-      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-[var(--am-bg)] via-[var(--am-bg2)] to-[var(--am-bg)]">
+      <section id="vending" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-[var(--am-bg)] via-[var(--am-bg2)] to-[var(--am-bg)]">
         <div className="max-w-6xl mx-auto rounded-3xl p-6 sm:p-10 lg:p-12 border border-[var(--am-border)] bg-[var(--am-surface)] shadow-xl">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             <div className="lg:col-span-7 space-y-5">
@@ -782,12 +1040,6 @@ export default function LandingPage({
                   <span>🕹️</span>
                   <span>Buka Simulator Vending Machine</span>
                 </button>
-                <button
-                  onClick={() => onNavigateTab('home')}
-                  className="px-5 py-3 rounded-xl font-bold text-xs sm:text-sm text-[var(--am-text)] bg-[var(--am-bg2)] border border-[var(--am-border)] hover:bg-[var(--am-surface)] transition-all cursor-pointer"
-                >
-                  Lihat Lokasi Mesin
-                </button>
               </div>
             </div>
 
@@ -816,7 +1068,7 @@ export default function LandingPage({
       </section>
 
       {/* 🛍️ KATALOG POPULER PREVIEW */}
-      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-surface)] border-b border-[var(--am-border)]">
+      <section id="katalog" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-surface)] border-b border-[var(--am-border)]">
         <div className="max-w-6xl mx-auto space-y-10">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div className="space-y-2">
@@ -831,7 +1083,6 @@ export default function LandingPage({
               </p>
             </div>
 
-            {/* Category Filter Pills */}
             <div className="flex flex-wrap gap-2">
               {[
                 { id: 'all', label: 'Semua' },
@@ -893,7 +1144,7 @@ export default function LandingPage({
                       onClick={() => onNavigateTab('home')}
                       className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--am-primary)] text-white hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
                     >
-                      Beli 🛒
+                      Beli di Web 🛒
                     </button>
                   </div>
                 </div>
@@ -906,105 +1157,15 @@ export default function LandingPage({
               onClick={() => onNavigateTab('home')}
               className="px-6 py-3 rounded-xl font-bold text-xs sm:text-sm text-[var(--am-primary)] bg-[var(--am-bg2)] hover:bg-[var(--am-border)] transition-all cursor-pointer inline-flex items-center gap-2"
             >
-              <span>Jelajahi Ratusan Produk Lainnya di Katalog</span>
+              <span>Jelajahi Ratusan Produk Lainnya di Web App</span>
               <span>→</span>
             </button>
           </div>
         </div>
       </section>
 
-      {/* 🚀 3 LANGKAH MUDAH (HOW IT WORKS) */}
-      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-bg)]">
-        <div className="max-w-6xl mx-auto space-y-12">
-          <div className="text-center max-w-3xl mx-auto space-y-3">
-            <span className="text-xs font-bold tracking-wider uppercase text-[var(--am-primary)] bg-[var(--am-primary)]/10 px-3 py-1 rounded-full">
-              Cara Kerja
-            </span>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[var(--am-text)]">
-              Cuma 3 Langkah Mudah
-            </h2>
-            <p className="text-sm sm:text-base text-[var(--am-text-muted)]">
-              Semudah memesan dari layar smartphone Anda saat jam istirahat kuliah.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-            {/* Step 1 */}
-            <div className="p-6 rounded-2xl bg-[var(--am-surface)] border border-[var(--am-border)] text-center space-y-4 relative z-10 shadow-sm">
-              <div className="w-14 h-14 rounded-2xl bg-[var(--am-primary)] text-white font-extrabold text-xl flex items-center justify-center mx-auto shadow-md">
-                1
-              </div>
-              <h3 className="text-lg font-bold text-[var(--am-text)]">
-                Pilih Kampus & Cari Produk
-              </h3>
-              <p className="text-xs sm:text-sm text-[var(--am-text-muted)] leading-relaxed">
-                Tentukan lokasi Kampus 1 Banjarmasin atau Kampus 2 Banjarbaru. Jelajahi menu kantin, ATK, buket wisuda, atau merchandise resmi.
-              </p>
-            </div>
-
-            {/* Step 2 */}
-            <div className="p-6 rounded-2xl bg-[var(--am-surface)] border border-[var(--am-border)] text-center space-y-4 relative z-10 shadow-sm">
-              <div className="w-14 h-14 rounded-2xl bg-[var(--am-primary)] text-white font-extrabold text-xl flex items-center justify-center mx-auto shadow-md">
-                2
-              </div>
-              <h3 className="text-lg font-bold text-[var(--am-text)]">
-                Checkout & Bayar Praktis
-              </h3>
-              <p className="text-xs sm:text-sm text-[var(--am-text-muted)] leading-relaxed">
-                Pilih metode bayar QRIS kilat, transfer e-wallet, atau Bayar di Tempat (COD). Masukkan kupon diskon toko jika ada.
-              </p>
-            </div>
-
-            {/* Step 3 */}
-            <div className="p-6 rounded-2xl bg-[var(--am-surface)] border border-[var(--am-border)] text-center space-y-4 relative z-10 shadow-sm">
-              <div className="w-14 h-14 rounded-2xl bg-[var(--am-primary)] text-white font-extrabold text-xl flex items-center justify-center mx-auto shadow-md">
-                3
-              </div>
-              <h3 className="text-lg font-bold text-[var(--am-text)]">
-                Ambil Mandiri / Diantar Kurir
-              </h3>
-              <p className="text-xs sm:text-sm text-[var(--am-text-muted)] leading-relaxed">
-                Pilih opsi Pick-Up langsung di tenant, atau santai di ruang kelas dan tunggu kurir mahasiswa mengantarkan pesananmu sampai di tempat.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 💎 MEMBERSHIP PRO BANNER */}
-      <section className="py-14 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-800 text-white rounded-none">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="space-y-3 text-center md:text-left">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-bold tracking-wide uppercase">
-              <span>💎</span> Langganan Spesial Sivitas
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold">
-              Tingkatkan Pengalaman Belanja dengan Campus Mart PRO
-            </h2>
-            <p className="text-xs sm:text-sm text-emerald-100 max-w-xl">
-              Cuma Rp10.000/bulan! Nikmati gratis ongkos kirim tanpa batas, voucher diskon khusus, prioritas kurir kilat, serta 0% biaya potongan untuk pelapak.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-            <button
-              onClick={onOpenProModal}
-              className="w-full sm:w-auto px-6 py-3.5 rounded-xl font-bold text-xs sm:text-sm bg-white text-emerald-800 hover:bg-gray-100 shadow-xl transition-all cursor-pointer text-center"
-            >
-              Langganan PRO Sekarang 🚀
-            </button>
-            <button
-              onClick={() => onNavigateTab('home')}
-              className="w-full sm:w-auto px-5 py-3.5 rounded-xl font-semibold text-xs sm:text-sm bg-emerald-700/60 hover:bg-emerald-700 border border-white/20 text-white transition-all cursor-pointer text-center"
-            >
-              Coba Belanja Dulu
-            </button>
-          </div>
-        </div>
-      </section>
-
       {/* 💬 TESTIMONI SIVITAS AKADEMIKA */}
-      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-surface)] border-b border-[var(--am-border)]">
+      <section id="testimoni" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-surface)] border-b border-[var(--am-border)]">
         <div className="max-w-6xl mx-auto space-y-12">
           <div className="text-center max-w-3xl mx-auto space-y-3">
             <span className="text-xs font-bold tracking-wider uppercase text-[var(--am-primary)] bg-[var(--am-primary)]/10 px-3 py-1 rounded-full">
@@ -1050,7 +1211,7 @@ export default function LandingPage({
       </section>
 
       {/* ❓ FAQ ACCORDION */}
-      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-bg)]">
+      <section id="faq" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-bg)]">
         <div className="max-w-4xl mx-auto space-y-10">
           <div className="text-center space-y-3">
             <span className="text-xs font-bold tracking-wider uppercase text-[var(--am-primary)] bg-[var(--am-primary)]/10 px-3 py-1 rounded-full">
@@ -1104,33 +1265,22 @@ export default function LandingPage({
             Siap Menikmati Kemudahan Belanja di Kampus UIN Antasari?
           </h2>
           <p className="text-xs sm:text-sm md:text-base text-[var(--am-text-muted)] max-w-xl mx-auto leading-relaxed">
-            Bergabunglah bersama ribuan sivitas akademika lainnya. Belanja praktis, dukung wirausaha mahasiswa, dan wujudkan Smart Campus bersama kami.
+            Gunakan versi Web App instan langsung dari browser atau pasang aplikasi Android APK resmi untuk ponsel Anda.
           </p>
           <div className="flex flex-wrap justify-center gap-3 pt-2">
             <button
               onClick={() => onNavigateTab('home')}
               className="px-6 py-3.5 rounded-xl font-bold text-sm text-white bg-[var(--am-primary)] hover:opacity-90 shadow-lg shadow-[var(--am-primary)]/20 transition-all cursor-pointer"
             >
-              Mulai Belanja Sekarang 🛍️
+              Mulai Belanja di Web App 🛍️
             </button>
-            {isGuest ? (
-              <button
-                onClick={() => {
-                  if (onRequireLogin) onRequireLogin();
-                  else onNavigateTab('login_page');
-                }}
-                className="px-6 py-3.5 rounded-xl font-bold text-sm text-[var(--am-text)] bg-[var(--am-surface)] border border-[var(--am-border)] hover:bg-[var(--am-bg2)] transition-all cursor-pointer"
-              >
-                Daftar Akun Baru 🔑
-              </button>
-            ) : (
-              <button
-                onClick={() => onNavigateTab('seller')}
-                className="px-6 py-3.5 rounded-xl font-bold text-sm text-[var(--am-text)] bg-[var(--am-surface)] border border-[var(--am-border)] hover:bg-[var(--am-bg2)] transition-all cursor-pointer"
-              >
-                Buka Toko Gratis 🏬
-              </button>
-            )}
+            <a
+              href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
+              download="antasari_mart_release.apk"
+              className="px-6 py-3.5 rounded-xl font-bold text-sm text-[var(--am-text)] bg-[var(--am-surface)] border border-[var(--am-border)] hover:bg-[var(--am-bg2)] transition-all cursor-pointer"
+            >
+              Unduh APK Android (.apk) 📱
+            </a>
           </div>
         </div>
       </section>

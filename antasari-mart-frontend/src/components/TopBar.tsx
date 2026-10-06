@@ -219,17 +219,13 @@ export default function TopBar({
             </div>
           </div>
 
-          {/* 🌟 Tombol Navigasi Cepat: Landing Page vs Katalog */}
+          {/* 🌟 Tombol Navigasi Cepat ke Website Utama */}
           <button
-            onClick={() => setActiveTab(activeTab === 'landing_page' ? 'home' : 'landing_page')}
-            className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-              activeTab === 'landing_page'
-                ? 'bg-[var(--am-primary)] text-white border-[var(--am-primary)] shadow-sm'
-                : 'bg-[var(--am-bg2)] text-[var(--am-text)] border-[var(--am-border)] hover:border-[var(--am-primary)]'
-            }`}
-            title={activeTab === 'landing_page' ? 'Buka Katalog Belanja' : 'Buka Halaman Info & Panduan'}
+            onClick={() => setActiveTab('landing_page')}
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border bg-[var(--am-bg2)] text-[var(--am-text)] border-[var(--am-border)] hover:border-[var(--am-primary)] hover:bg-[var(--am-surface)] shadow-2xs"
+            title="Kembali ke Website Utama / Landing Page"
           >
-            <span>{activeTab === 'landing_page' ? '🛍️ Katalog Belanja' : '🌟 Info & Panduan'}</span>
+            <span>🌐 Website Utama</span>
           </button>
         </div>
 
