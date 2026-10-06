@@ -149,6 +149,20 @@ function MainAppContent() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
   }, [activeTab]);
 
+  // 🏷️ Perbarui Title Tab Browser Sesuai Halaman
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (activeTab === 'landing_page') {
+      document.title = 'Landing Page Campus Mart - Portal Resmi UIN Antasari';
+    } else if (activeTab === 'home') {
+      document.title = 'Katalog Belanja - Campus Mart UIN Antasari';
+    } else if (activeTab === 'vending_simulator') {
+      document.title = 'Smart Vending Simulator - Campus Mart';
+    } else {
+      document.title = 'Campus Mart - Marketplace UIN Antasari';
+    }
+  }, [activeTab]);
+
   // 🔗 Sinkronisasi URL Pathname & Hash (#landing, /landing, #home, #vending)
   useEffect(() => {
     if (typeof window === 'undefined') return;
