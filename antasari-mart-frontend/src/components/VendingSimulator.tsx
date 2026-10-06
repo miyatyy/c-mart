@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import type { ThemeMode } from '../types';
 import { claimVendingApi, checkoutApi } from '../lib/api';
 import { playCuteVendingSpinningMusic, playCuteVendingSuccessJingle, playCuteVendingFullExperience } from '../lib/vendingAudio';
 import { cleanupSnapOverlays, loadSnapScript } from '../lib/snapCleanup';
+import CameraBarcodeScannerModal from './CameraBarcodeScannerModal';
 
 interface VendingSimulatorProps {
   theme: ThemeMode;
@@ -321,6 +322,7 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
   const [openedSlot, setOpenedSlot] = useState<number | null>(null);
   const [isSpinningVisual, setIsSpinningVisual] = useState(false);
   const [spinningSlotNumber, setSpinningSlotNumber] = useState<number | null>(null);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   // 💳 Direct Payment State
   const [selectedSlotForPayment, setSelectedSlotForPayment] = useState<BlindBagSlot | null>(null);
@@ -329,6 +331,20 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [esp32IpInput, setEsp32IpInput] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('am_esp32_ip') || '' : ''));
   const [purchaseQty, setPurchaseQty] = useState(1);
+
+  useEffect(() => {
+    const handleScannedTokenEvent = (e: any) => {
+      const token = e.detail;
+      if (token) {
+        setInputToken(token);
+        handleSimulateClaim(token);
+      }
+    };
+    window.addEventListener('am_vending_token_scanned', handleScannedTokenEvent);
+    return () => {
+      window.removeEventListener('am_vending_token_scanned', handleScannedTokenEvent);
+    };
+  }, []);
 
   // 🎵 Handler Uji Coba Musik Imut Mesin Vending Berputar di Speaker Laptop
   const handleTestSpinningWithMusic = (slotNumber: number = 1) => {
@@ -727,9 +743,114 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
           grid-template-columns: repeat(2, 1fr);
           gap: 12px;
         }
-        @media (max-width: 360px) {
-          .am-vending-grid {
-            gap: 8px;
+        .am-vending-token-form {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          width: 100%;
+        }
+        .am-vending-token-row {
+          display: flex;
+          gap: 6px;
+          width: 100%;
+          align-items: center;
+        }
+        .am-vending-token-input-wrap {
+          flex: 1;
+          min-width: 0;
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+        .am-vending-token-input {
+          width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+          padding: 10px 12px;
+          padding-right: 32px;
+          border-radius: 10px;
+          border: 1.5px solid var(--am-border, #E1ECE4);
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.8px;
+          outline: none;
+          background: var(--am-bg2, #F0F7F2);
+          color: var(--am-text, #243329);
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .am-vending-token-input:focus {
+          border-color: #10B981;
+          box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+        }
+        .am-vending-scan-btn {
+          padding: 10px 13px;
+          border-radius: 10px;
+          border: 1.5px solid #10B981;
+          background: rgba(16, 185, 129, 0.12);
+          color: #065F46;
+          font-size: 12.5px;
+          font-weight: 800;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          flex-shrink: 0;
+          white-space: nowrap;
+          transition: all 0.15s ease;
+          touch-action: manipulation;
+        }
+        .am-vending-scan-btn:hover {
+          background: rgba(16, 185, 129, 0.22);
+        }
+        .am-vending-scan-btn:active {
+          transform: scale(0.97);
+        }
+        .am-vending-submit-btn {
+          width: 100%;
+          padding: 11px 16px;
+          border-radius: 10px;
+          border: none;
+          background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+          color: white;
+          font-size: 13px;
+          font-weight: 800;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
+          transition: all 0.15s ease;
+          touch-action: manipulation;
+        }
+        .am-vending-submit-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .am-vending-submit-btn:active:not(:disabled) {
+          transform: scale(0.98);
+        }
+        @media (min-width: 640px) {
+          .am-vending-token-form {
+            flex-direction: row;
+            align-items: center;
+          }
+          .am-vending-token-row {
+            flex: 1;
+            min-width: 0;
+          }
+          .am-vending-submit-btn {
+            width: auto;
+            flex-shrink: 0;
+            padding: 10px 18px;
+          }
+        }
+        @media (max-width: 350px) {
+          .am-vending-scan-btn {
+            padding: 9px 8px;
+            font-size: 11px;
+            gap: 3px;
           }
         }
       `}</style>
@@ -1172,48 +1293,82 @@ export default function VendingSimulator({ theme: _theme }: VendingSimulatorProp
           </div>
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); handleSimulateClaim(); }} style={{ display: 'flex', gap: 6 }}>
-          <input
-            type="text"
-            placeholder="Contoh: BLIND-35K, BLIND-40K..."
-            value={inputToken}
-            onChange={e => setInputToken(e.target.value.toUpperCase())}
-            style={{
-              flex: 1,
-              padding: '10px 12px',
-              borderRadius: 10,
-              border: '1.5px solid var(--am-border, #E1ECE4)',
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: 0.8,
-              outline: 'none',
-              background: 'var(--am-bg2, #F0F7F2)',
-              color: 'var(--am-text, #243329)',
-              boxSizing: 'border-box'
-            }}
-          />
+        <form onSubmit={(e) => { e.preventDefault(); handleSimulateClaim(); }} className="am-vending-token-form">
+          <div className="am-vending-token-row">
+            <div className="am-vending-token-input-wrap">
+              <input
+                type="text"
+                placeholder="Contoh: BLIND-35K, BLIND-40K..."
+                value={inputToken}
+                onChange={e => setInputToken(e.target.value.toUpperCase())}
+                className="am-vending-token-input"
+              />
+              {inputToken && (
+                <button
+                  type="button"
+                  onClick={() => setInputToken('')}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: '#CBD5E1',
+                    color: '#334155',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 18,
+                    height: 18,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 10,
+                    fontWeight: 900,
+                    cursor: 'pointer'
+                  }}
+                  title="Hapus token"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsScannerOpen(true)}
+              title="Scan QR atau Barcode dengan Kamera HP"
+              className="am-vending-scan-btn"
+            >
+              <span style={{ fontSize: 14 }}>📷</span>
+              <span>Scan QR</span>
+            </button>
+          </div>
+
           <button
             type="submit"
             disabled={loading}
-            style={{
-              padding: '10px 16px',
-              borderRadius: 10,
-              border: 'none',
-              background: 'linear-gradient(135deg, #5FA874 0%, #4D9562 100%)',
-              color: 'white',
-              fontSize: 12.5,
-              fontWeight: 800,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 3px 10px rgba(95, 168, 116, 0.3)',
-              flexShrink: 0
-            }}
+            className="am-vending-submit-btn"
           >
-            {loading ? '...' : 'Buka Loker 🚀'}
+            {loading ? '⏳ Membuka...' : 'Buka Loker 🚀'}
           </button>
         </form>
+
+        <CameraBarcodeScannerModal
+          isOpen={isScannerOpen}
+          onClose={() => setIsScannerOpen(false)}
+          onScanSuccess={(scannedCode) => {
+            setInputToken(scannedCode);
+            Swal.fire({
+              toast: true,
+              position: 'top-end',
+              icon: 'success',
+              title: `📷 QR Berhasil Di-scan: ${scannedCode}`,
+              showConfirmButton: false,
+              timer: 2000
+            });
+            handleSimulateClaim(scannedCode);
+          }}
+          title="Scan QR Vending Machine"
+          subtitle="Arahkan kamera ke QR Code transaksi atau token loker"
+        />
 
         {/* LOG DISPENSE */}
         {dispenseData && (

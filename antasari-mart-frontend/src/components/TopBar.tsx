@@ -1,6 +1,10 @@
+import { useState } from 'react'
 import type { AppTab, Campus, ThemeMode, UserRole, CartItem } from '../types'
 import { useRealtimeLocation } from '../lib/useRealtimeLocation'
 import { getUserAvatar } from '../lib/userAvatars'
+import { triggerHaptic } from '../utils/haptics'
+import CameraBarcodeScannerModal from './CameraBarcodeScannerModal'
+import Swal from 'sweetalert2'
 
 interface TopBarProps {
   theme: ThemeMode
@@ -25,7 +29,7 @@ interface TopBarProps {
 }
 
 export default function TopBar({
-  theme, campus, setCampus, activeTab: _activeTab, setActiveTab,
+  theme, campus, setCampus, activeTab, setActiveTab,
   role,
   userName, userEmail, userAvatar, isGuest, onRequireLogin,
   cartItems, chatUnread,
@@ -44,6 +48,7 @@ export default function TopBar({
   const activeAvatar = getUserAvatar(userEmail || userName, userName, role, storedAvatar || userAvatar);
 
   const handleProfileClick = () => {
+    triggerHaptic('light');
     if (isGuest) {
       if (onRequireLogin) onRequireLogin();
     } else if (onOpenProfileModal) {
@@ -52,6 +57,7 @@ export default function TopBar({
   }
 
   const handleChatClick = () => {
+    triggerHaptic('light');
     if (isGuest && onRequireLogin) {
       onRequireLogin();
       return;
@@ -59,7 +65,49 @@ export default function TopBar({
     setActiveTab('chat');
   }
 
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+  const handleScanClick = () => {
+    triggerHaptic('medium');
+    setIsScannerOpen(true);
+  };
+
+  const handleScanSuccess = (scannedText: string) => {
+    const textUpper = scannedText.toUpperCase();
+    if (textUpper.includes('BLIND') || textUpper.includes('VEND') || textUpper.includes('SLOT')) {
+      setActiveTab('vending_simulator');
+      Swal.fire({
+        icon: 'success',
+        title: 'Token Vending Terdeteksi! 🤖',
+        text: `Membuka Vending Machine dengan token: ${scannedText}`,
+        confirmButtonColor: '#10B981',
+        timer: 2500
+      });
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('am_vending_token_scanned', { detail: scannedText }));
+      }, 500);
+    } else if (textUpper.startsWith('ANTASARI-') || textUpper.includes('ORDER')) {
+      localStorage.setItem('am_active_order_id', scannedText);
+      setActiveTab('tracker');
+      Swal.fire({
+        icon: 'success',
+        title: 'Nomor Pesanan Terdeteksi! 🛵',
+        text: `Membuka pelacakan pengiriman kurir: ${scannedText}`,
+        confirmButtonColor: '#10B981',
+        timer: 2500
+      });
+    } else {
+      Swal.fire({
+        icon: 'info',
+        title: 'Hasil Scan Barcode / QR',
+        html: `<div style="text-align:center;"><p style="font-size:13px;color:#64748B;">Kode berhasil dibaca:</p><code style="font-size:16px;font-weight:bold;color:#10B981;background:#F0FDF4;padding:6px 12px;border-radius:8px;display:inline-block;">${scannedText}</code></div>`,
+        confirmButtonColor: '#10B981'
+      });
+    }
+  };
+
   const handleCartClick = () => {
+    triggerHaptic('light');
     if (isGuest && onRequireLogin) {
       onRequireLogin();
       return;
@@ -68,7 +116,7 @@ export default function TopBar({
   }
 
   return (
-    <header className="sticky top-0 z-50 pt-0 mt-0" style={{ background: 'var(--am-surface)', borderBottom: '1px solid var(--am-border)', position: 'sticky', top: 0, zIndex: 100, paddingTop: 0, marginTop: 0 }}>
+    <header className="sticky top-0 z-50 pt-0 mt-0" style={{ background: 'var(--am-surface)', borderBottom: '1px solid var(--am-border)', position: 'sticky', top: 0, zIndex: 100, paddingTop: 'env(safe-area-inset-top, 0px)', marginTop: 0 }}>
       <style>{`
         @keyframes pulseGps {
           0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
@@ -170,6 +218,19 @@ export default function TopBar({
               </div>
             </div>
           </div>
+
+          {/* 🌟 Tombol Navigasi Cepat: Landing Page vs Katalog */}
+          <button
+            onClick={() => setActiveTab(activeTab === 'landing_page' ? 'home' : 'landing_page')}
+            className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+              activeTab === 'landing_page'
+                ? 'bg-[var(--am-primary)] text-white border-[var(--am-primary)] shadow-sm'
+                : 'bg-[var(--am-bg2)] text-[var(--am-text)] border-[var(--am-border)] hover:border-[var(--am-primary)]'
+            }`}
+            title={activeTab === 'landing_page' ? 'Buka Katalog Belanja' : 'Buka Halaman Info & Panduan'}
+          >
+            <span>{activeTab === 'landing_page' ? '🛍️ Katalog Belanja' : '🌟 Info & Panduan'}</span>
+          </button>
         </div>
 
         {/* Tengah: 📍 SIMBOL LOKASI REAL-TIME */}
@@ -221,9 +282,25 @@ export default function TopBar({
           </div>
         </div>
 
-        {/* Sisi Kanan: 💬 CHAT + 🛒 KERANJANG + 🌓 TEMA + 👤 AVATAR (TANPA TOMBOL LOGOUT ATAS) */}
+        {/* Sisi Kanan: 📷 SCAN + 💬 CHAT + 🛒 KERANJANG + 🌓 TEMA + 👤 AVATAR */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           
+          {/* 📷 0. Tombol Scan Barcode & QR Kamera */}
+          <button
+            onClick={handleScanClick}
+            className="topbar-icon-btn"
+            title="Scan QR & Barcode Kamera"
+            aria-label="Buka Scanner Kamera"
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
+              <path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+              <path d="M21 17v2a2 2 0 0 1-2 2h-2"/>
+              <path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+
           {/* 💬 1. Tombol Chat / Pesan di Pojok Kanan Atas */}
           <button
             onClick={handleChatClick}
@@ -315,6 +392,15 @@ export default function TopBar({
 
         </div>
       </div>
+
+      {/* 📷 MODAL SCANNER KAMERA REALTIME */}
+      <CameraBarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={handleScanSuccess}
+        title="Scanner QR & Barcode Kamera"
+        subtitle="Arahkan kamera HP ke QR Vending, Barcode Produk, atau Resi Kurir"
+      />
     </header>
   )
 }

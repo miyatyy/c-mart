@@ -1,7 +1,7 @@
 export type Campus = 'banjarmasin' | 'banjarbaru'
 export type UserRole = 'buyer' | 'seller' | 'driver' | 'admin' | 'admin_reguler' | 'admin_pro' | 'super_admin'
 export type ThemeMode = 'aesthetic' | 'modern'
-export type AppTab = 'home' | 'cart' | 'checkout' | 'tracker' | 'seller' | 'admin' | 'chat' | 'driver' | 'super_admin' | 'login_page' | 'vending_simulator'
+export type AppTab = 'home' | 'cart' | 'checkout' | 'tracker' | 'seller' | 'admin' | 'chat' | 'driver' | 'super_admin' | 'login_page' | 'vending_simulator' | 'landing_page'
 
 export type DegreeLevel = 'S1' | 'S2' | 'S3';
 export type VerificationStatus = 'not_submitted' | 'pending' | 'approved' | 'rejected';

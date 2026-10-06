@@ -18,7 +18,7 @@ interface ChatMessage {
 }
 
 // Suara Web Audio Fanfare / Jingle Lucu
-export function playCuteChime() {
+function playCuteChime() {
   try {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtx) return;

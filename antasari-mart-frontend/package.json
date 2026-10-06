@@ -12,6 +12,7 @@
   "dependencies": {
     "@vitejs/plugin-vue": "^5.2.4",
     "firebase": "^12.19.0",
+    "html5-qrcode": "^2.3.8",
     "laravel-echo": "^2.5.0",
     "leaflet": "^1.9.4",
     "pusher-js": "^8.6.0",
@@ -29,6 +30,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.0.0",
     "oxfmt": "^0.2.0",
     "tailwindcss": "^4.0.0",

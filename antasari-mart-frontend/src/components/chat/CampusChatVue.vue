@@ -1,5 +1,8 @@
 <template>
-  <div class="w-full h-screen max-h-screen flex flex-col md:flex-row bg-white dark:bg-gray-900 overflow-hidden font-sans pb-0 md:pb-0">
+  <div
+    class="w-full h-[100dvh] max-h-[100dvh] flex flex-col md:flex-row bg-white dark:bg-gray-900 overflow-hidden font-sans pb-0 md:pb-0 relative"
+    style="height: 100dvh; max-height: 100dvh; overflow: hidden;"
+  >
     <!-- 📋 SATU SIDEBAR DAFTAR KONTAK (Mobile: Fullscreen saat selectedChat null; Desktop: Kolom Kiri Ramping) -->
     <div
       :class="[
@@ -135,49 +138,56 @@
     <!-- 💬 SATU RUANG PESAN AKTIF (Mobile: Tampil saat selectedChat; Desktop: Kolom Kanan Lega) -->
     <div
       :class="[
-        'flex-1 flex flex-col bg-gray-50 dark:bg-gray-950 h-full max-h-screen overflow-hidden min-w-0 transition-all duration-200',
-        selectedChat ? 'flex w-full h-screen md:h-full' : 'hidden md:flex'
+        'flex-1 flex flex-col bg-gray-50 dark:bg-gray-950 h-full max-h-[100dvh] overflow-hidden min-w-0 transition-all duration-200 relative',
+        selectedChat ? 'flex w-full h-[100dvh] md:h-full' : 'hidden md:flex'
       ]"
+      style="height: 100dvh; max-height: 100dvh; overflow: hidden;"
     >
-      <!-- Header Room -->
-      <div class="shrink-0 h-14 px-3 sm:px-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between shadow-xs z-10">
-        <div class="flex items-center gap-2.5 min-w-0">
+      <!-- Header Room (TOP LAYER TETAP DI BAGIAN ATAS / STICKY DI HP) -->
+      <div
+        class="sticky top-0 left-0 right-0 z-30 shrink-0 h-14 px-2.5 sm:px-4 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between shadow-xs select-none"
+        style="position: sticky; top: 0; z-index: 30; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);"
+      >
+        <div class="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           <!-- Tombol Back Mobile -->
           <button
             type="button"
             @click="handleBackToContacts"
-            class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 md:hidden cursor-pointer"
+            class="p-1.5 -ml-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 md:hidden cursor-pointer shrink-0"
             title="Kembali ke Daftar Kontak"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="m15 18-6-6 6-6"/>
             </svg>
           </button>
 
-          <div class="relative w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+          <!-- Foto Profil Lawan Bicara -->
+          <div class="relative w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 ring-2 ring-emerald-500/30">
             <img :src="activePartnerAvatar" class="w-full h-full object-cover" />
             <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-gray-900"></span>
           </div>
 
-          <div class="min-w-0">
-            <div class="flex items-center gap-1.5 flex-wrap">
+          <!-- Identitas & Nama -->
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 flex-nowrap">
               <h3 class="font-bold text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate">{{ activePartnerName }}</h3>
-              <span :class="['text-[9px] font-bold px-1.5 py-0.5 rounded border', getRoleBadge(activePartnerRole).bgClass]">
+              <span :class="['text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0', getRoleBadge(activePartnerRole).bgClass]">
                 {{ getRoleBadge(activePartnerRole).shortLabel }}
               </span>
             </div>
             <!-- TYPING INDICATOR -->
-            <p v-if="isPartnerTyping" class="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 animate-pulse font-medium">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block"></span>
-              <span class="text-emerald-500 animate-pulse font-semibold">{{ partnerTypingName || activePartnerName }} sedang mengetik...</span>
+            <p v-if="isPartnerTyping" class="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 animate-pulse font-medium truncate">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block shrink-0"></span>
+              <span class="text-emerald-500 animate-pulse font-semibold truncate">{{ partnerTypingName || activePartnerName }} sedang mengetik...</span>
             </p>
-            <p v-else class="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1">
-              <span>Online • {{ getRoleBadge(activePartnerRole).label }}</span>
+            <p v-else class="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1 truncate">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+              <span class="truncate">Online • {{ getRoleBadge(activePartnerRole).label }}</span>
             </p>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5 shrink-0 ml-2">
           <!-- 🤖 TOGGLE AI MODE (Hanya tampil untuk Penjual/Seller) -->
           <button
             v-if="currentUser.role === 'seller' || currentUser.role === 'superadmin'"
@@ -192,20 +202,26 @@
             :title="isAiMode ? 'Mode Auto-Pilot AI Aktif — klik untuk beralih ke Live Admin' : 'Mode Live Admin — klik untuk aktifkan AI Auto-Pilot'"
           >
             <span>{{ isAiMode ? '🤖' : '👤' }}</span>
-            {{ isAiMode ? 'Auto-Pilot' : 'Live Admin' }}
+            <span class="hidden sm:inline">{{ isAiMode ? 'Auto-Pilot' : 'Live Admin' }}</span>
           </button>
           <button
             type="button"
             @click="showProfileModal = true"
-            class="text-[10px] font-bold px-2 py-1 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 cursor-pointer"
+            class="text-[10px] font-bold px-2 py-1 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 cursor-pointer flex items-center gap-1"
+            title="Klik untuk ganti profil akun"
           >
-            👤 {{ currentUser.name }}
+            <span>👤</span>
+            <span class="hidden sm:inline max-w-[100px] truncate">{{ currentUser.name }}</span>
           </button>
         </div>
       </div>
 
-      <!-- 📜 DAFTAR BUBBLE PESAN CHAT -->
-      <div ref="messagesContainerRef" class="flex-1 overflow-y-auto p-4 pb-16 min-h-0 space-y-2 bg-[#efeae2]/50 dark:bg-gray-950 relative">
+      <!-- 📜 DAFTAR BUBBLE PESAN CHAT (DILENGKAPI OVERSCROLL-CONTAIN) -->
+      <div
+        ref="messagesContainerRef"
+        class="flex-1 overflow-y-auto overscroll-contain p-4 pb-16 min-h-0 space-y-2 bg-[#efeae2]/50 dark:bg-gray-950 relative"
+        style="overscroll-behavior: contain; -webkit-overflow-scrolling: touch;"
+      >
         <!-- Backdrop transparan untuk menutup menu dropdown titik tiga saat klik di luar -->
         <div v-if="activeMenuMsgId !== null" @click="closeMessageMenu" class="fixed inset-0 z-30 bg-transparent"></div>
 
@@ -581,6 +597,7 @@
             type="text"
             :value="pesanTeks"
             :disabled="!isChatAuthorized"
+            @focus="handleInputFocus"
             @input="handleInputWithTyping"
             @keydown.enter.exact.prevent="handleKirimPesan"
             :placeholder="!isChatAuthorized ? 'Obrolan tidak aktif untuk status pesanan ini...' : 'Tulis pesan...'"
@@ -3316,6 +3333,12 @@ const handleIncomingMessage = (rawMsg: any) => {
   // Juga jalankan updateContactLastMessage untuk ketahanan ganda
   const contactKeyToUpdate = rawSenderId || (activePartner ? activePartner.id : '');
   updateContactLastMessage(contactKeyToUpdate, msgText, msgTimestamp, rawReceiverId);
+};
+
+const handleInputFocus = () => {
+  if (typeof window !== 'undefined') {
+    window.scrollTo(0, 0);
+  }
 };
 
 const handleInputWithTyping = (e: Event) => {

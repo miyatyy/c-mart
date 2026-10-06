@@ -237,9 +237,41 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
     sessionStorage.removeItem('am_applied_coupon');
   };
 
-  const LOCATIONS = campus === 'banjarmasin'
-    ? ['Gedung Syariah Lt. 1', 'Gedung Syariah Lt. 2', 'Gedung Dakwah Lt. 3', 'Gedung Tarbiyah', 'Kantin Belakang Tarbiyah', 'Perpustakaan Pusat', 'Masjid Kampus', 'Gedung Rektorat', 'Area Parkir Utama']
-    : ['Gedung A Banjarbaru', 'Gedung B Banjarbaru', 'Kantin Kampus 2', 'Masjid Kampus 2', 'Perpustakaan Kampus 2'];
+  const CAMPUS_ZONES = campus === 'banjarmasin'
+    ? {
+        jastipGedung: [
+          'Fakultas Tarbiyah - Lobi Utama Lt. 1',
+          'Fakultas Tarbiyah - Lt. 2 / Lt. 3',
+          'Fakultas Syariah - Lobi Depan',
+          'Fakultas Ushuluddin & Humaniora',
+          'Fakultas Dakwah & Ilmu Komunikasi',
+          'Fakultas FEBI (Ekonomi Islam)',
+          'Gedung Pascasarjana Lt. 1',
+          'Perpustakaan Pusat UIN Antasari',
+          'Gedung Rektorat (Lobi Utama)'
+        ],
+        codSafeZones: [
+          '🛡️ COD Safe Zone: Pos Satpam Gerbang 1 (Utama)',
+          '🛡️ COD Safe Zone: Selasar Masjid Kampus UIN',
+          '🛡️ COD Safe Zone: Gazebo Pujasera Kantin Belakang',
+          '🛡️ COD Safe Zone: Depan Gedung Student Center'
+        ]
+      }
+    : {
+        jastipGedung: [
+          'Gedung Kuliah Terpadu A Banjarbaru',
+          'Gedung Kuliah B Banjarbaru',
+          'Perpustakaan Kampus 2 Banjarbaru',
+          'Lobi Rektorat Kampus 2 Banjarbaru'
+        ],
+        codSafeZones: [
+          '🛡️ COD Safe Zone: Pos Satpam Gerbang Utama Kampus 2',
+          '🛡️ COD Safe Zone: Selasar Masjid Kampus 2',
+          '🛡️ COD Safe Zone: Pujasera Kantin Kampus 2'
+        ]
+      };
+
+  const LOCATIONS = [...CAMPUS_ZONES.jastipGedung, ...CAMPUS_ZONES.codSafeZones];
 
   const finalLocation = delivery === 'pickup' 
     ? 'Ambil Sendiri di Tenant / Warung Koperasi' 
@@ -712,12 +744,19 @@ export default function Checkout({ theme: _theme, campus, items, onConfirmOrder,
                     setSelectedDropdownLocation(e.target.value);
                     setIsCustomLocation(false);
                   }}
-                  style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', fontSize: 13 }}
+                  style={{ padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--am-border)', background: 'var(--am-surface)', color: 'var(--am-text)', fontSize: 13, fontWeight: 600 }}
                 >
-                  <option value="">-- Pilih Titik Gedung Kampus --</option>
-                  {LOCATIONS.map(loc => (
-                    <option key={loc} value={loc}>{loc}</option>
-                  ))}
+                  <option value="">-- Pilih Titik Antar / COD Kampus --</option>
+                  <optgroup label="🏢 Jastip Antar Gedung Fakultas / Ruang Kuliah">
+                    {CAMPUS_ZONES.jastipGedung.map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🛡️ Titik Temu COD Aman Resmi (Safe Meet-Up Zone)">
+                    {CAMPUS_ZONES.codSafeZones.map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </optgroup>
                 </select>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--am-text-muted)' }}>Atau tulis patokan detail:</label>

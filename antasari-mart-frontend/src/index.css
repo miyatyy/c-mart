@@ -67,22 +67,51 @@
   --am-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
-*, *::before, *::after { box-sizing: border-box; }
+*, *::before, *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
 
 html {
   scrollbar-width: thin;
   scrollbar-color: rgba(128,128,128,0.3) transparent;
+  -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 html,
-body,
-#root {
+body {
   margin: 0;
   padding: 0;
   margin-top: 0 !important;
   padding-top: 0 !important;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-overflow-scrolling: touch;
 }
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 📱 Native Mobile Interactive Feel */
+button, a, input, select, textarea {
+  touch-action: manipulation;
+}
+
+/* Subtle micro-bounce on tap for mobile */
+@media (hover: none) and (pointer: coarse) {
+  button:active:not(:disabled),
+  .topbar-icon-btn:active,
+  .am-touch-feedback:active {
+    transform: scale(0.96) !important;
+    transition: transform 0.08s ease-out !important;
+  }
+}
+
 
 .am-root {
   margin: 0 !important;

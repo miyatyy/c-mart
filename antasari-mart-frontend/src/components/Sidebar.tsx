@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { AppTab, UserRole, ThemeMode, Campus } from '../types'
 import { getUserAvatar, saveUserAvatarToGlobalMap, PRESET_AVATARS } from '../lib/userAvatars'
+import { safeSetItem, compressAvatarImage } from '../utils/safeStorage'
 
 interface SidebarProps {
   theme: ThemeMode
@@ -75,6 +76,12 @@ function renderSidebarIcon(key: string) {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      );
+    case 'landing_page':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
         </svg>
       );
     default:
@@ -168,7 +175,8 @@ export default function Sidebar({
 
   const getMenuByRole = () => {
     const menus: { key: AppTab; label: string }[] = [
-      { key: 'home', label: 'Beranda' },
+      { key: 'landing_page', label: 'Info & Panduan' },
+      { key: 'home', label: 'Katalog Belanja' },
       { key: 'tracker', label: hasActiveOrder ? trackerLabel : 'Peta Lokasi' },
       { key: 'cart', label: 'Keranjang' },
     ];
@@ -192,14 +200,19 @@ export default function Sidebar({
 
   const menuItems = getMenuByRole()
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCurrentAvatar(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressAvatarImage(file, 180, 0.8);
+        setCurrentAvatar(compressed);
+      } catch (_err) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setCurrentAvatar(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -661,16 +674,23 @@ export default function Sidebar({
                 className="am-btn-primary" 
                 style={{ width: '100%', padding: '12px 0', marginTop: 6, fontSize: 14, fontWeight: 'bold', borderRadius: 10 }}
                 onClick={() => {
-                  setCampus(selectedCampus);
-                  setUserAvatar(currentAvatar); 
-                  saveUserAvatarToGlobalMap(userEmail || userName, currentName, currentAvatar);
-                  
-                  localStorage.setItem('am_user_avatar', currentAvatar);
-                  localStorage.setItem('am_user_campus', selectedCampus);
-                  localStorage.setItem('am_user_name', currentName);
-
-                  setShowProfileModal(false);
-                  setSuccessPopupMessage("Profil, foto avatar, dan lokasi kampus berhasil diperbarui secara permanen!");
+                  try {
+                    setCampus(selectedCampus);
+                    setUserAvatar(currentAvatar); 
+                    saveUserAvatarToGlobalMap(userEmail || userName, currentName, currentAvatar);
+                    
+                    safeSetItem('am_user_avatar', currentAvatar);
+                    safeSetItem('am_user_campus', selectedCampus);
+                    safeSetItem('am_user_name', currentName);
+                    setSuccessPopupMessage("Profil, foto avatar, dan lokasi kampus berhasil diperbarui secara permanen!");
+                  } catch (err) {
+                    console.warn("Gagal simpan di sidebar:", err);
+                  } finally {
+                    setShowProfileModal(false);
+                    if (typeof document !== 'undefined' && document.body) {
+                      document.body.style.overflow = '';
+                    }
+                  }
                 }}
               >
                 Simpan Perubahan

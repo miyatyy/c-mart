@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "soketi": "node soketi-bridge.js",
+    "dev": "npm run dev --prefix antasari-mart-frontend",
     "build": "npm run build --prefix antasari-mart-frontend",
     "start": "npm start --prefix antasari-mart-backend"
   },

@@ -18,8 +18,11 @@ import ProModal from './components/ProModal';
 import { ProfileModal, SuccessPopup, InfoModal, LoginPromptModal } from './components/AppModals';
 import SuperAdminPanel from './components/SuperAdminPanel';
 import VendingSimulator from './components/VendingSimulator';
+import LandingPage from './components/LandingPage';
 import MyammiyVoiceAssistant from './components/MyammiyVoiceAssistant';
 import BottomNavBar from './components/BottomNavBar';
+import PwaInstallBanner from './components/PwaInstallBanner';
+import { safeSetItem, compressAvatarImage } from './utils/safeStorage';
 import InAppNotification, { type InAppNotificationData } from './components/InAppNotification';
 import DebugSystemMenu from './components/DebugSystemMenu';
 import { getChatsApi, sendChatApi } from './lib/api';
@@ -95,7 +98,35 @@ function MainAppContent() {
   });
 
   const [theme, setTheme] = useState<ThemeMode>('aesthetic');
-  const [activeTab, setActiveTab] = useState<AppTab>('home');
+  const [activeTab, setActiveTab] = useState<AppTab>(() => {
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname.toLowerCase();
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      const hash = window.location.hash.replace('#', '').toLowerCase();
+
+      if (
+        pathname.endsWith('/landing') ||
+        pathname.endsWith('/tentang') ||
+        pathname.endsWith('/about') ||
+        pathname.endsWith('/info') ||
+        tabParam === 'landing' ||
+        tabParam === 'landing_page' ||
+        hash === 'landing' ||
+        hash === 'landing_page' ||
+        hash === 'info'
+      ) {
+        return 'landing_page';
+      }
+      if (tabParam && ['home', 'cart', 'checkout', 'tracker', 'seller', 'admin', 'chat', 'driver', 'super_admin', 'login_page', 'vending_simulator', 'landing_page'].includes(tabParam)) {
+        return tabParam as AppTab;
+      }
+      if (hash && ['home', 'cart', 'checkout', 'tracker', 'seller', 'admin', 'chat', 'driver', 'super_admin', 'login_page', 'vending_simulator', 'landing_page'].includes(hash)) {
+        return hash as AppTab;
+      }
+    }
+    return 'home';
+  });
   const [cart, setCart] = useState<CartItem[]>([]);
   const [chatUnread, setChatUnread] = useState(0);
 
@@ -116,6 +147,41 @@ function MainAppContent() {
     cleanupSnapOverlays();
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
   }, [activeTab]);
+
+  // 🔗 Sinkronisasi URL Pathname & Hash (#landing, /landing, #home, #vending)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleUrlSync = () => {
+      const p = window.location.pathname.toLowerCase();
+      const h = window.location.hash.replace('#', '').toLowerCase();
+      const params = new URLSearchParams(window.location.search);
+      const t = params.get('tab');
+
+      if (
+        p.endsWith('/landing') ||
+        p.endsWith('/tentang') ||
+        p.endsWith('/about') ||
+        p.endsWith('/info') ||
+        h === 'landing' ||
+        h === 'landing_page' ||
+        h === 'info' ||
+        t === 'landing' ||
+        t === 'landing_page'
+      ) {
+        setActiveTab('landing_page');
+      } else if (p.endsWith('/vending') || h === 'vending' || h === 'vending_simulator') {
+        setActiveTab('vending_simulator');
+      } else if (h === 'home' || h === 'katalog' || p.endsWith('/home')) {
+        setActiveTab('home');
+      }
+    };
+    window.addEventListener('popstate', handleUrlSync);
+    window.addEventListener('hashchange', handleUrlSync);
+    return () => {
+      window.removeEventListener('popstate', handleUrlSync);
+      window.removeEventListener('hashchange', handleUrlSync);
+    };
+  }, []);
 
   function getEffectiveUserName(u: SessionUser | null): string {
     if (!u) return 'Pengunjung Tamu';
@@ -244,6 +310,29 @@ function MainAppContent() {
   useEffect(() => {
     localStorage.setItem('am_user_campus', campus);
   }, [campus]);
+
+  // 🔒 Kunci scroll body & pastikan posisi di paling atas saat berada di tab chat
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      window.scrollTo(0, 0);
+      const originalBodyOverflow = document.body.style.overflow;
+      const originalHtmlOverflow = document.documentElement.style.overflow;
+      const originalBodyHeight = document.body.style.height;
+      const originalHtmlHeight = document.documentElement.style.height;
+
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.height = '100dvh';
+      document.documentElement.style.height = '100dvh';
+
+      return () => {
+        document.body.style.overflow = originalBodyOverflow;
+        document.documentElement.style.overflow = originalHtmlOverflow;
+        document.body.style.height = originalBodyHeight;
+        document.documentElement.style.height = originalHtmlHeight;
+      };
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (user) {
@@ -514,6 +603,25 @@ function MainAppContent() {
       localStorage.removeItem('am_target_chat_contact');
       window.dispatchEvent(new CustomEvent('am_reset_chat_view'));
     }
+    if (tab === 'landing_page') {
+      try {
+        window.history.pushState(null, '', '/landing');
+      } catch {
+        window.location.hash = 'landing';
+      }
+    } else if (tab === 'home') {
+      try {
+        window.history.pushState(null, '', '/');
+      } catch {
+        window.location.hash = '';
+      }
+    } else if (tab === 'vending_simulator') {
+      try {
+        window.history.pushState(null, '', '/vending');
+      } catch {
+        window.location.hash = 'vending';
+      }
+    }
     setActiveTab(tab);
     setIsMobileSidebarOpen(false);
   };
@@ -627,14 +735,19 @@ function MainAppContent() {
     setActiveTab('chat');
   }
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCurrentAvatar(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressAvatarImage(file, 180, 0.8);
+        setCurrentAvatar(compressed);
+      } catch (_err) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setCurrentAvatar(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -645,7 +758,17 @@ function MainAppContent() {
   return (
     <div
       className={`am-root theme-${theme} min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col md:flex-row pt-0 m-0`}
-      style={{ display: 'flex', minHeight: '100vh', background: 'var(--am-bg)', position: 'relative', paddingTop: 0, marginTop: 0 }}
+      style={{
+        display: 'flex',
+        minHeight: activeTab === 'chat' ? '100dvh' : '100vh',
+        height: activeTab === 'chat' ? '100dvh' : undefined,
+        maxHeight: activeTab === 'chat' ? '100dvh' : undefined,
+        overflow: activeTab === 'chat' ? 'hidden' : undefined,
+        background: 'var(--am-bg)',
+        position: 'relative',
+        paddingTop: 0,
+        marginTop: 0
+      }}
     >
       <style>{customModalStyles}</style>
 
@@ -678,7 +801,17 @@ function MainAppContent() {
         />
       )}
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingTop: 0, marginTop: 0, height: activeTab === 'chat' ? '100vh' : undefined, maxHeight: activeTab === 'chat' ? '100vh' : undefined, overflow: activeTab === 'chat' ? 'hidden' : undefined }}>
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        minWidth: 0,
+        paddingTop: 0,
+        marginTop: 0,
+        height: activeTab === 'chat' ? '100dvh' : undefined,
+        maxHeight: activeTab === 'chat' ? '100dvh' : undefined,
+        overflow: activeTab === 'chat' ? 'hidden' : undefined
+      }}>
         {activeTab !== 'chat' && (
           <TopBar
             theme={theme}
@@ -714,9 +847,9 @@ function MainAppContent() {
           style={{
             flex: 1,
             paddingBottom: activeTab === 'chat' || isFullScreenChat ? 0 : undefined,
-            minHeight: activeTab === 'chat' ? '100vh' : (isFullScreenChat ? '100vh' : 'calc(100vh - 60px)'),
-            height: activeTab === 'chat' ? '100vh' : undefined,
-            maxHeight: activeTab === 'chat' ? '100vh' : undefined,
+            minHeight: activeTab === 'chat' ? '100dvh' : (isFullScreenChat ? '100vh' : 'calc(100vh - 60px)'),
+            height: activeTab === 'chat' ? '100dvh' : undefined,
+            maxHeight: activeTab === 'chat' ? '100dvh' : undefined,
             overflow: activeTab === 'chat' ? 'hidden' : undefined,
             display: activeTab === 'chat' ? 'flex' : undefined,
             flexDirection: activeTab === 'chat' ? 'column' : undefined,
@@ -729,7 +862,7 @@ function MainAppContent() {
             style={{
               minHeight: activeTab === 'chat' ? '100%' : (isFullScreenChat ? '100vh' : 'calc(100vh - 140px)'),
               height: activeTab === 'chat' ? '100%' : undefined,
-              maxHeight: activeTab === 'chat' ? '100vh' : undefined,
+              maxHeight: activeTab === 'chat' ? '100dvh' : undefined,
               flex: activeTab === 'chat' ? 1 : undefined,
               display: activeTab === 'chat' ? 'flex' : 'block',
               flexDirection: activeTab === 'chat' ? 'column' : undefined,
@@ -885,6 +1018,21 @@ function MainAppContent() {
                 theme={theme}
               />
             )}
+
+            {activeTab === 'landing_page' && (
+              <LandingPage
+                theme={theme}
+                campus={campus}
+                setCampus={setCampus}
+                onNavigateTab={handleSetActiveTab}
+                onRequireLogin={() => setShowLoginModal(true)}
+                isGuest={isGuest}
+                onOpenProModal={() => {
+                  if (isGuest) setShowLoginModal(true);
+                  else setShowProModal(true);
+                }}
+              />
+            )}
           </div>
         </main>
       </div>
@@ -931,19 +1079,28 @@ function MainAppContent() {
           presetAvatars={PRESET_AVATARS}
           onImageChange={handleImageChange}
           onSave={() => {
-            setCampus(selectedCampus);
-            setUserAvatar(currentAvatar);
-            saveUserAvatarToGlobalMap(currentUser.email || currentName, currentName, currentAvatar);
-            localStorage.setItem('am_user_avatar', currentAvatar);
-            localStorage.setItem('am_user_name', currentName);
-            if (user) {
-              const updated = { ...user, nama: currentName, name: currentName, avatar: currentAvatar };
-              setUser(updated);
-              localStorage.setItem('am_user_session', JSON.stringify(updated));
-              localStorage.setItem('am_current_user', JSON.stringify(updated));
+            try {
+              setCampus(selectedCampus);
+              setUserAvatar(currentAvatar);
+              saveUserAvatarToGlobalMap(currentUser.email || currentName, currentName, currentAvatar);
+              safeSetItem('am_user_avatar', currentAvatar);
+              safeSetItem('am_user_name', currentName);
+              safeSetItem('am_user_campus', selectedCampus);
+              if (user) {
+                const updated = { ...user, nama: currentName, name: currentName, avatar: currentAvatar };
+                setUser(updated);
+                safeSetItem('am_user_session', JSON.stringify(updated));
+                safeSetItem('am_current_user', JSON.stringify(updated));
+              }
+              setSuccessPopupMessage('Profil & Avatar Anda berhasil diperbarui! ✨');
+            } catch (saveErr) {
+              console.warn('Peringatan saat menyimpan profil:', saveErr);
+            } finally {
+              setShowProfileModal(false);
+              if (typeof document !== 'undefined' && document.body) {
+                document.body.style.overflow = '';
+              }
             }
-            setShowProfileModal(false);
-            setSuccessPopupMessage('Profil & Avatar Anda berhasil diperbarui! ✨');
           }}
           onClose={() => setShowProfileModal(false)}
           onLogout={isGuest ? () => setActiveTab('login_page') : handleLogout}
@@ -988,6 +1145,11 @@ function MainAppContent() {
             }
           }}
         />
+      )}
+
+      {/* 📲 PWA INSTALL PROMPT UNTUK PENGGUNA HP & TABLET */}
+      {activeTab !== 'login_page' && !isFullScreenChat && (
+        <PwaInstallBanner />
       )}
 
       {/* 🔔 FLOATING IN-APP PUSH NOTIFICATION & QUICK REPLY POP-UP */}

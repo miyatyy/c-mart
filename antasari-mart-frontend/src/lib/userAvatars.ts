@@ -1,6 +1,7 @@
 // =========================================================
 // 🌟 ANTASARI MART GLOBAL UNIFIED AVATAR SYNC SYSTEM
 // =========================================================
+import { safeSetItem } from '../utils/safeStorage';
 
 export interface PresetAvatar {
   id: number;
@@ -229,7 +230,7 @@ export function saveUserAvatarToGlobalMap(
     if (cleanId.includes('@')) {
       avatarMap[cleanId.split('@')[0]] = avatarUrl;
     }
-    localStorage.setItem('am_user_avatars_map', JSON.stringify(avatarMap));
+    safeSetItem('am_user_avatars_map', JSON.stringify(avatarMap));
 
     // 2. Update akun di am_registered_users jika cocok
     const regUsers: any[] = JSON.parse(localStorage.getItem('am_registered_users') || '[]');
@@ -245,7 +246,7 @@ export function saveUserAvatarToGlobalMap(
     });
 
     if (updatedReg) {
-      localStorage.setItem('am_registered_users', JSON.stringify(newRegUsers));
+      safeSetItem('am_registered_users', JSON.stringify(newRegUsers));
     }
 
     // 3. Update sesi aktif jika cocok
@@ -255,9 +256,9 @@ export function saveUserAvatarToGlobalMap(
       const sessName = String(currentSession.nama || currentSession.name || '').toLowerCase().trim();
       if ((cleanId && (cleanId === sessEmail || cleanId === sessName)) || (cleanName && cleanName === sessName)) {
         currentSession.avatar = avatarUrl;
-        localStorage.setItem('am_user_avatar', avatarUrl);
-        localStorage.setItem('am_user_session', JSON.stringify(currentSession));
-        localStorage.setItem('am_current_user', JSON.stringify(currentSession));
+        safeSetItem('am_user_avatar', avatarUrl);
+        safeSetItem('am_user_session', JSON.stringify(currentSession));
+        safeSetItem('am_current_user', JSON.stringify(currentSession));
       }
     }
 

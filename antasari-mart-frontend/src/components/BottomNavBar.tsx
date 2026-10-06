@@ -1,4 +1,5 @@
 import type { AppTab, CartItem } from '../types';
+import { triggerHaptic } from '../utils/haptics';
 
 interface BottomNavBarProps {
   activeTab: AppTab;
@@ -73,6 +74,7 @@ export default function BottomNavBar({
   ];
 
   const handleTabClick = (key: AppTab | 'profile' | 'notification') => {
+    triggerHaptic('light');
     if (key === 'profile') {
       if (isGuest && onRequireLogin) {
         onRequireLogin();
@@ -95,7 +97,12 @@ export default function BottomNavBar({
   };
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 bg-white/90 dark:bg-gray-900/90 backdrop-blur-lg border-t border-gray-100 dark:border-gray-800 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] px-4 py-2 flex justify-around items-center">
+    <nav
+      className="fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-gray-800 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-3 pt-1.5 flex justify-around items-center"
+      style={{
+        paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))'
+      }}
+    >
       {navItems.map(tab => {
         const isActive = tab.key === activeTab ||
                          ((tab.key === 'chat' || tab.key === 'notification') && activeTab === 'chat');
