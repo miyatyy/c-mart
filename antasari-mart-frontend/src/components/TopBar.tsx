@@ -197,18 +197,11 @@ export default function TopBar({
 
           {/* Logo Campus Mart */}
           <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setActiveTab('home')}>
-            <div
-              className="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shadow-sm"
-              style={{
-                background: 'linear-gradient(135deg, #5FA874 0%, #F4AEC2 100%)',
-                color: 'white',
-                fontWeight: 800,
-                fontSize: 18,
-                boxShadow: '0 2px 8px rgba(95, 168, 116, 0.25)'
-              }}
-            >
-              C
-            </div>
+            <img
+              src="/campus_mart_icon.png"
+              alt="Campus Mart Logo"
+              className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover shadow-sm border border-[var(--am-border)]"
+            />
             <div style={{ whiteSpace: 'nowrap' }}>
               <div className="am-heading" style={{ fontSize: isAesthetic ? 14 : 13.5, fontWeight: 800, color: 'var(--am-text)', lineHeight: 1.15 }}>
                 Campus Mart

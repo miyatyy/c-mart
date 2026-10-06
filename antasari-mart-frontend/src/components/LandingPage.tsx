@@ -169,9 +169,11 @@ export default function LandingPage({
           
           {/* Logo & Institusi */}
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => scrollToSection('hero')}>
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[var(--am-primary)] to-[var(--am-accent)] flex items-center justify-center text-white font-extrabold text-xl shadow-md shadow-[var(--am-primary)]/20 flex-shrink-0">
-              🌸
-            </div>
+            <img
+              src="/campus_mart_icon.png"
+              alt="Campus Mart Logo"
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl object-cover shadow-md shadow-[var(--am-primary)]/20 flex-shrink-0 border border-[var(--am-border)]"
+            />
             <div>
               <div className="text-base sm:text-lg font-extrabold tracking-tight text-[var(--am-text)] leading-tight flex items-center gap-2">
                 <span>Campus Mart</span>
@@ -1174,7 +1176,16 @@ export default function LandingPage({
       {/* 🏁 FINAL CTA FOOTER BANNER */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-[var(--am-surface)] to-[var(--am-bg2)] border-t border-[var(--am-border)] text-center">
         <div className="max-w-3xl mx-auto space-y-6">
-          <div className="text-4xl sm:text-5xl">🌸</div>
+          <div className="flex justify-center">
+            <div className="relative group">
+              <div className="absolute -inset-1.5 rounded-3xl bg-gradient-to-r from-[var(--am-primary)] to-[var(--am-accent)] opacity-40 blur-lg group-hover:opacity-75 transition duration-500"></div>
+              <img 
+                src="/campus_mart_icon.png" 
+                alt="Campus Mart Logo" 
+                className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-3xl shadow-xl border-2 border-[var(--am-border)] object-cover transform hover:scale-105 transition-all duration-300" 
+              />
+            </div>
+          </div>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[var(--am-text)]">
             Siap Menikmati Kemudahan Belanja di Kampus UIN Antasari?
           </h2>
@@ -1202,8 +1213,13 @@ export default function LandingPage({
       <footer className="py-10 px-4 sm:px-6 lg:px-8 border-t border-[var(--am-border)] bg-[var(--am-surface)] text-xs text-[var(--am-text-muted)] space-y-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4 text-center sm:text-left">
           <div className="space-y-1">
-            <div className="flex items-center justify-center sm:justify-start gap-2 font-bold text-sm text-[var(--am-text)]">
-              <span>🌸 Campus Mart</span>
+            <div className="flex items-center justify-center sm:justify-start gap-2.5 font-bold text-sm text-[var(--am-text)]">
+              <img 
+                src="/campus_mart_icon.png" 
+                alt="Campus Mart Logo" 
+                className="w-6 h-6 rounded-lg object-cover border border-[var(--am-border)] shadow-xs" 
+              />
+              <span>Campus Mart</span>
               <span>•</span>
               <span>UIN Antasari Banjarmasin</span>
             </div>

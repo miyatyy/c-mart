@@ -340,12 +340,20 @@ export default function Sidebar({
         {/* Header Sidebar dengan Judul & Tombol Tutup Khusus HP */}
         <div style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--am-border)', height: 65, background: 'var(--am-surface)' }}>
           {effectiveIsOpen ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 20 }}>🌸</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <img 
+                src="/campus_mart_icon.png" 
+                alt="Campus Mart" 
+                style={{ width: 28, height: 28, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--am-border)' }} 
+              />
               <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--am-primary)', whiteSpace: 'nowrap' }}>Campus Mart</div>
             </div>
           ) : (
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--am-primary)', margin: '0 auto' }}>CM</div>
+            <img 
+              src="/campus_mart_icon.png" 
+              alt="Campus Mart" 
+              style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover', margin: '0 auto', border: '1px solid var(--am-border)' }} 
+            />
           )}
 
           {/* Tombol Tutup Silang (✕) di HP */}
