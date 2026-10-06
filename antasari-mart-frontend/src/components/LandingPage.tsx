@@ -33,16 +33,16 @@ export default function LandingPage({
     banjarmasin: {
       name: 'Kampus 1 Banjarmasin',
       address: 'Jl. Jend. A. Yani Km. 4.5, Banjarmasin Timur',
-      spots: ['Kantin Utama', 'Perpustakaan Pusat', 'Fakultas Tarbiyah', 'Fakultas Syariah', 'Auditorium Mastur Jahri'],
-      vendingLocation: 'Lantai 1 Gedung Rektorat & Depan Perpustakaan',
-      tagline: 'Pusat Belanja & Layanan Mahasiswa Kampus Utama'
+      spots: ['Kantin Utama Kampus', 'Perpustakaan Pusat', 'Fakultas Tarbiyah & Keguruan', 'Fakultas Syariah', 'Auditorium Mastur Jahri'],
+      vendingLocation: 'Lantai 1 Gedung Rektorat & Area Perpustakaan',
+      tagline: 'Pusat Layanan Akademik & Aktivitas Mahasiswa Kampus Utama'
     },
     banjarbaru: {
       name: 'Kampus 2 Banjarbaru',
       address: 'Jl. Pandarahan, Guntung Manggis, Landasan Ulin, Banjarbaru',
-      spots: ['Gedung Perkuliahan Terpadu', 'Fakultas Dakwah', 'Fakultas Ushuluddin', 'Ma\'had Al-Jami\'ah', 'Masjid Kampus 2'],
+      spots: ['Gedung Perkuliahan Terpadu', 'Fakultas Dakwah & Ilmu Komunikasi', 'Fakultas Ushuluddin & Humaniora', 'Ma\'had Al-Jami\'ah', 'Masjid Kampus 2'],
       vendingLocation: 'Lobi Gedung Perkuliahan Terpadu & Area Asrama Mahasiswa',
-      tagline: 'Inovasi Smart Campus & Ekosistem Digital Modern'
+      tagline: 'Inovasi Smart Campus & Fasilitas Perkuliahan Modern Terpadu'
     }
   };
 
@@ -52,7 +52,7 @@ export default function LandingPage({
       title: 'Buket Bunga Wisuda Satin Premium',
       category: 'craft',
       price: 45000,
-      seller: 'Myammiy Craft',
+      seller: 'Myammiy Craft (Karya Mahasiswa)',
       rating: 4.9,
       sold: 142,
       badge: 'Terlaris 🌸',
@@ -76,7 +76,7 @@ export default function LandingPage({
       title: 'Mystery Blind Bag Boneka Keychain',
       category: 'vending',
       price: 25000,
-      seller: 'Vending Machine Kampus Mart',
+      seller: 'Smart Vending UIN Antasari',
       rating: 5.0,
       sold: 95,
       badge: 'IoT Vending 🤖',
@@ -128,27 +128,27 @@ export default function LandingPage({
   const faqs = [
     {
       q: 'Apa itu Campus Mart (Antasari Mart)?',
-      a: 'Campus Mart adalah website portal dan platform marketplace resmi yang mengintegrasikan seluruh ekosistem belanja di UIN Antasari. Menghubungkan mahasiswa pembeli, tenant kantin/koperasi, kurir antar-gedung sesama mahasiswa, hingga smart vending machine IoT.'
+      a: 'Campus Mart adalah situs web dan platform resmi marketplace kampus UIN Antasari. Platform ini mengintegrasikan seluruh aktivitas jual-beli mahasiswa, tenant kantin, unit koperasi kampus, kurir antar-gedung sesama mahasiswa, hingga smart IoT vending machine di Kampus 1 Banjarmasin dan Kampus 2 Banjarbaru.'
     },
     {
-      q: 'Apakah bisa diakses langsung via browser tanpa harus download aplikasi?',
-      a: 'Bisa banget! Campus Mart tersedia versi Web App yang bisa Anda buka langsung di browser HP maupun laptop tanpa perlu download. Namun jika ingin pengalaman lebih cepat dan notifikasi real-time, Anda juga bisa mengunduh file APK Android resminya.'
+      q: 'Bagaimana cara mulai berbelanja di Campus Mart?',
+      a: 'Anda dapat langsung menjelajahi katalog melalui website ini, memilih produk makanan, ATK, buket, atau souvenir, lalu melakukan checkout. Anda bisa memilih apakah pesanan ingin diambil sendiri (Pick-Up) di tenant atau diantarkan langsung oleh kurir kampus ke ruang kelas atau gedung fakultas Anda.'
     },
     {
       q: 'Apakah pengantaran kurir bisa langsung sampai ke ruang kelas atau fakultas?',
-      a: 'Ya! Kurir kami adalah mahasiswa aktif yang hafal seluk-beluk gedung di Kampus 1 Banjarmasin dan Kampus 2 Banjarbaru. Anda cukup menyertakan catatan lokasi gedung, lantai, dan ruang kelas saat checkout.'
+      a: 'Ya! Kurir kami adalah mahasiswa aktif yang hafal seluruh denah gedung di Kampus 1 Banjarmasin dan Kampus 2 Banjarbaru. Anda cukup menyertakan catatan nama fakultas, lantai, dan nomor ruang saat checkout.'
     },
     {
-      q: 'Bagaimana cara membuka toko/berjualan di Campus Mart?',
-      a: 'Sangat mudah dan gratis! Mahasiswa cukup mendaftar akun, lalu mengajukan verifikasi data KTM (Kartu Tanda Mahasiswa). Setelah diverifikasi tim admin, Anda langsung dapat mengunggah foto produk, membuat kupon promosi, dan menerima orderan.'
+      q: 'Bagaimana cara mahasiswa atau tenant membuka toko?',
+      a: 'Pendaftaran toko di Campus Mart 100% gratis tanpa potongan komisi! Mahasiswa cukup mendaftar akun, lalu memverifikasi identitas menggunakan KTM (Kartu Tanda Mahasiswa). Setelah diverifikasi, Anda langsung dapat mengunggah produk, mengelola stok, dan membuat kupon diskon.'
     },
     {
       q: 'Metode pembayaran apa saja yang didukung?',
-      a: 'Campus Mart mendukung QRIS (bisa scan dari BCA, BRI, Mandiri, BSI, Gopay, OVO, ShopeePay, Dana), SeaBank, Campus Wallet, serta metode Bayar di Tempat (COD) saat barang diterima.'
+      a: 'Situs resmi Campus Mart mendukung QRIS (bisa scan dari BCA, BRI, Mandiri, BSI, Gopay, OVO, ShopeePay, Dana), SeaBank, Campus Wallet, serta metode Bayar di Tempat (COD) saat barang diterima.'
     },
     {
-      q: 'Apa itu fitur Smart Vending Machine?',
-      a: 'Merupakan mesin otomatis berteknologi IoT yang ditempatkan di spot strategis kampus. Anda bisa membeli snack, minuman dingin, dan Mystery Blind Bag secara mandiri dengan scan QRIS atau mencoba simulasinya di web ini.'
+      q: 'Apa itu Smart IoT Vending Machine?',
+      a: 'Smart Vending Machine adalah mesin penjualan otomatis berbasis IoT yang diletakkan di titik strategis kampus. Memungkinkan mahasiswa membeli snack, minuman dingin, dan souvenir blind-bag secara mandiri tanpa antre dengan pembayaran QRIS instan.'
     }
   ];
 
@@ -163,11 +163,11 @@ export default function LandingPage({
   return (
     <div className="w-full min-h-screen text-left transition-colors duration-300 font-sans bg-[var(--am-bg)] text-[var(--am-text)]">
       
-      {/* 🌐 WEBSITE TOP NAVBAR (DEDIKASI UNTUK LANDING PAGE RESMI) */}
-      <header className="sticky top-0 z-50 w-full backdrop-blur-xl bg-[var(--am-surface)]/90 border-b border-[var(--am-border)] shadow-xs transition-colors">
+      {/* 🏛️ NAVBAR RESMI SITUS WEB CAMPUS MART */}
+      <header className="sticky top-0 z-50 w-full backdrop-blur-xl bg-[var(--am-surface)]/95 border-b border-[var(--am-border)] shadow-xs transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-4">
           
-          {/* Logo & Brand Identity */}
+          {/* Logo & Institusi */}
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => scrollToSection('hero')}>
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[var(--am-primary)] to-[var(--am-accent)] flex items-center justify-center text-white font-extrabold text-xl shadow-md shadow-[var(--am-primary)]/20 flex-shrink-0">
               🌸
@@ -176,17 +176,20 @@ export default function LandingPage({
               <div className="text-base sm:text-lg font-extrabold tracking-tight text-[var(--am-text)] leading-tight flex items-center gap-2">
                 <span>Campus Mart</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--am-primary)]/15 text-[var(--am-primary)] hidden sm:inline-block">
-                  UIN Antasari
+                  Situs Resmi UIN Antasari
                 </span>
               </div>
               <div className="text-[11px] text-[var(--am-text-muted)] font-medium leading-none mt-0.5">
-                Official Campus Marketplace
+                Portal E-Commerce & Layanan Sivitas Akademika
               </div>
             </div>
           </div>
 
-          {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-7 text-xs sm:text-sm font-semibold text-[var(--am-text-muted)]">
+          {/* Navigasi Menu Situs Resmi */}
+          <nav className="hidden lg:flex items-center gap-6 text-xs sm:text-sm font-semibold text-[var(--am-text-muted)]">
+            <button onClick={() => scrollToSection('tentang')} className="hover:text-[var(--am-primary)] transition-colors cursor-pointer">
+              Tentang Kami
+            </button>
             <button onClick={() => scrollToSection('fitur')} className="hover:text-[var(--am-primary)] transition-colors cursor-pointer">
               Fitur Ekosistem
             </button>
@@ -194,22 +197,19 @@ export default function LandingPage({
               Pilihan Peran
             </button>
             <button onClick={() => scrollToSection('vending')} className="hover:text-[var(--am-primary)] transition-colors cursor-pointer">
-              Vending IoT
+              Smart Vending
             </button>
             <button onClick={() => scrollToSection('katalog')} className="hover:text-[var(--am-primary)] transition-colors cursor-pointer">
-              Katalog
-            </button>
-            <button onClick={() => scrollToSection('unduh-apk')} className="hover:text-[var(--am-primary)] transition-colors cursor-pointer text-[var(--am-primary)] font-bold">
-              📱 Unduh APK
+              Katalog Produk
             </button>
             <button onClick={() => scrollToSection('faq')} className="hover:text-[var(--am-primary)] transition-colors cursor-pointer">
               FAQ
             </button>
           </nav>
 
-          {/* Header Action Buttons */}
+          {/* Tombol Aksi di Navbar */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Dark / Light Mode Switcher */}
+            {/* Mode Gelap / Terang */}
             {onToggleTheme && (
               <button
                 onClick={onToggleTheme}
@@ -220,23 +220,26 @@ export default function LandingPage({
               </button>
             )}
 
-            {/* Direct Download APK button */}
-            <a
-              href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
-              download="antasari_mart_release.apk"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-[var(--am-text)] bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)] hover:bg-[var(--am-bg2)] transition-all cursor-pointer shadow-2xs"
-            >
-              <span>📱</span>
-              <span>Unduh APK</span>
-            </a>
+            {/* Masuk Akun */}
+            {isGuest ? (
+              <button
+                onClick={() => {
+                  if (onRequireLogin) onRequireLogin();
+                  else onNavigateTab('login_page');
+                }}
+                className="hidden sm:inline-flex px-3.5 py-2 rounded-xl text-xs font-bold text-[var(--am-text)] bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)] hover:bg-[var(--am-bg2)] transition-all cursor-pointer"
+              >
+                Masuk Akun
+              </button>
+            ) : null}
 
-            {/* Main CTA: Masuk ke Web App Belanja */}
+            {/* Tombol Utama: Mulai Belanja Sekarang */}
             <button
               onClick={() => onNavigateTab('home')}
               className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-[var(--am-primary)] to-[var(--am-primary-dark)] hover:opacity-95 shadow-md shadow-[var(--am-primary)]/20 transition-all cursor-pointer flex items-center gap-1.5 transform hover:scale-102"
             >
               <span>🛍️</span>
-              <span>Buka Web App</span>
+              <span>Mulai Belanja</span>
             </button>
 
             {/* Mobile Hamburger Toggle */}
@@ -254,6 +257,9 @@ export default function LandingPage({
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-[var(--am-border)] bg-[var(--am-surface)] px-4 py-4 space-y-3 shadow-lg">
             <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+              <button onClick={() => scrollToSection('tentang')} className="p-2.5 rounded-xl bg-[var(--am-bg2)] text-left">
+                🏛️ Tentang Kami
+              </button>
               <button onClick={() => scrollToSection('fitur')} className="p-2.5 rounded-xl bg-[var(--am-bg2)] text-left">
                 ✨ Fitur Ekosistem
               </button>
@@ -261,35 +267,28 @@ export default function LandingPage({
                 👥 Pilihan Peran
               </button>
               <button onClick={() => scrollToSection('vending')} className="p-2.5 rounded-xl bg-[var(--am-bg2)] text-left">
-                🤖 Vending Machine
+                🤖 Smart Vending
               </button>
               <button onClick={() => scrollToSection('katalog')} className="p-2.5 rounded-xl bg-[var(--am-bg2)] text-left">
                 🛍️ Katalog Produk
               </button>
-              <button onClick={() => scrollToSection('unduh-apk')} className="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-left col-span-2">
-                📱 Unduh APK Android (.apk)
+              <button onClick={() => scrollToSection('faq')} className="p-2.5 rounded-xl bg-[var(--am-bg2)] text-left">
+                ❓ FAQ
               </button>
             </div>
             <div className="pt-2 border-t border-[var(--am-border)] flex gap-2">
               <button
                 onClick={() => { setMobileMenuOpen(false); onNavigateTab('home'); }}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-[var(--am-primary)] text-center cursor-pointer"
+                className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-[var(--am-primary)] text-center cursor-pointer shadow-sm"
               >
-                Masuk Web App Belanja 🛍️
+                Mulai Belanja Sekarang 🛍️
               </button>
-              <a
-                href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
-                download="antasari_mart_release.apk"
-                className="px-3 py-2.5 rounded-xl text-xs font-bold text-[var(--am-text)] bg-[var(--am-bg2)] border border-[var(--am-border)] text-center cursor-pointer"
-              >
-                Unduh APK 📥
-              </a>
             </div>
           </div>
         )}
       </header>
 
-      {/* 🌸 HERO SECTION */}
+      {/* 🌸 HERO SECTION: PORTAL UTAMA SITUS RESMI */}
       <section id="hero" className="relative overflow-hidden pt-10 pb-16 md:pt-16 md:pb-24 px-4 sm:px-6 lg:px-8 border-b border-[var(--am-border)] bg-gradient-to-b from-[var(--am-bg2)] via-[var(--am-bg)] to-[var(--am-surface)]">
         {/* Ambient Glowing Orbs */}
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-[var(--am-primary)] opacity-10 blur-3xl pointer-events-none rounded-full" />
@@ -300,31 +299,31 @@ export default function LandingPage({
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[var(--am-primary)]/30 bg-[var(--am-surface)]/80 backdrop-blur-md shadow-sm mb-6">
             <span className="flex h-2 w-2 rounded-full bg-[var(--am-primary)] animate-pulse" />
             <span className="text-xs font-bold tracking-wide uppercase text-[var(--am-primary)]">
-              Website Resmi • Marketplace Kampus UIN Antasari
+              Portal Resmi Kampus Cerdas • UIN Antasari
             </span>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--am-primary)]/15 text-[var(--am-primary)]">
-              Banjarmasin & Banjarbaru
+              2 Kampus Terhubung
             </span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-            {/* Left Column: Headline & Call To Actions */}
+            {/* Sisi Kiri: Headline, Subtitle, Selector Kampus & Tombol Aksi */}
             <div className="lg:col-span-7 space-y-6">
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-5xl font-extrabold tracking-tight text-[var(--am-text)] leading-[1.18]">
-                Platform Belanja & Ekosistem Digital Sivitas Kampus{' '}
+                Situs Resmi Marketplace & Layanan Sivitas{' '}
                 <span className="bg-gradient-to-r from-[var(--am-primary)] via-[#4D9562] to-[var(--am-accent-dark)] bg-clip-text text-transparent">
                   UIN Antasari
                 </span>
               </h1>
 
               <p className="text-base sm:text-lg text-[var(--am-text-muted)] leading-relaxed max-w-2xl font-normal">
-                Satu platform untuk seluruh kebutuhan mahasiswa, dosen, dan staf. Beli snack kantin, buket wisuda, ATK, hingga smart vending machine. Akses mudah langsung dari <strong>Web Browser</strong> atau pasang <strong>Aplikasi Android (.APK)</strong>.
+                Pusat transaksi digital terintegrasi untuk mahasiswa, dosen, dan staf. Dari sarapan pagi kantin, perlengkapan kuliah & ATK, buket wisuda handmade, pesan-antar kurir ke depan ruang kelas, hingga smart IoT vending machine.
               </p>
 
-              {/* Campus Selector Pill Bar */}
+              {/* Selector Kampus Interaktif */}
               <div className="p-2 sm:p-2.5 rounded-2xl bg-[var(--am-surface)] border border-[var(--am-border)] shadow-sm inline-flex flex-wrap items-center gap-2 max-w-full">
                 <span className="text-xs font-semibold text-[var(--am-text-muted)] px-2.5 flex items-center gap-1">
-                  <span>📍</span> Lokasi Kampus:
+                  <span>📍</span> Pilih Kampus Aktif:
                 </span>
                 <button
                   onClick={() => setCampus('banjarmasin')}
@@ -334,7 +333,7 @@ export default function LandingPage({
                       : 'text-[var(--am-text)] hover:bg-[var(--am-bg2)]'
                   }`}
                 >
-                  <span>🏛️</span> Banjarmasin (Km 4.5)
+                  <span>🏛️</span> Kampus 1 Banjarmasin (Km 4.5)
                 </button>
                 <button
                   onClick={() => setCampus('banjarbaru')}
@@ -344,56 +343,55 @@ export default function LandingPage({
                       : 'text-[var(--am-text)] hover:bg-[var(--am-bg2)]'
                   }`}
                 >
-                  <span>🌿</span> Banjarbaru (Guntung Manggis)
+                  <span>🌿</span> Kampus 2 Banjarbaru (Guntung Manggis)
                 </button>
               </div>
 
-              {/* Dual Action CTA Buttons: Web App vs APK */}
+              {/* Tombol Aksi Utama */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   onClick={() => onNavigateTab('home')}
                   className="px-6 py-3.5 rounded-xl font-bold text-sm sm:text-base text-white bg-gradient-to-r from-[var(--am-primary)] to-[var(--am-primary-dark)] hover:opacity-95 shadow-lg shadow-[var(--am-primary)]/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 cursor-pointer"
                 >
                   <span>🛍️</span>
-                  <span>Buka Web App Belanja</span>
+                  <span>Mulai Belanja di Web</span>
                 </button>
 
-                <a
-                  href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
-                  download="antasari_mart_release.apk"
+                <button
+                  onClick={() => onNavigateTab('seller')}
                   className="px-5 py-3.5 rounded-xl font-bold text-sm sm:text-base text-[var(--am-text)] bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)] hover:bg-[var(--am-bg2)] transition-all flex items-center gap-2 cursor-pointer shadow-sm"
                 >
-                  <span>📥</span>
-                  <span>Unduh APK Android (.apk)</span>
-                </a>
+                  <span>🏬</span>
+                  <span>Buka Lapak Mahasiswa (0% Fee)</span>
+                </button>
 
                 <button
                   onClick={() => scrollToSection('vending')}
                   className="px-4 py-3.5 rounded-xl font-semibold text-sm text-[var(--am-primary)] hover:underline flex items-center gap-1 cursor-pointer"
                 >
-                  <span>Vending IoT</span>
+                  <span>Smart Vending</span>
                   <span>↓</span>
                 </button>
               </div>
 
-              {/* Trust Badges */}
+              {/* Jaminan & Standar Mutu */}
               <div className="pt-2 flex flex-wrap items-center gap-4 text-xs font-medium text-[var(--am-text-muted)]">
                 <div className="flex items-center gap-1.5">
                   <span className="text-emerald-500 font-bold">✓</span>
-                  <span>Akses Web Instan Tanpa Install</span>
+                  <span>Verifikasi Identitas Mahasiswa (KTM)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-emerald-500 font-bold">✓</span>
-                  <span>File APK Android Resmi (~19MB)</span>
+                  <span>Pengantaran Langsung Antar Gedung</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-emerald-500 font-bold">✓</span>
-                  <span>QRIS & E-Wallet Real-Time</span>
+                  <span>Pembayaran QRIS & E-Wallet Resmi</span>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Platform Preview Cards */}
+            {/* Sisi Kanan: Kartu Showcase Layanan Kampus */}
             <div className="lg:col-span-5 relative">
               <div className="relative mx-auto max-w-md rounded-3xl p-5 bg-[var(--am-surface)] border border-[var(--am-border)] shadow-2xl backdrop-blur-xl">
                 {/* Visual Header Banner */}
@@ -403,76 +401,66 @@ export default function LandingPage({
                     alt="Pengantaran Kurir Kampus Mart"
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex flex-col justify-end p-4 text-white">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent flex flex-col justify-end p-4 text-white">
                     <span className="text-[11px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-md bg-[var(--am-primary)] text-white w-fit mb-1">
-                      Campus Delivery
+                      Campus Delivery Hub
                     </span>
                     <h2 className="text-base font-bold leading-snug">
-                      Pesan Antar Antar Gedung & Ruang Kelas
+                      Layanan Pengantaran Cepat Antar Gedung Kampus
                     </h2>
                     <p className="text-xs text-gray-200">
-                      Diantar kurir mahasiswa langsung ke depan kelas atau lab
+                      Pesanan diantar langsung sesama mahasiswa ke meja kelas atau laboratorium
                     </p>
                   </div>
                 </div>
 
-                {/* Platform Access Selector Card */}
-                <div className="space-y-2.5">
-                  <div className="p-3.5 rounded-xl bg-[var(--am-bg2)] border border-[var(--am-border)] flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-[var(--am-primary)] text-white flex items-center justify-center font-bold text-lg shadow-sm">
-                        🌐
+                {/* Status Pengantaran Real-time */}
+                <div className="p-3.5 rounded-xl bg-[var(--am-bg2)] border border-[var(--am-border)] flex items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[var(--am-primary)] text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                      🛵
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-[var(--am-text)]">
+                        Layanan Kurir Kampus Aktif
                       </div>
-                      <div>
-                        <div className="text-xs font-bold text-[var(--am-text)]">
-                          Web App Browser
-                        </div>
-                        <div className="text-[11px] text-[var(--am-text-muted)]">
-                          Buka langsung di Chrome, Safari, atau Edge
-                        </div>
+                      <div className="text-[11px] text-[var(--am-text-muted)]">
+                        Pengantaran: Fakultas Tarbiyah, Syariah & Gedung Terpadu
                       </div>
                     </div>
-                    <button
-                      onClick={() => onNavigateTab('home')}
-                      className="text-xs font-bold px-3 py-1.5 rounded-lg bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-[var(--am-primary)] text-[var(--am-primary)] cursor-pointer"
-                    >
-                      Buka 🚀
-                    </button>
                   </div>
-
-                  <div className="p-3.5 rounded-xl bg-[var(--am-bg2)] border border-[var(--am-border)] flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-                        📱
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-[var(--am-text)]">
-                          Aplikasi Android APK
-                        </div>
-                        <div className="text-[11px] text-[var(--am-text-muted)]">
-                          File APK Release • 19.1 MB • Siap Pasang
-                        </div>
-                      </div>
-                    </div>
-                    <a
-                      href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
-                      download="antasari_mart_release.apk"
-                      className="text-xs font-bold px-3 py-1.5 rounded-lg bg-[var(--am-surface)] border border-[var(--am-border)] hover:border-purple-500 text-purple-600 dark:text-purple-400 cursor-pointer"
-                    >
-                      Unduh 📥
-                    </a>
-                  </div>
+                  <span className="text-[11px] font-extrabold text-[var(--am-primary)] bg-[var(--am-surface)] px-2 py-1 rounded-md border border-[var(--am-border)]">
+                    ⚡ 15 Menit
+                  </span>
                 </div>
 
-                {/* Campus Spot Highlight */}
-                <div className="mt-3 p-3 rounded-xl bg-[var(--am-surface)] border border-[var(--am-border)] text-xs space-y-1">
+                {/* Informasi Lokasi Kampus yang Dipilih */}
+                <div className="p-3 rounded-xl bg-[var(--am-surface)] border border-[var(--am-border)] text-xs space-y-1.5">
                   <div className="flex justify-between items-center text-[var(--am-text)] font-semibold">
                     <span>📍 {campusData[campus].name}</span>
-                    <span className="text-[10px] text-[var(--am-primary)] font-bold">Layanan Aktif</span>
+                    <span className="text-[10px] text-[var(--am-primary)] font-bold">Layanan Dibuka</span>
                   </div>
                   <p className="text-[11px] text-[var(--am-text-muted)] line-clamp-1">
                     {campusData[campus].address}
                   </p>
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {campusData[campus].spots.slice(0, 3).map((sp, idx) => (
+                      <span key={idx} className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--am-bg2)] text-[var(--am-text-muted)]">
+                        • {sp}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pintasan Aksi ke Katalog */}
+                <div className="mt-4 pt-3 border-t border-[var(--am-border)] flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[var(--am-text)]">Mau belanja sekarang?</span>
+                  <button
+                    onClick={() => onNavigateTab('home')}
+                    className="text-xs font-bold text-[var(--am-primary)] hover:underline cursor-pointer"
+                  >
+                    Buka Katalog Belanja →
+                  </button>
                 </div>
               </div>
             </div>
@@ -480,129 +468,7 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* 📱 SECTION KHUSUS: DOWNLOAD APLIKASI ANDROID (.APK) VS WEB APP */}
-      <section id="unduh-apk" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-surface)] border-b border-[var(--am-border)]">
-        <div className="max-w-6xl mx-auto space-y-12">
-          <div className="text-center max-w-3xl mx-auto space-y-3">
-            <span className="text-xs font-bold tracking-wider uppercase text-[var(--am-primary)] bg-[var(--am-primary)]/10 px-3 py-1 rounded-full">
-              Pilihan Akses Platform
-            </span>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[var(--am-text)]">
-              Gunakan Lewat Website atau Pasang Aplikasi Android
-            </h2>
-            <p className="text-sm sm:text-base text-[var(--am-text-muted)]">
-              Fleksibel sesuai preferensi Anda. Nikmati versi Web App instan atau unduh paket aplikasi mandiri (APK).
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            
-            {/* Card 1: Android APK Package */}
-            <div className="rounded-3xl p-6 sm:p-8 bg-gradient-to-b from-[var(--am-bg2)] to-[var(--am-surface)] border-2 border-[var(--am-primary)]/40 shadow-xl flex flex-col justify-between space-y-6 relative overflow-hidden">
-              <div className="absolute top-4 right-4 text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
-                Official Release v1.0
-              </div>
-
-              <div className="space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-3xl shadow-md">
-                  🤖
-                </div>
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-extrabold text-[var(--am-text)]">
-                    Aplikasi Android (.APK)
-                  </h3>
-                  <p className="text-xs sm:text-sm text-[var(--am-text-muted)] mt-1">
-                    Paket instalasi mandiri untuk smartphone Android
-                  </p>
-                </div>
-
-                <ul className="text-xs sm:text-sm space-y-2.5 text-[var(--am-text)]">
-                  <li className="flex items-center gap-2">
-                    <span className="text-emerald-500 font-bold">✓</span>
-                    <span>Ukuran file ringan (~19.1 MB)</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-emerald-500 font-bold">✓</span>
-                    <span>Notifikasi status pesanan & chat instan</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-emerald-500 font-bold">✓</span>
-                    <span>Scanner barcode kamera real-time</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-emerald-500 font-bold">✓</span>
-                    <span>Performa lancar & hemat kuota data</span>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="space-y-2 pt-2">
-                <a
-                  href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
-                  download="antasari_mart_release.apk"
-                  className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:opacity-95 shadow-lg shadow-emerald-600/25 transition-all text-center flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>📥 Unduh APK Android (19.1 MB)</span>
-                </a>
-                <p className="text-[11px] text-center text-[var(--am-text-muted)]">
-                  Kompatibel dengan Android 8.0 Oreo ke atas
-                </p>
-              </div>
-            </div>
-
-            {/* Card 2: Web App Platform */}
-            <div className="rounded-3xl p-6 sm:p-8 bg-[var(--am-surface)] border border-[var(--am-border)] shadow-md flex flex-col justify-between space-y-6">
-              <div className="space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-blue-500 text-white flex items-center justify-center text-3xl shadow-md">
-                  🌐
-                </div>
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-extrabold text-[var(--am-text)]">
-                    Web App Browser
-                  </h3>
-                  <p className="text-xs sm:text-sm text-[var(--am-text-muted)] mt-1">
-                    Buka langsung di browser tanpa perlu instalasi
-                  </p>
-                </div>
-
-                <ul className="text-xs sm:text-sm space-y-2.5 text-[var(--am-text)]">
-                  <li className="flex items-center gap-2">
-                    <span className="text-blue-500 font-bold">✓</span>
-                    <span>0 MB penyimpanan HP terpakai</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-blue-500 font-bold">✓</span>
-                    <span>Bisa dibuka di iPhone, Laptop, PC Lab, & Android</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-blue-500 font-bold">✓</span>
-                    <span>Mendukung instalasi PWA (Progressive Web App)</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-blue-500 font-bold">✓</span>
-                    <span>Selalu versi terbaru otomatis</span>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="space-y-2 pt-2">
-                <button
-                  onClick={() => onNavigateTab('home')}
-                  className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-[var(--am-text)] bg-[var(--am-bg2)] border border-[var(--am-border)] hover:border-[var(--am-primary)] hover:bg-[var(--am-surface)] transition-all text-center flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>🛍️ Buka Web App Belanja Sekarang</span>
-                </button>
-                <p className="text-[11px] text-center text-[var(--am-text-muted)]">
-                  Dapat diakses dari browser apa pun
-                </p>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      {/* 📊 KEY STATS COUNTER BAR */}
+      {/* 📊 BAR STATISTIK PENCAPAIAN PLATFORM */}
       <section className="py-8 bg-[var(--am-surface)] border-b border-[var(--am-border)] px-4 sm:px-6">
         <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 text-center">
           <div className="p-4 rounded-2xl bg-[var(--am-bg2)]/50 border border-[var(--am-border)]/60">
@@ -613,7 +479,7 @@ export default function LandingPage({
               Banjarmasin & Banjarbaru
             </div>
             <div className="text-[11px] text-[var(--am-text-muted)] mt-0.5">
-              Terhubung satu sistem
+              Satu portal terintegrasi
             </div>
           </div>
 
@@ -655,6 +521,61 @@ export default function LandingPage({
         </div>
       </section>
 
+      {/* 🏛️ SECTION: TENTANG KAMI (PROFIL SITUS RESMI CAMPUS MART) */}
+      <section id="tentang" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-surface)] border-b border-[var(--am-border)]">
+        <div className="max-w-6xl mx-auto space-y-12">
+          <div className="text-center max-w-3xl mx-auto space-y-3">
+            <span className="text-xs font-bold tracking-wider uppercase text-[var(--am-primary)] bg-[var(--am-primary)]/10 px-3 py-1 rounded-full">
+              Profil Inisiatif Kampus
+            </span>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[var(--am-text)]">
+              Membangun Ekosistem Digital Smart Campus UIN Antasari
+            </h2>
+            <p className="text-sm sm:text-base text-[var(--am-text-muted)] leading-relaxed">
+              Campus Mart lahir sebagai inisiatif modernisasi layanan belanja, pemberdayaan wirausaha mahasiswa, dan digitalisasi unit koperasi di lingkungan Universitas Islam Negeri Antasari.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 rounded-2xl bg-[var(--am-bg2)]/60 border border-[var(--am-border)] space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xl">
+                🎓
+              </div>
+              <h3 className="text-base font-bold text-[var(--am-text)]">
+                Dukungan Penuh Wirausaha Mahasiswa
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--am-text-muted)] leading-relaxed">
+                Kami menyediakan wadah promosi dan penjualan bebas biaya (0% komisi) bagi mahasiswa yang memiliki usaha produk kreatif, kuliner, buket wisuda, hingga jasa akademik.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-[var(--am-bg2)]/60 border border-[var(--am-border)] space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xl">
+                🏛️
+              </div>
+              <h3 className="text-base font-bold text-[var(--am-text)]">
+                Konektivitas 2 Kampus Terintegrasi
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--am-text-muted)] leading-relaxed">
+                Menghubungkan sivitas di Kampus 1 Banjarmasin dan Kampus 2 Banjarbaru dalam satu database terpusat, memudahkan pemesanan barang lintas unit dan gedung fakultas.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-[var(--am-bg2)]/60 border border-[var(--am-border)] space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-xl">
+                🤖
+              </div>
+              <h3 className="text-base font-bold text-[var(--am-text)]">
+                Modernisasi IoT & Pembayaran Cashless
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--am-text-muted)] leading-relaxed">
+                Menerapkan standar transaksi QRIS nasional dan mengintegrasikan smart vending machine otomatis yang dapat diakses mandiri 24 jam di titik kumpul strategis mahasiswa.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 🌟 6 PILAR EKOSISTEM UTAMA */}
       <section id="fitur" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-[var(--am-bg)]">
         <div className="max-w-6xl mx-auto space-y-12">
@@ -685,7 +606,7 @@ export default function LandingPage({
                 onClick={() => onNavigateTab('home')}
                 className="text-xs font-bold text-[var(--am-primary)] flex items-center gap-1 group-hover:gap-2 transition-all cursor-pointer"
               >
-                Buka Katalog Web App →
+                Jelajahi Katalog Belanja →
               </button>
             </div>
 
@@ -787,7 +708,7 @@ export default function LandingPage({
         <div className="max-w-6xl mx-auto space-y-10">
           <div className="text-center max-w-3xl mx-auto space-y-3">
             <span className="text-xs font-bold tracking-wider uppercase text-[var(--am-primary)] bg-[var(--am-primary)]/10 px-3 py-1 rounded-full">
-              Satu Aplikasi Untuk Semua
+              Satu Platform Untuk Semua
             </span>
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[var(--am-text)]">
               Pilih Peranmu & Rasakan Manfaatnya
@@ -863,15 +784,8 @@ export default function LandingPage({
                       onClick={() => onNavigateTab('home')}
                       className="px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-white bg-[var(--am-primary)] hover:opacity-90 shadow-md cursor-pointer"
                     >
-                      Buka Web App Belanja 🛍️
+                      Mulai Belanja di Web 🛍️
                     </button>
-                    <a
-                      href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
-                      download="antasari_mart_release.apk"
-                      className="px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-[var(--am-text)] bg-[var(--am-surface)] border border-[var(--am-border)] hover:bg-[var(--am-bg2)] cursor-pointer"
-                    >
-                      Unduh APK 📱
-                    </a>
                   </div>
                 </div>
                 <div className="rounded-2xl overflow-hidden border border-[var(--am-border)] shadow-md">
@@ -1157,7 +1071,7 @@ export default function LandingPage({
               onClick={() => onNavigateTab('home')}
               className="px-6 py-3 rounded-xl font-bold text-xs sm:text-sm text-[var(--am-primary)] bg-[var(--am-bg2)] hover:bg-[var(--am-border)] transition-all cursor-pointer inline-flex items-center gap-2"
             >
-              <span>Jelajahi Ratusan Produk Lainnya di Web App</span>
+              <span>Jelajahi Ratusan Produk Lainnya di Katalog Belanja</span>
               <span>→</span>
             </button>
           </div>
@@ -1265,39 +1179,58 @@ export default function LandingPage({
             Siap Menikmati Kemudahan Belanja di Kampus UIN Antasari?
           </h2>
           <p className="text-xs sm:text-sm md:text-base text-[var(--am-text-muted)] max-w-xl mx-auto leading-relaxed">
-            Gunakan versi Web App instan langsung dari browser atau pasang aplikasi Android APK resmi untuk ponsel Anda.
+            Mulai jelajahi katalog produk, pesan sarapan pagi, atau dukung usaha sesama mahasiswa melalui situs resmi Campus Mart.
           </p>
           <div className="flex flex-wrap justify-center gap-3 pt-2">
             <button
               onClick={() => onNavigateTab('home')}
               className="px-6 py-3.5 rounded-xl font-bold text-sm text-white bg-[var(--am-primary)] hover:opacity-90 shadow-lg shadow-[var(--am-primary)]/20 transition-all cursor-pointer"
             >
-              Mulai Belanja di Web App 🛍️
+              Mulai Belanja Sekarang 🛍️
             </button>
-            <a
-              href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk"
-              download="antasari_mart_release.apk"
+            <button
+              onClick={() => onNavigateTab('seller')}
               className="px-6 py-3.5 rounded-xl font-bold text-sm text-[var(--am-text)] bg-[var(--am-surface)] border border-[var(--am-border)] hover:bg-[var(--am-bg2)] transition-all cursor-pointer"
             >
-              Unduh APK Android (.apk) 📱
-            </a>
+              Buka Lapak Mahasiswa 🏬
+            </button>
           </div>
         </div>
       </section>
 
-      {/* 📄 FOOTER COPYRIGHT */}
-      <footer className="py-8 px-4 sm:px-6 border-t border-[var(--am-border)] bg-[var(--am-surface)] text-center text-xs text-[var(--am-text-muted)] space-y-2">
-        <div className="flex items-center justify-center gap-2 font-bold text-[var(--am-text)]">
-          <span>🌸 Campus Mart (Antasari Mart)</span>
-          <span>•</span>
-          <span>UIN Antasari Banjarmasin</span>
+      {/* 📄 FOOTER RESMI INSTITUSI */}
+      <footer className="py-10 px-4 sm:px-6 lg:px-8 border-t border-[var(--am-border)] bg-[var(--am-surface)] text-xs text-[var(--am-text-muted)] space-y-4">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4 text-center sm:text-left">
+          <div className="space-y-1">
+            <div className="flex items-center justify-center sm:justify-start gap-2 font-bold text-sm text-[var(--am-text)]">
+              <span>🌸 Campus Mart</span>
+              <span>•</span>
+              <span>UIN Antasari Banjarmasin</span>
+            </div>
+            <p className="text-[11px]">
+              Situs Resmi Marketplace, Unit Koperasi & Layanan Pengantaran Sivitas Akademika
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] font-semibold">
+            <button onClick={() => scrollToSection('tentang')} className="hover:text-[var(--am-primary)] cursor-pointer">Tentang</button>
+            <button onClick={() => scrollToSection('fitur')} className="hover:text-[var(--am-primary)] cursor-pointer">Fitur</button>
+            <button onClick={() => scrollToSection('katalog')} className="hover:text-[var(--am-primary)] cursor-pointer">Katalog</button>
+            <button onClick={() => scrollToSection('faq')} className="hover:text-[var(--am-primary)] cursor-pointer">FAQ</button>
+            <a 
+              href="https://github.com/miyatyy/ma-project-fix/raw/main/antasari_mart_release.apk" 
+              className="hover:text-[var(--am-primary)] text-[var(--am-text-muted)]/80"
+              title="Tersedia juga versi Android APK"
+            >
+              Versi Android (.apk)
+            </a>
+          </div>
         </div>
-        <p className="text-[11px]">
-          Kampus 1: Jl. A. Yani Km 4.5 Banjarmasin | Kampus 2: Guntung Manggis Banjarbaru
-        </p>
-        <p className="text-[10px] text-[var(--am-text-muted)]/70">
-          © {new Date().getFullYear()} Campus Mart Ecosystem. Hak Cipta Dilindungi Undang-Undang.
-        </p>
+
+        <div className="max-w-6xl mx-auto pt-4 border-t border-[var(--am-border)]/60 text-center text-[10px] text-[var(--am-text-muted)]/70 flex flex-col sm:flex-row justify-between gap-2">
+          <p>Kampus 1: Jl. A. Yani Km 4.5 Banjarmasin | Kampus 2: Guntung Manggis Banjarbaru</p>
+          <p>© {new Date().getFullYear()} Campus Mart UIN Antasari. Hak Cipta Dilindungi Undang-Undang.</p>
+        </div>
       </footer>
     </div>
   );
